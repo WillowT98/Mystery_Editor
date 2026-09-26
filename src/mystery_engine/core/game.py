@@ -66,7 +66,11 @@ class MysteryGame:
         self.messages: list[str] = []
         self.input: InputManager | None = None
         self.renderer: Renderer | None = None
-        self.audio = MusicController(getattr(definition, "asset_root", None), definition.game_id)
+        self.audio = MusicController(
+            getattr(definition, "asset_root", None),
+            definition.game_id,
+            cue_catalog_path=getattr(definition, "sfx_catalog_path", None),
+        )
         self.exploration: ExplorationMap | None = None
         self.dungeon: DungeonSession | None = None
         self.running = False
@@ -119,8 +123,21 @@ class MysteryGame:
 
     # ---------- public hooks for game content ----------
 
+    def _cue(self, event: str) -> str | None:
+        return dict(getattr(self.definition, "sfx_event_cues", {})).get(event)
+
+    def _play_event_sfx(self, event: str, *, gain: float = 1.0) -> None:
+        self.audio.play_sfx(self._cue(event), gain=gain)
+
+    def _play_dialogue_reaction(self) -> None:
+        line = self.dialogue.current
+        if line is None or not line.expression or line.expression == "neutral":
+            return
+        self.audio.play_sfx(f"reactions.{line.expression}")
+
     def say(self, lines: list[DialogueLine], on_complete=None) -> None:
         self.dialogue.start(DialogueSequence(lines, on_complete=on_complete))
+        self._play_dialogue_reaction()
 
     def add_message(self, text: str) -> None:
         self.messages.append(text)
@@ -224,6 +241,7 @@ class MysteryGame:
     def save_snapshot(self, path: Path | None = None) -> Path:
         path = path or Path("saves") / "test-save.json"
         self.save_manager.dump(self.state, path)
+        self._play_event_sfx("save")
         self.add_message(f"Saved snapshot to {path}.")
         return path
 
@@ -240,9 +258,10 @@ class MysteryGame:
             if direction:
                 player.facing = direction
         if frame.interact:
-            interaction = self.exploration.nearest_interaction(player, self.config.interaction_range)
+            interaction = self.exploration.nearest_interaction_detail(player, self.config.interaction_range)
             if interaction:
-                _, callback, _ = interaction
+                _, callback, _, sound_cue = interaction
+                self.audio.play_sfx(sound_cue)
                 callback()
             else:
                 self.add_message("Nothing nearby to interact with.")
@@ -263,6 +282,8 @@ class MysteryGame:
             return
         before_visible_enemies = self._visible_enemy_ids()
         outcome = self.dungeon.turns.execute_player_action(action)
+        for cue in outcome.sound_cues:
+            self.audio.play_sfx(cue)
         for message in outcome.messages:
             self.add_message(message)
 
@@ -304,7 +325,10 @@ class MysteryGame:
 
         # Game content may already have populated enemies/items. Party is appended here.
         floor.entities.extend([c for c in self.state.party if c.grid_pos is not None])
-        turns = TurnManager(floor, self.state.party, self.state.bag, leader, self.rng)
+        turns = TurnManager(
+            floor, self.state.party, self.state.bag, leader, self.rng,
+            event_sounds=getattr(self.definition, "sfx_event_cues", {}),
+        )
         self.dungeon = DungeonSession(floor_number, floor, turns)
 
     @staticmethod
@@ -321,6 +345,7 @@ class MysteryGame:
     def _open_gameplay_menu(self) -> None:
         assert self.input is not None
         self.input.dungeon.reset()
+        self._play_event_sfx("menu_open")
         self._system_menu = False
         if self.mode is GameMode.DUNGEON:
             self.menu.open("Command", self._dungeon_menu_entries())
@@ -330,6 +355,7 @@ class MysteryGame:
     def _open_system_menu(self) -> None:
         assert self.input is not None
         self.input.dungeon.reset()
+        self._play_event_sfx("menu_open")
         self._system_menu = True
         entries = [
             MenuEntry("Resume", action=self.menu.close),
@@ -372,6 +398,11 @@ class MysteryGame:
                 children=self._music_volume_entries,
                 detail=f"{round(self.audio.master_volume * 100)}%",
             ),
+            MenuEntry(
+                "SFX volume",
+                children=self._sfx_volume_entries,
+                detail=f"{round(self.audio.sfx_volume * 100)}%",
+            ),
         ]
 
     def _music_volume_entries(self) -> list[MenuEntry]:
@@ -390,12 +421,28 @@ class MysteryGame:
             self.menu.current.entries = self._music_volume_entries()
             self.menu.current.selected = min(10, max(0, round(self.audio.master_volume * 10)))
 
+    def _sfx_volume_entries(self) -> list[MenuEntry]:
+        current = round(self.audio.sfx_volume * 100)
+        entries: list[MenuEntry] = []
+        for percent in range(0, 101, 10):
+            label = f"{percent}%" + ("  (current)" if percent == current else "")
+            entries.append(MenuEntry(label, action=lambda p=percent: self._set_sfx_volume(p / 100.0)))
+        return entries
+
+    def _set_sfx_volume(self, value: float) -> None:
+        self.audio.set_sfx_volume(value)
+        self.add_message(f"SFX volume: {round(self.audio.sfx_volume * 100)}%")
+        if self.menu.current is not None and self.menu.current.title == "SFX volume":
+            self.menu.current.entries = self._sfx_volume_entries()
+            self.menu.current.selected = min(10, max(0, round(self.audio.sfx_volume * 10)))
+
     def _sync_exploration_music(self) -> None:
         if self.exploration is None:
             return
         error = self.audio.play_scene(self.exploration.music, self.exploration.music_volume)
         if error:
             self.add_message(error)
+        self.audio.play_ambience(self.exploration.ambience_cue, self.exploration.ambience_volume)
 
     def _party_entries(self) -> list[MenuEntry]:
         entries: list[MenuEntry] = []
@@ -444,20 +491,33 @@ class MysteryGame:
             if event.type != pygame.KEYDOWN or getattr(event, "repeat", False):
                 continue
             if event.key == pygame.K_w:
+                before = self.menu.current.selected if self.menu.current else None
                 self.menu.move(-1)
+                if self.menu.current and self.menu.current.selected != before:
+                    self._play_event_sfx("cursor_move")
             elif event.key == pygame.K_s:
+                before = self.menu.current.selected if self.menu.current else None
                 self.menu.move(1)
+                if self.menu.current and self.menu.current.selected != before:
+                    self._play_event_sfx("cursor_move")
             elif event.key == pygame.K_SPACE:
+                level = self.menu.current
+                enabled = bool(level and level.entries and level.entries[level.selected].enabled)
+                self._play_event_sfx("confirm" if enabled else "error")
                 self.menu.confirm()
             elif event.key == pygame.K_ESCAPE:
+                self._play_event_sfx("cancel")
                 self.menu.back()
             elif event.key == pygame.K_e and not self._system_menu:
+                self._play_event_sfx("menu_close")
                 self.menu.close()
 
     def _handle_dialogue(self, events: list[pygame.event.Event]) -> None:
         for event in events:
             if event.type == pygame.KEYDOWN and not getattr(event, "repeat", False) and event.key == pygame.K_SPACE:
+                self._play_event_sfx("text_advance")
                 self.dialogue.advance()
+                self._play_dialogue_reaction()
 
     # ---------- menu actions ----------
 
@@ -491,6 +551,7 @@ class MysteryGame:
             self.add_message(f"{leader.name} is already at full HP.")
             return
         self.state.bag.remove(item.id)
+        self.audio.play_sfx(item.sfx_cue)
         self.add_message(f"{leader.name} uses {item.name} and recovers {healed} HP.")
         self.menu.close()
         if self.mode is GameMode.DUNGEON and self.dungeon:
@@ -511,6 +572,8 @@ class MysteryGame:
         self.state.bag.remove(item.id)
         raw = item.throwable_damage
         dealt = target.stats.damage(max(1, round(raw * target.resistance_to(item.damage_type))))
+        self.audio.play_sfx(item.sfx_cue)
+        self.audio.play_sfx(item.impact_sfx_cue)
         self.add_message(f"Fox throws {item.name}; {target.name} takes {dealt} damage.")
         self.menu.close()
         outcome = self.dungeon.turns.execute_player_action(WaitAction(self.state.leader))
@@ -537,6 +600,8 @@ class MysteryGame:
             return
         self.menu.close()
         outcome = self.dungeon.turns.execute_player_action(SkillAction(leader, skill, target))
+        for cue in outcome.sound_cues:
+            self.audio.play_sfx(cue)
         for msg in outcome.messages:
             self.add_message(msg)
         if outcome.dungeon_result is DungeonResult.DEFEAT:
@@ -548,6 +613,7 @@ class MysteryGame:
         ground = self.dungeon.floor.item_at(self.state.leader.grid_pos)
         if ground and self.state.bag.add(ground.item):
             self.dungeon.floor.ground_items.remove(ground)
+            self._play_event_sfx("item_get")
             self.add_message(f"Picked up {ground.item.name}.")
             self.menu.close()
         else:
