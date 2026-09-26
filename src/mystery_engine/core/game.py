@@ -18,8 +18,19 @@ from mystery_engine.dungeon.actions import BasicAttackAction, MoveAction, SkillA
 from mystery_engine.dungeon.floor import DungeonFloor
 from mystery_engine.dungeon.turns import TurnManager
 from mystery_engine.input import InputManager
-from mystery_engine.presentation import MusicController, Renderer
-from mystery_engine.story import DialogueController, DialogueLine, DialogueSequence, ExplorationActor, ExplorationMap
+from mystery_engine.presentation import CinematicOverlay, MusicController, Renderer
+from mystery_engine.story import (
+    ChoiceOption,
+    DialogueController,
+    DialogueLine,
+    DialogueSequence,
+    ExplorationActor,
+    ExplorationMap,
+    StoryActionDispatcher,
+    StoryGraph,
+    StoryGraphRunner,
+    StoryRuntimeContext,
+)
 from mystery_engine.ui import MenuController, MenuEntry
 
 if TYPE_CHECKING:
@@ -79,6 +90,17 @@ class MysteryGame:
         self._fullscreen = False
         self._system_menu = False
         self.save_manager = SaveManager()
+        self.cinematic_overlay = CinematicOverlay()
+        self.story_actions = StoryActionDispatcher(self)
+        self.story_runner = StoryGraphRunner(StoryRuntimeContext(
+            story=self.state.story,
+            dialogue=self.dialogue,
+            choose=self._open_story_choice,
+            run_action=self.story_actions,
+            load_graph=self._load_story_graph,
+            on_finish=self._story_finished,
+            rng=self.rng,
+        ))
 
     def run(self) -> None:
         pygame.init()
@@ -91,6 +113,10 @@ class MysteryGame:
         self._sync_exploration_music()
         if os.environ.get("MYSTERY_DUNGEON_PLAYTEST"):
             self.enter_dungeon(start_floor=max(1, int(os.environ.get("MYSTERY_DUNGEON_START_FLOOR", "1"))))
+        elif os.environ.get("MYSTERY_STORY_PLAYTEST"):
+            story_path = os.environ.get("MYSTERY_STORY_PATH")
+            if story_path:
+                self.run_story(StoryGraph.load(Path(story_path)))
         clock = pygame.time.Clock()
         self.running = True
 
@@ -106,10 +132,19 @@ class MysteryGame:
             if frame.fullscreen:
                 self._toggle_fullscreen()
 
+            self.cinematic_overlay.update(dt)
+            if self.exploration is not None and self.exploration.camera_shake_time > 0:
+                self.exploration.camera_shake_time = max(0.0, self.exploration.camera_shake_time - dt)
+            self.story_runner.update(dt)
+
             if self.dialogue.active:
                 self._handle_dialogue(events)
             elif self.menu.active:
                 self._handle_menu(events)
+            elif self.story_runner.active:
+                # Story graphs own player control while a cutscene/conversation
+                # is running, even during non-dialogue choreography.
+                pass
             else:
                 if frame.menu:
                     self._open_gameplay_menu()
@@ -146,6 +181,42 @@ class MysteryGame:
         self.messages.append(text)
         self.messages[:] = self.messages[-8:]
 
+    def _story_root(self) -> Path:
+        root = getattr(self.definition, "story_root", None)
+        if root is not None:
+            return Path(root)
+        module_path = Path(getattr(self.definition, "asset_root", Path("."))).parent
+        return module_path / "stories"
+
+    def _load_story_graph(self, graph_name: str) -> StoryGraph:
+        path = Path(graph_name)
+        if not path.suffix:
+            path = path.with_suffix(".json")
+        if not path.is_absolute():
+            path = self._story_root() / path
+        return StoryGraph.load(path)
+
+    def run_story(self, graph: str | Path | StoryGraph, entry: str = "default") -> None:
+        story = graph if isinstance(graph, StoryGraph) else self._load_story_graph(str(graph))
+        self.menu.close()
+        self.story_runner.start(story, entry)
+
+    def _open_story_choice(self, title: str, options: list[ChoiceOption], choose) -> None:
+        entries: list[MenuEntry] = []
+        for option in options:
+            def select(target=option.target):
+                choose(target)
+                self.menu.close()
+            entries.append(MenuEntry(option.text, action=select, enabled=option.enabled, detail=option.detail))
+        self._system_menu = False
+        self.menu.open(title or "Choose", entries)
+
+    def _story_finished(self, result: str | None) -> None:
+        self.menu.close()
+        hook = getattr(self.definition, "on_story_result", None)
+        if callable(hook):
+            hook(self, result)
+
     def change_exploration_scene(self, scene_path: Path, target_door_id: str | None = None) -> None:
         """Load another exploration scene while preserving the active party.
 
@@ -180,29 +251,37 @@ class MysteryGame:
                 new_world.actors.append(actor)
 
         target = None
+        marker_target = None
         if target_door_id:
             target = next((i for i in new_world.interactables if i.id == target_door_id), None)
-        if target is None:
+            if target is None:
+                marker_target = next((m for m in new_world.markers if m.id == target_door_id), None)
+        if target is None and marker_target is None:
             target = next((i for i in new_world.interactables if getattr(i, "portal_facing", None)), None)
 
-        if target is not None:
+        leader_actor = next(a for a in new_world.actors if a.id == self.state.leader.id)
+        if marker_target is not None:
+            leader_actor.position.x = max(leader_actor.radius, min(new_world.width - leader_actor.radius, marker_target.position.x))
+            leader_actor.position.y = max(leader_actor.radius, min(new_world.height - leader_actor.radius, marker_target.position.y))
+            facing = leader_actor.facing
+        elif target is not None:
             facing_name = getattr(target, "portal_facing", None) or "S"
             facing = getattr(Direction, facing_name, Direction.S)
             distance = max(72.0, self.config.interaction_range * 0.9)
-            leader_actor = next(a for a in new_world.actors if a.id == self.state.leader.id)
             leader_actor.position.x = max(leader_actor.radius, min(new_world.width - leader_actor.radius, target.position.x + facing.dx * distance))
             leader_actor.position.y = max(leader_actor.radius, min(new_world.height - leader_actor.radius, target.position.y + facing.dy * distance))
             leader_actor.facing = facing
-            # Keep companions nearby rather than stacking them on the same point.
-            companions = [a for a in new_world.actors if a.id in {m.id for m in self.state.party} and a.id != leader_actor.id]
-            for index, actor in enumerate(companions, start=1):
-                actor.position.x = max(actor.radius, min(new_world.width - actor.radius, leader_actor.position.x - facing.dy * 52 * index))
-                actor.position.y = max(actor.radius, min(new_world.height - actor.radius, leader_actor.position.y + facing.dx * 52 * index))
-                actor.facing = facing
         else:
-            leader_actor = next(a for a in new_world.actors if a.id == self.state.leader.id)
             leader_actor.position.x = new_world.width / 2
             leader_actor.position.y = new_world.height / 2
+            facing = leader_actor.facing
+
+        # Keep companions nearby rather than stacking them on the same point.
+        companions = [a for a in new_world.actors if a.id in {m.id for m in self.state.party} and a.id != leader_actor.id]
+        for index, actor in enumerate(companions, start=1):
+            actor.position.x = max(actor.radius, min(new_world.width - actor.radius, leader_actor.position.x - facing.dy * 52 * index))
+            actor.position.y = max(actor.radius, min(new_world.height - actor.radius, leader_actor.position.y + facing.dx * 52 * index))
+            actor.facing = facing
 
         self.exploration = new_world
         self.mode = GameMode.EXPLORATION
@@ -513,6 +592,9 @@ class MysteryGame:
                 self._play_event_sfx("confirm" if enabled else "error")
                 self.menu.confirm()
             elif event.key == pygame.K_ESCAPE:
+                if self.story_runner.active:
+                    self._play_event_sfx("error")
+                    continue
                 self._play_event_sfx("cancel")
                 self.menu.back()
             elif event.key == pygame.K_e and not self._system_menu:
@@ -733,6 +815,7 @@ class MysteryGame:
         if self.dialogue.active:
             width = self.config.dungeon_view_width if self.mode is GameMode.DUNGEON else self.config.logical_width
             self.renderer.draw_dialogue(self.dialogue, max_width=width)
+        self.renderer.draw_cinematic_overlay(self.cinematic_overlay)
         self.renderer.present(self._display)
 
     def _toggle_fullscreen(self) -> None:

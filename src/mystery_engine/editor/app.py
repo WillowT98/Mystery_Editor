@@ -238,7 +238,7 @@ class ExplorationSceneEditor:
         Actors deliberately do not use this helper for rendering: the runtime
         prefers a shared 2x2 directional sheet, so the editor now does too.
         """
-        if not definition.sprite_key or definition.category == "portal":
+        if not definition.sprite_key or definition.category in {"portal", "marker"}:
             return ""
         if definition.category == "actor":
             return f"characters/{definition.sprite_key}_s.png"
@@ -336,7 +336,7 @@ class ExplorationSceneEditor:
         if pair is None:
             return None
         obj, definition = pair
-        if definition.category in {"actor", "portal"}:
+        if definition.category in {"actor", "portal", "marker"}:
             return None
         if obj.collision is None:
             base = self._effective_collision(obj, definition)
@@ -439,7 +439,7 @@ class ExplorationSceneEditor:
 
     def add_or_edit_collision(self) -> None:
         pair = self._selected_pair()
-        if pair is None or pair[1].category in {"actor", "portal"}:
+        if pair is None or pair[1].category in {"actor", "portal", "marker"}:
             self.status = "This asset does not use a collision box"
             return
         before = self.history.snapshot(self.scene)
@@ -454,7 +454,7 @@ class ExplorationSceneEditor:
 
     def convert_selected_collision_to_polygon(self) -> None:
         pair = self._selected_pair()
-        if pair is None or pair[1].category in {"actor", "portal"}:
+        if pair is None or pair[1].category in {"actor", "portal", "marker"}:
             self.status = "This asset does not use a collision polygon"
             return
         before = self.history.snapshot(self.scene)
@@ -469,7 +469,7 @@ class ExplorationSceneEditor:
 
     def convert_selected_collision_to_rect(self) -> None:
         pair = self._selected_pair()
-        if pair is None or pair[1].category in {"actor", "portal"}:
+        if pair is None or pair[1].category in {"actor", "portal", "marker"}:
             self.status = "This asset does not use a collision box"
             return
         obj, definition = pair
@@ -1110,7 +1110,15 @@ class ExplorationSceneEditor:
     def _draw_object(self, index: int, obj: SceneObjectData, definition: WorldAssetDefinition) -> None:
         assert self.screen and self.font_small
         sx, sy = self.world_to_screen(obj.x, obj.y)
-        if definition.category == "portal":
+        if definition.category == "marker":
+            radius = max(10, round(18 * self.zoom))
+            dest = pygame.Rect(sx - radius, sy - radius, radius * 2, radius * 2)
+            pygame.draw.circle(self.screen, (118, 198, 172), (sx, sy), radius, 3)
+            pygame.draw.line(self.screen, (118, 198, 172), (sx - radius, sy), (sx + radius, sy), 2)
+            pygame.draw.line(self.screen, (118, 198, 172), (sx, sy - radius), (sx, sy + radius), 2)
+            marker_label = self.font_small.render(obj.id, True, (215, 244, 232))
+            self.screen.blit(marker_label, (sx + radius + 4, sy - marker_label.get_height() // 2))
+        elif definition.category == "portal":
             # Scene portals are intentionally invisible at runtime, but the editor
             # needs a clear marker. Draw a translucent doorway glyph and arrow.
             w = max(36, round(definition.size[0] * self.zoom))
@@ -1156,7 +1164,7 @@ class ExplorationSceneEditor:
             pygame.draw.circle(self.screen, (255, 95, 95), (sx, sy), anchor_r)
             label = self.font_small.render(obj.id, True, (255, 248, 220))
             self.screen.blit(label, (dest.left, dest.top - label.get_height() - 3))
-            if self.collision_edit and definition.category not in {"actor", "portal"}:
+            if self.collision_edit and definition.category not in {"actor", "portal", "marker"}:
                 shape = self._effective_collision(obj, definition)
                 if isinstance(shape, RectObstacle):
                     crect = self._collision_screen_rect(obj, definition)
@@ -1228,12 +1236,17 @@ class ExplorationSceneEditor:
             self._draw_sidebar_help(y + 10, ["Paint heights, not cliff tiles.", "Cliffs are generated automatically.", "F: flood fill"])
 
         elif self.mode == "objects":
-            for definition in self.catalog.by_category("scenery", "interactable", "portal", "actor"):
+            for definition in self.catalog.by_category("scenery", "interactable", "portal", "marker", "actor"):
                 item_rect = pygame.Rect(rect.x + 14, y, rect.w - 28, 74)
                 self._palette_items.append(PaletteItem(definition.id, definition.display_name, item_rect, definition.id))
                 pygame.draw.rect(self.screen, (77, 93, 112) if self.asset_brush == definition.id else (43, 51, 65), item_rect, border_radius=7)
                 icon = self._world_asset_native_surface(definition)
-                if definition.category == "portal":
+                if definition.category == "marker":
+                    center = (item_rect.x + 40, item_rect.centery)
+                    pygame.draw.circle(self.screen, (118, 198, 172), center, 15, 2)
+                    pygame.draw.line(self.screen, (118, 198, 172), (center[0]-11, center[1]), (center[0]+11, center[1]), 1)
+                    pygame.draw.line(self.screen, (118, 198, 172), (center[0], center[1]-11), (center[0], center[1]+11), 1)
+                elif definition.category == "portal":
                     pr = pygame.Rect(item_rect.x + 19, item_rect.y + 16, 42, 42)
                     pygame.draw.rect(self.screen, (48, 142, 164), pr, border_radius=6)
                     pygame.draw.rect(self.screen, (112, 231, 244), pr, width=2, border_radius=6)
@@ -1346,7 +1359,7 @@ class ExplorationSceneEditor:
                 self._draw_sidebar_help(y, lines)
                 y += len(lines) * 27 + 8
 
-                if definition.category not in {"actor", "portal"}:
+                if definition.category not in {"actor", "portal", "marker"}:
                     c = self._effective_collision(obj, definition)
                     inherited = obj.collision is None
                     if c is None:

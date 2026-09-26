@@ -53,6 +53,8 @@ class TestGameDefinition:
 
     exploration_tile_size = 64
     dungeon_path = Path(__file__).resolve().parent / "dungeons" / "test_dungeon.json"
+    story_root = Path(__file__).resolve().parent / "stories"
+    scene_root = Path(__file__).resolve().parent / "scenes"
 
     def __init__(self) -> None:
         override = os.environ.get("MYSTERY_DUNGEON_PATH")
@@ -86,24 +88,7 @@ class TestGameDefinition:
         """Load any exploration scene, including editor-created linked rooms."""
 
         def talk_to_mara() -> None:
-            if game.state.story.flag("completed_test_dungeon"):
-                lines = [
-                    DialogueLine("Mara", "There you are. The path through the dungeon is stable now."),
-                    DialogueLine("Fox", "So the engine survived us."),
-                    DialogueLine("Mara", "For a first expedition? I'll accept that."),
-                ]
-            elif game.state.story.flag("failed_test_dungeon"):
-                lines = [
-                    DialogueLine("Mara", "That hurt. We can go back whenever you're ready."),
-                    DialogueLine("Fox", "And perhaps lose slightly fewer of our things this time."),
-                ]
-            else:
-                lines = [
-                    DialogueLine("Mara", "The test dungeon is just east of here."),
-                    DialogueLine("Mara", "Three floors. Enough to see whether all of this actually works."),
-                    DialogueLine("Fox", "That's reassuringly scientific."),
-                ]
-            game.say(lines)
+            game.run_story("mara_meadow")
 
         def enter_dungeon() -> None:
             if not game.state.story.flag("entered_test_dungeon"):

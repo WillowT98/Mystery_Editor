@@ -1,0 +1,102 @@
+{
+  "format": 1,
+  "id": "mara_meadow",
+  "entries": {
+    "default": "state_check"
+  },
+  "nodes": {
+    "state_check": {
+      "type": "condition",
+      "condition": {
+        "kind": "flag",
+        "name": "completed_test_dungeon",
+        "op": "==",
+        "value": true
+      },
+      "true": "completed",
+      "false": "failed_check"
+    },
+    "failed_check": {
+      "type": "condition",
+      "condition": {
+        "kind": "flag",
+        "name": "failed_test_dungeon",
+        "op": "==",
+        "value": true
+      },
+      "true": "failed",
+      "false": "first"
+    },
+    "completed": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "speaker": "Mara",
+          "text": "There you are. The path through the dungeon is stable now.",
+          "expression": "neutral"
+        },
+        {
+          "speaker": "Fox",
+          "text": "So the engine survived us.",
+          "expression": "neutral"
+        },
+        {
+          "speaker": "Mara",
+          "text": "For a first expedition? I'll accept that.",
+          "expression": "neutral"
+        }
+      ],
+      "next": "end"
+    },
+    "failed": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "speaker": "Mara",
+          "text": "That hurt. We can go back whenever you're ready.",
+          "expression": "neutral"
+        },
+        {
+          "speaker": "Fox",
+          "text": "And perhaps lose slightly fewer of our things this time.",
+          "expression": "neutral"
+        }
+      ],
+      "next": "end"
+    },
+    "first": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "speaker": "Mara",
+          "text": "The test dungeon is just east of here.",
+          "expression": "neutral"
+        },
+        {
+          "speaker": "Mara",
+          "text": "Three floors. Enough to see whether all of this actually works.",
+          "expression": "neutral"
+        },
+        {
+          "speaker": "Fox",
+          "text": "That's reassuringly scientific.",
+          "expression": "neutral"
+        }
+      ],
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {
+      "state_check": [120, 130],
+      "failed_check": [450, 260],
+      "completed": [450, 70],
+      "failed": [800, 220],
+      "first": [800, 390],
+      "end": [1160, 220]
+    }
+  }
+}

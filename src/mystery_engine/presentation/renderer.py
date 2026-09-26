@@ -64,10 +64,23 @@ class Renderer:
     def draw_exploration(self, world: ExplorationMap, player_id: str) -> None:
         viewport = pygame.Rect(0, 0, self.config.logical_width, self.config.logical_height)
         player = world.actor(player_id)
-        camera_x = max(0.0, min(world.width - viewport.w, player.position.x - viewport.w / 2)) if world.width > viewport.w else 0.0
-        camera_y = max(0.0, min(world.height - viewport.h, player.position.y - viewport.h / 2)) if world.height > viewport.h else 0.0
-        camera_ix = round(camera_x)
-        camera_iy = round(camera_y)
+        camera_subject = player.position
+        if world.camera_follow:
+            try:
+                camera_subject = world.target_position(world.camera_follow)
+            except KeyError:
+                world.camera_follow = None
+        if world.camera_override is not None:
+            camera_subject = world.camera_override
+        camera_x = max(0.0, min(world.width - viewport.w, camera_subject.x - viewport.w / 2)) if world.width > viewport.w else 0.0
+        camera_y = max(0.0, min(world.height - viewport.h, camera_subject.y - viewport.h / 2)) if world.height > viewport.h else 0.0
+        shake_x = shake_y = 0
+        if world.camera_shake_time > 0 and world.camera_shake_strength > 0:
+            phase = pygame.time.get_ticks() / 35.0
+            shake_x = round(math.sin(phase * 1.7) * world.camera_shake_strength)
+            shake_y = round(math.cos(phase * 2.3) * world.camera_shake_strength * 0.7)
+        camera_ix = round(camera_x) + shake_x
+        camera_iy = round(camera_y) + shake_y
 
         self.canvas.fill(self.bg, viewport)
         self._draw_exploration_terrain(world, camera_ix, camera_iy, viewport)
@@ -301,6 +314,28 @@ class Renderer:
         pygame.draw.rect(self.canvas, self.hp_good if member.stats.hp_ratio > 0.3 else self.hp_low, fill, border_radius=5)
 
     # ---------- overlays ----------
+
+    def draw_cinematic_overlay(self, overlay) -> None:
+        """Draw full-screen fades/flashes and temporary title banners."""
+        if overlay is None:
+            return
+        if getattr(overlay, "fade_alpha", 0.0) > 0:
+            alpha = max(0, min(255, round(float(overlay.fade_alpha) * 255)))
+            layer = pygame.Surface(self.config.logical_size, pygame.SRCALPHA)
+            color = getattr(overlay, "fade_color", pygame.Color("black"))
+            layer.fill((color.r, color.g, color.b, alpha))
+            self.canvas.blit(layer, (0, 0))
+
+        text = getattr(overlay, "banner_text", None)
+        if text:
+            width = min(self.config.logical_width - 160, max(520, self.font_title.size(text)[0] + 100))
+            rect = pygame.Rect((self.config.logical_width - width) // 2, 90, width, 100)
+            panel = pygame.Surface(rect.size, pygame.SRCALPHA)
+            panel.fill((18, 22, 30, 225))
+            self.canvas.blit(panel, rect.topleft)
+            pygame.draw.rect(self.canvas, self.accent, rect, 2, border_radius=10)
+            surf = self.font_title.render(text, True, self.text)
+            self.canvas.blit(surf, surf.get_rect(center=rect.center))
 
     def draw_dialogue(self, dialogue: DialogueController, max_width: int | None = None) -> None:
         line = dialogue.current
