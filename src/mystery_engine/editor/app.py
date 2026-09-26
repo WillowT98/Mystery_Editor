@@ -582,6 +582,128 @@ class ExplorationSceneEditor:
         self._clamp_camera()
         self.status = f"Opened {path.name}"
 
+    @staticmethod
+    def _unique_object_id(scene: ExplorationSceneData, base: str) -> str:
+        existing = {o.id for o in scene.objects}
+        if base not in existing:
+            return base
+        i = 2
+        while f"{base}_{i}" in existing:
+            i += 1
+        return f"{base}_{i}"
+
+    @staticmethod
+    def _find_scene_object(scene: ExplorationSceneData, object_id: str | None) -> SceneObjectData | None:
+        if not object_id:
+            return None
+        return next((o for o in scene.objects if o.id == object_id), None)
+
+    def _ensure_destination_anchor(
+        self,
+        source_obj: SceneObjectData,
+        target: ExplorationSceneData,
+        target_path: Path,
+    ) -> SceneObjectData:
+        """Return/create the destination portal used as an arrival anchor.
+
+        Two-way doors maintain a reciprocal transition. One-way doors still use
+        an invisible destination portal as an arrival marker, but that marker is
+        disabled so it cannot be used to travel back.
+        """
+        partner = self._find_scene_object(target, source_obj.target_door)
+        if partner is None or partner.asset != "scene_door":
+            base = "return_door" if source_obj.portal_mode == "two_way" else f"{source_obj.id}_arrival"
+            partner = SceneObjectData(
+                id=self._unique_object_id(target, base),
+                asset="scene_door",
+                x=target.width / 2,
+                y=target.height - target.tile_size * 1.5,
+                label="Back" if source_obj.portal_mode == "two_way" else "Arrival",
+                portal_facing="N",
+            )
+            target.objects.append(partner)
+            source_obj.target_door = partner.id
+
+        if source_obj.portal_mode == "two_way":
+            partner.enabled = True
+            partner.portal_mode = "two_way"
+            partner.target_scene = self._relative_scene_ref(self.scene_path, target_path)
+            partner.target_door = source_obj.id
+        else:
+            partner.enabled = False
+            partner.portal_mode = "one_way"
+            partner.target_scene = None
+            partner.target_door = None
+
+        return partner
+
+    def _sync_selected_portal_pair(self) -> bool:
+        """Persist the selected door's reciprocal/arrival anchor when possible."""
+        pair = self._selected_pair()
+        if pair is None or pair[1].category != "portal":
+            return False
+        obj, _ = pair
+        if not obj.target_scene:
+            return False
+        target_path = self._resolve_target_scene_path(obj.target_scene)
+        if not target_path.exists():
+            return False
+        target = load_exploration_scene(target_path)
+        partner = self._ensure_destination_anchor(obj, target, target_path)
+        save_exploration_scene(target, target_path)
+        self.dirty = True
+        self.status = (
+            f"Two-way connection synced with {target_path.name} → {partner.id}"
+            if obj.portal_mode == "two_way"
+            else f"One-way connection synced to {target_path.name}"
+        )
+        return True
+
+    def toggle_portal_mode(self) -> None:
+        pair = self._selected_pair()
+        if pair is None or pair[1].category != "portal":
+            self.status = "Select a scene door first"
+            return
+        obj, _ = pair
+        before = self.history.snapshot(self.scene)
+        obj.portal_mode = "one_way" if obj.portal_mode == "two_way" else "two_way"
+        self.history.remember(before)
+        self.dirty = True
+        if obj.target_scene:
+            self._sync_selected_portal_pair()
+        else:
+            self.status = f"Door mode: {'Two-way' if obj.portal_mode == 'two_way' else 'One-way'}"
+
+    def unlink_selected_portal(self) -> None:
+        pair = self._selected_pair()
+        if pair is None or pair[1].category != "portal":
+            self.status = "Select a scene door first"
+            return
+        obj, _ = pair
+        before = self.history.snapshot(self.scene)
+
+        # If this is a maintained pair, clear the partner's backlink without
+        # deleting the destination object; it remains a harmless arrival marker.
+        if obj.target_scene and obj.target_door:
+            target_path = self._resolve_target_scene_path(obj.target_scene)
+            if target_path.exists():
+                target = load_exploration_scene(target_path)
+                partner = self._find_scene_object(target, obj.target_door)
+                if partner is not None and partner.asset == "scene_door":
+                    source_ref = self._relative_scene_ref(self.scene_path, target_path)
+                    if partner.target_scene == source_ref and partner.target_door == obj.id:
+                        partner.target_scene = None
+                        partner.target_door = None
+                        partner.enabled = False
+                        partner.portal_mode = "one_way"
+                        save_exploration_scene(target, target_path)
+
+        obj.target_scene = None
+        obj.target_door = None
+        self.history.remember(before)
+        self.dirty = True
+        self.status = "Door unlinked"
+
     def open_linked_scene(self) -> None:
         pair = self._selected_pair()
         if pair is None or pair[1].category != "portal":
@@ -596,36 +718,23 @@ class ExplorationSceneEditor:
         target_path = self._resolve_target_scene_path(obj.target_scene)
 
         if not target_path.exists():
-            # New linked rooms start compact but editable. A reciprocal scene door
-            # is created automatically, so an interior can immediately return to
-            # the source scene without wiring a second link by hand.
             target = ExplorationSceneData.blank(target_path.stem, 16, 12, self.scene.tile_size)
-            return_id = "return_door"
-            existing = {o.id for o in target.objects}
-            i = 2
-            while return_id in existing:
-                return_id = f"return_door_{i}"; i += 1
-            target.objects.append(SceneObjectData(
-                id=return_id,
-                asset="scene_door",
-                x=target.width / 2,
-                y=target.height - target.tile_size * 1.5,
-                label="Back",
-                target_scene=self._relative_scene_ref(self.scene_path, target_path),
-                target_door=obj.id,
-                portal_facing="N",
-            ))
-            if not obj.target_door:
-                # Record the reciprocal door ID on the source side as well.
-                obj.target_door = return_id
-                self.dirty = True
+            partner = self._ensure_destination_anchor(obj, target, target_path)
             save_exploration_scene(target, target_path)
             self.save()
-            self._switch_scene(target_path, select_object_id=return_id, push_current=True)
-            self.status = f"Created linked scene {target_path.name}"
+            self._switch_scene(target_path, select_object_id=partner.id, push_current=True)
+            self.status = (
+                f"Created two-way linked scene {target_path.name}"
+                if obj.portal_mode == "two_way"
+                else f"Created one-way linked scene {target_path.name}"
+            )
             return
 
-        self._switch_scene(target_path, select_object_id=obj.target_door, push_current=True)
+        target = load_exploration_scene(target_path)
+        partner = self._ensure_destination_anchor(obj, target, target_path)
+        save_exploration_scene(target, target_path)
+        self.save()
+        self._switch_scene(target_path, select_object_id=partner.id, push_current=True)
 
     def back_scene(self) -> None:
         if not self.scene_nav_stack:
@@ -1107,10 +1216,18 @@ class ExplorationSceneEditor:
                 if definition.category == "portal":
                     target = obj.target_scene or "— not linked —"
                     target_door = obj.target_door or "—"
-                    self._draw_sidebar_help(y, [f"Target scene: {target}", f"Target door: {target_door}", f"Arrival facing: {obj.portal_facing}"])
-                    y += 84
+                    mode_label = "Two-way" if obj.portal_mode == "two_way" else "One-way"
+                    self._draw_sidebar_help(y, [
+                        f"Connection: {mode_label}",
+                        f"Destination: {target}",
+                        f"Destination door: {target_door}",
+                        f"Arrival facing: {obj.portal_facing}",
+                    ])
+                    y += 104
                     for key, caption in (
-                        ("__portal_open", "Open / create linked scene  [O]"),
+                        ("__portal_open", "Open / create destination  [O]"),
+                        ("__portal_mode", f"Make {'one-way' if obj.portal_mode == 'two_way' else 'two-way'}  [M]"),
+                        ("__portal_unlink", "Unlink connection  [U]"),
                         ("__edit_target_scene", "Edit target scene  [T]"),
                         ("__edit_target_door", "Edit target door ID  [D]"),
                         ("__portal_facing", "Cycle arrival facing  [Q]"),
@@ -1287,6 +1404,7 @@ class ExplorationSceneEditor:
             id=self._unique_id(src.asset), asset=src.asset, x=src.x + 16, y=src.y + 16,
             action=src.action, label=src.label, enabled=src.enabled, collision=copied_collision,
             target_scene=src.target_scene, target_door=src.target_door, portal_facing=src.portal_facing,
+            portal_mode=src.portal_mode,
         )
         self.scene.objects.append(dup)
         self.history.remember(before)
@@ -1327,6 +1445,8 @@ class ExplorationSceneEditor:
                     elif item.key == "__edit_action": self._start_text_edit("action")
                     elif item.key == "__edit_label": self._start_text_edit("label")
                     elif item.key == "__portal_open": self.open_linked_scene()
+                    elif item.key == "__portal_mode": self.toggle_portal_mode()
+                    elif item.key == "__portal_unlink": self.unlink_selected_portal()
                     elif item.key == "__edit_target_scene": self._start_text_edit("target_scene")
                     elif item.key == "__edit_target_door": self._start_text_edit("target_door")
                     elif item.key == "__portal_facing": self.cycle_portal_facing()
@@ -1552,6 +1672,8 @@ class ExplorationSceneEditor:
             elif event.key == pygame.K_a and self.mode == "select": self._start_text_edit("action")
             elif event.key == pygame.K_l and self.mode == "select": self._start_text_edit("label")
             elif event.key == pygame.K_o and self.mode == "select": self.open_linked_scene()
+            elif event.key == pygame.K_m and self.mode == "select": self.toggle_portal_mode()
+            elif event.key == pygame.K_u and self.mode == "select": self.unlink_selected_portal()
             elif event.key == pygame.K_t and self.mode == "select": self._start_text_edit("target_scene")
             elif event.key == pygame.K_d and self.mode == "select" and not ctrl: self._start_text_edit("target_door")
             elif event.key == pygame.K_q and self.mode == "select": self.cycle_portal_facing()
