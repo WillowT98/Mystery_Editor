@@ -102,6 +102,10 @@ class MysteryGame:
         self._sync_exploration_music()
         if os.environ.get("MYSTERY_DUNGEON_PLAYTEST"):
             self.enter_dungeon(start_floor=max(1, int(os.environ.get("MYSTERY_DUNGEON_START_FLOOR", "1"))))
+        elif os.environ.get("MYSTERY_STORY_PLAYTEST"):
+            story_path = os.environ.get("MYSTERY_STORY_PATH")
+            if story_path:
+                self.run_story(StoryGraph.load(Path(story_path)))
         clock = pygame.time.Clock()
         self.running = True
 
@@ -569,6 +573,9 @@ class MysteryGame:
                 self._play_event_sfx("confirm" if enabled else "error")
                 self.menu.confirm()
             elif event.key == pygame.K_ESCAPE:
+                if self.story_runner.active:
+                    self._play_event_sfx("error")
+                    continue
                 self._play_event_sfx("cancel")
                 self.menu.back()
             elif event.key == pygame.K_e and not self._system_menu:
