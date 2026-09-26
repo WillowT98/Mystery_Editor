@@ -6,9 +6,6 @@ from random import Random
 import os
 import subprocess
 import sys
-import tkinter as tk
-from tkinter import filedialog, simpledialog
-
 import pygame
 
 from mystery_engine.dungeon import DungeonDefinition, SpawnRule
@@ -69,12 +66,14 @@ class DungeonBuilderEditor:
 
     @staticmethod
     def _tk_root():
+        import tkinter as tk
         root = tk.Tk()
         root.withdraw()
         root.attributes("-topmost", True)
         return root
 
     def _ask_text(self, title: str, prompt: str, initial: str) -> str | None:
+        from tkinter import simpledialog
         root = self._tk_root()
         try:
             return simpledialog.askstring(title, prompt, initialvalue=initial, parent=root)
@@ -82,6 +81,7 @@ class DungeonBuilderEditor:
             root.destroy()
 
     def _ask_int(self, title: str, prompt: str, initial: int, minimum: int = 0) -> int | None:
+        from tkinter import simpledialog
         root = self._tk_root()
         try:
             return simpledialog.askinteger(title, prompt, initialvalue=initial, minvalue=minimum, parent=root)
@@ -89,6 +89,7 @@ class DungeonBuilderEditor:
             root.destroy()
 
     def _ask_float(self, title: str, prompt: str, initial: float, minimum: float = 0.0, maximum: float = 1.0) -> float | None:
+        from tkinter import simpledialog
         root = self._tk_root()
         try:
             return simpledialog.askfloat(title, prompt, initialvalue=initial, minvalue=minimum, maxvalue=maximum, parent=root)
@@ -98,6 +99,7 @@ class DungeonBuilderEditor:
     def _choose_music(self) -> str | None:
         music_dir = self.asset_root / "music"
         music_dir.mkdir(parents=True, exist_ok=True)
+        from tkinter import filedialog
         root = self._tk_root()
         try:
             chosen = filedialog.askopenfilename(
