@@ -50,6 +50,10 @@ WORLD_ASSETS = WorldAssetCatalog(
             # invisible interactables that transition to another exploration scene.
             size=(72, 56), collision=None, label="Door", runtime_visible=False,
         ),
+        "story_marker": WorldAssetDefinition(
+            id="story_marker", category="marker", sprite_key=None, display_name="Story marker",
+            size=(48, 48), collision=None, runtime_visible=False,
+        ),
         "fox": WorldAssetDefinition(
             id="fox", category="actor", sprite_key="fox", display_name="Fox",
             actor_name="Fox", color_key="fox", radius=28.0,
