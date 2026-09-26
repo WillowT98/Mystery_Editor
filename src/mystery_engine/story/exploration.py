@@ -209,6 +209,12 @@ class ExplorationMap:
     music_volume: float = 1.0
     ambience_cue: str | None = None
     ambience_volume: float = 1.0
+    # Transient cinematic camera state. These are runtime-only and are not
+    # serialized into exploration scene JSON.
+    camera_override: Vec2 | None = None
+    camera_follow: str | None = None
+    camera_shake_strength: float = 0.0
+    camera_shake_time: float = 0.0
 
     def actor(self, actor_id: str) -> ExplorationActor:
         actor = next((a for a in self.actors if a.id == actor_id), None)
