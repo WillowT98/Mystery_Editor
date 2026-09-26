@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from mystery_engine.core import Character, GridPos, ItemDefinition
-from .tiles import FLOOR, STAIRS, WALL, Tile, TileKind
+from .tiles import FLOOR, STAIRS, WALL, Tile
 
 
 @dataclass
@@ -22,6 +22,10 @@ class DungeonFloor:
     ground_items: list[GroundItem] = field(default_factory=list)
     player_spawn: GridPos | None = None
     stairs_pos: GridPos | None = None
+    tileset: str = "dungeon"
+    music: str | None = None
+    music_volume: float = 1.0
+    dungeon_name: str = "Dungeon"
 
     @classmethod
     def empty(cls, width: int, height: int) -> "DungeonFloor":
@@ -58,7 +62,6 @@ class DungeonFloor:
         return occupant is None or occupant is ignore_entity
 
     def terrain_allows_step(self, start: GridPos, end: GridPos) -> bool:
-        """Return whether terrain permits a one-cell step, ignoring entities."""
         if not self.tile(end).walkable:
             return False
         dx = end.x - start.x

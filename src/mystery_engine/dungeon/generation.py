@@ -20,6 +20,34 @@ class GeneratorConfig:
     attempts: int = 140
 
 
+@dataclass(frozen=True)
+class OpenRoomConfig:
+    width: int = 28
+    height: int = 20
+    margin: int = 2
+
+
+class OpenRoomGenerator:
+    """Simple rectangular floor useful for arenas, tutorials, and previews."""
+
+    def __init__(self, config: OpenRoomConfig | None = None, rng: Random | None = None) -> None:
+        self.config = config or OpenRoomConfig()
+        self.rng = rng or Random()
+
+    def generate(self) -> DungeonFloor:
+        c = self.config
+        floor = DungeonFloor.empty(c.width, c.height)
+        margin = max(1, min(c.margin, min(c.width, c.height) // 3))
+        room = (margin, margin, c.width - margin * 2, c.height - margin * 2)
+        for y in range(room[1], room[1] + room[3]):
+            for x in range(room[0], room[0] + room[2]):
+                floor.set_floor(GridPos(x, y))
+        floor.rooms = [room]
+        floor.player_spawn = GridPos(room[0] + 1, room[1] + room[3] // 2)
+        floor.set_stairs(GridPos(room[0] + room[2] - 2, room[1] + room[3] // 2))
+        return floor
+
+
 class RoomsAndCorridorsGenerator:
     def __init__(self, config: GeneratorConfig | None = None, rng: Random | None = None) -> None:
         self.config = config or GeneratorConfig()
@@ -45,13 +73,11 @@ class RoomsAndCorridorsGenerator:
             self._carve_room(floor, candidate)
 
         if len(rooms) < 2:
-            # Deterministic safety fallback.
             rooms = [(3, 3, 7, 6), (c.width - 11, c.height - 9, 7, 6)]
             floor = DungeonFloor.empty(c.width, c.height)
             for room in rooms:
                 self._carve_room(floor, room)
 
-        # Connect all rooms in shuffled order, with occasional extra loop edges.
         self.rng.shuffle(rooms)
         for a, b in zip(rooms, rooms[1:]):
             self._carve_corridor(floor, self._center(a), self._center(b))

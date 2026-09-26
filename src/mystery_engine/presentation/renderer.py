@@ -177,10 +177,14 @@ class Renderer:
                     continue
                 else:
                     walk_mask = dungeon_walkable_mask(floor, x, y)
-                    floor_tile = self._load_surface(autotile_asset("dungeon_floor", walk_mask), (tile, tile))
+                    tileset_key = getattr(floor, "tileset", "dungeon")
+                    custom_key = f"tiles/{tileset_key}_auto_{walk_mask:03d}.png"
+                    floor_tile = self._load_surface(custom_key, (tile, tile))
+                    if floor_tile is None:
+                        floor_tile = self._load_surface(autotile_asset("dungeon_floor", walk_mask), (tile, tile))
                     if floor_tile is None:
                         floor_variant = self._stable_variant(x, y, 3)
-                        floor_tile = self._load_surface(f"tiles/dungeon_floor_{floor_variant}.png", (tile, tile)) or self._load_surface("tiles/floor.png", (tile, tile))
+                        floor_tile = self._load_surface(f"tiles/{tileset_key}_floor_{floor_variant}.png", (tile, tile)) or self._load_surface(f"tiles/dungeon_floor_{floor_variant}.png", (tile, tile)) or self._load_surface("tiles/floor.png", (tile, tile))
                     if floor_tile is not None:
                         self.canvas.blit(floor_tile, rect)
                     else:
@@ -234,7 +238,7 @@ class Renderer:
         pygame.draw.rect(self.canvas, self.panel, sidebar)
         pygame.draw.line(self.canvas, self.accent, (x0, 0), (x0, self.config.logical_height), 3)
 
-        title = self.font_large.render(f"Test Dungeon  {floor_number}/{floor_total}F", True, self.text)
+        title = self.font_large.render(f"{getattr(floor, 'dungeon_name', 'Dungeon')}  {floor_number}/{floor_total}F", True, self.text)
         self.canvas.blit(title, (x0 + 24, 22))
 
         map_size = self.config.map_panel_px

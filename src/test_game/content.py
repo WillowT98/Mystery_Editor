@@ -146,3 +146,24 @@ def make_starting_bag() -> Inventory:
     bag.add(THROWING_STONE, 3)
     bag.add(WAYSTONE_SHARD, 1)
     return bag
+
+
+# ---------- editor/runtime content catalogs ----------
+
+ENEMY_FACTORIES = {
+    "mossling": make_mossling,
+    "needle_wisp": make_needle_wisp,
+}
+
+ENEMY_LABELS = {
+    "mossling": "Mossling",
+    "needle_wisp": "Needle Wisp",
+}
+
+ITEM_CATALOG = {
+    FIELD_SALVE.id: FIELD_SALVE,
+    THROWING_STONE.id: THROWING_STONE,
+    WAYSTONE_SHARD.id: WAYSTONE_SHARD,
+}
+
+ITEM_LABELS = {item_id: item.name for item_id, item in ITEM_CATALOG.items()}
