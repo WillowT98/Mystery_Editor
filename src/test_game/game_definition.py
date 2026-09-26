@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mystery_engine.core.game import MysteryGame
-from mystery_engine.core import DungeonResult, GridPos, PersistentGameState, StoryState, Wallet
+from mystery_engine.core import DungeonResult, PersistentGameState, StoryState, Wallet
 from mystery_engine.core.inventory import Inventory
-from mystery_engine.dungeon import GroundItem, RoomsAndCorridorsGenerator
+from mystery_engine.dungeon import DungeonDefinition
 from mystery_engine.story import (
     build_exploration_map,
     load_exploration_scene,
@@ -19,12 +19,10 @@ from mystery_engine.story import (
 from .world_assets import WORLD_ASSETS
 
 from .content import (
-    FIELD_SALVE,
-    THROWING_STONE,
+    ENEMY_FACTORIES,
+    ITEM_CATALOG,
     make_fox,
     make_mara,
-    make_mossling,
-    make_needle_wisp,
     make_starting_bag,
 )
 
@@ -50,11 +48,16 @@ class TestGameDefinition:
     }
     game_version = "0.1.0"
     title = "Fox & Mara — Mystery Engine Test"
-    dungeon_floor_count = 3
     defeat_money_loss_fraction = 0.50
     defeat_item_loss_chance = 0.30
 
     exploration_tile_size = 64
+    dungeon_path = Path(__file__).resolve().parent / "dungeons" / "test_dungeon.json"
+
+    def __init__(self) -> None:
+        override = os.environ.get("MYSTERY_DUNGEON_PATH")
+        self.dungeon_definition = DungeonDefinition.load(Path(override) if override else self.dungeon_path)
+        self.dungeon_floor_count = self.dungeon_definition.floor_count
 
     def create_state(self) -> PersistentGameState:
         fox = make_fox()
@@ -143,36 +146,24 @@ class TestGameDefinition:
         return build_exploration_map(scene, WORLD_ASSETS, interactions, portal_transition_factory=portal_transition)
 
     def create_dungeon_floor(self, game: "MysteryGame", floor_number: int):
-        generator = RoomsAndCorridorsGenerator(rng=game.rng)
-        floor = generator.generate()
+        def enemy_factory(enemy_id: str, identifier: str):
+            try:
+                return ENEMY_FACTORIES[enemy_id](identifier)
+            except KeyError as exc:
+                raise KeyError(f"Unknown dungeon enemy: {enemy_id}") from exc
 
-        valid = [
-            GridPos(x, y)
-            for y in range(floor.height)
-            for x in range(floor.width)
-            if floor.tile(GridPos(x, y)).walkable
-            and GridPos(x, y) not in {floor.player_spawn, floor.stairs_pos}
-            and floor.player_spawn is not None
-            and floor.player_spawn.chebyshev(GridPos(x, y)) >= 6
-        ]
-        game.rng.shuffle(valid)
+        def item_lookup(item_id: str):
+            try:
+                return ITEM_CATALOG[item_id]
+            except KeyError as exc:
+                raise KeyError(f"Unknown dungeon item: {item_id}") from exc
 
-        enemy_count = 1 + floor_number
-        for i in range(enemy_count):
-            if not valid:
-                break
-            pos = valid.pop()
-            enemy = make_mossling(f"mossling_f{floor_number}_{i}") if i % 2 == 0 else make_needle_wisp(f"wisp_f{floor_number}_{i}")
-            enemy.grid_pos = pos
-            floor.entities.append(enemy)
-
-        for i in range(3):
-            if not valid:
-                break
-            item = FIELD_SALVE if (i + floor_number) % 2 == 0 else THROWING_STONE
-            floor.ground_items.append(GroundItem(item, valid.pop()))
-
-        return floor
+        return self.dungeon_definition.build_floor(
+            floor_number,
+            game.rng,
+            enemy_factory,
+            item_lookup,
+        )
 
     def on_dungeon_result(self, game: "MysteryGame", result: DungeonResult, *, lost_money: int = 0, lost_items: list[str] | None = None) -> None:
         lost_items = lost_items or []
