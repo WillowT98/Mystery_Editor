@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "willow-mystery-engine"
+version = "0.1.0"
+description = "A reusable PC-first Mystery Dungeon-style story RPG engine prototype."
+requires-python = ">=3.11"
+dependencies = [
+    "pygame-ce>=2.5.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+art = ["numpy>=2.0", "Pillow>=10.0", "scipy>=1.12"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"test_game" = ["assets/**/*.png", "scenes/*.json"]
