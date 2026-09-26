@@ -50,6 +50,7 @@ FOX_LUNGE = SkillDefinition(
     power=7,
     damage_type="physical",
     max_charges=8,
+    sfx_cue="combat.light_hit",
 )
 
 MARA_SPARK = SkillDefinition(
@@ -61,6 +62,8 @@ MARA_SPARK = SkillDefinition(
     power=5,
     damage_type="lightning",
     max_charges=10,
+    sfx_cue="magic.bolt_launch",
+    impact_sfx_cue="magic.bolt_impact",
 )
 
 MARA_MEND = SkillDefinition(
@@ -71,6 +74,7 @@ MARA_MEND = SkillDefinition(
     range=4,
     heal=11,
     max_charges=6,
+    sfx_cue="magic.heal",
 )
 
 WISP_BOLT = SkillDefinition(
@@ -82,6 +86,8 @@ WISP_BOLT = SkillDefinition(
     power=2,
     damage_type="piercing",
     max_charges=None,
+    sfx_cue="magic.bolt_launch",
+    impact_sfx_cue="magic.bolt_impact",
 )
 
 
