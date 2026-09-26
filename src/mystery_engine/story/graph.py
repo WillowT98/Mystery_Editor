@@ -314,9 +314,12 @@ class StoryGraphRunner:
         self.cursor = _Cursor(None)
 
     def update(self, dt: float) -> None:
+        # Background actions deliberately outlive the main cursor. This is what
+        # lets a non-blocking walk, camera pan, or effect continue after a graph
+        # reaches its end node.
+        self.background = [h for h in self.background if not h.update(dt)]
         if not self.active or self.graph is None:
             return
-        self.background = [h for h in self.background if not h.update(dt)]
         self._advance_cursor(self.cursor, dt, root=True)
         if self.cursor.done:
             self.active = False
