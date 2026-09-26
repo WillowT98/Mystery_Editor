@@ -931,6 +931,24 @@ class ExplorationSceneEditor:
         allowed = {"Ui", "Magic", "Combat"}
         return [cue.id for cue in self.sfx_catalog.all() if cue.category in allowed]
 
+    def _set_selected_object_sound(self, cue_id: str) -> None:
+        pair = self._selected_pair()
+        if pair is None:
+            return
+        obj, definition = pair
+        if definition.category not in {"interactable", "portal", "actor"}:
+            return
+        if self.sfx_catalog.get(cue_id) is None:
+            self.status = f"Unknown sound cue: {cue_id}"
+            return
+        event = "use" if definition.category == "portal" else "interact"
+        before = self.history.snapshot(self.scene)
+        obj.sound_cues[event] = cue_id
+        self.history.remember(before)
+        self.dirty = True
+        cue = self.sfx_catalog.get(cue_id)
+        self.status = f"{event.title()} sound: {cue.label if cue else cue_id}"
+
     def _cycle_selected_object_sound(self, delta: int) -> None:
         pair = self._selected_pair()
         if pair is None:
@@ -1425,9 +1443,7 @@ class ExplorationSceneEditor:
                     ])
                     y += 82
                     for key, caption in (
-                        ("__sound_prev", "← Previous cue"),
                         ("__sound_preview", "Preview cue"),
-                        ("__sound_next", "Next cue →"),
                         ("__sound_reset", "Reset to asset default"),
                     ):
                         br = pygame.Rect(rect.x + 18, y, rect.w - 36, 32)
@@ -1435,6 +1451,23 @@ class ExplorationSceneEditor:
                         pygame.draw.rect(self.screen, (55, 66, 82), br, border_radius=6)
                         self.screen.blit(self.font_small.render(caption, True, (232, 238, 232)), (br.x + 10, br.y + 6))
                         y += 37
+
+                    candidates = [self.sfx_catalog.get(cue_id) for cue_id in self._object_sound_candidates()]
+                    candidates = [cue for cue in candidates if cue is not None]
+                    if candidates:
+                        self._draw_sidebar_help(y + 4, ["Available interaction cues"]); y += 33
+                        last_category = None
+                        for candidate in candidates:
+                            if candidate.category != last_category:
+                                self._draw_sidebar_help(y, [candidate.category]); y += 27
+                                last_category = candidate.category
+                            br = pygame.Rect(rect.x + 18, y, rect.w - 36, 30)
+                            self._palette_items.append(PaletteItem(f"__object_sound::{candidate.id}", candidate.label, br, candidate.id))
+                            active = cue_id == candidate.id
+                            pygame.draw.rect(self.screen, (76, 91, 112) if active else (43, 51, 65), br, border_radius=5)
+                            shown = candidate.label if len(candidate.label) <= 30 else candidate.label[:27] + "…"
+                            self.screen.blit(self.font_small.render(shown, True, (232, 238, 232)), (br.x + 9, br.y + 5))
+                            y += 34
 
                 self._draw_sidebar_help(y + 8, ["Drag: move object", "Ctrl+D: duplicate", "Delete: remove", "Arrows: nudge"])
 
@@ -1630,6 +1663,7 @@ class ExplorationSceneEditor:
                     elif item.key == "__portal_back": self.back_scene()
                     elif item.key == "__sound_prev": self._cycle_selected_object_sound(-1)
                     elif item.key == "__sound_next": self._cycle_selected_object_sound(1)
+                    elif item.key.startswith("__object_sound::"): self._set_selected_object_sound(str(item.value))
                     elif item.key == "__sound_preview":
                         pair = self._selected_pair()
                         if pair: self._preview_sound_cue(self._effective_object_sound(*pair))
