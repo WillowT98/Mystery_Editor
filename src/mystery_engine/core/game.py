@@ -251,29 +251,37 @@ class MysteryGame:
                 new_world.actors.append(actor)
 
         target = None
+        marker_target = None
         if target_door_id:
             target = next((i for i in new_world.interactables if i.id == target_door_id), None)
-        if target is None:
+            if target is None:
+                marker_target = next((m for m in new_world.markers if m.id == target_door_id), None)
+        if target is None and marker_target is None:
             target = next((i for i in new_world.interactables if getattr(i, "portal_facing", None)), None)
 
-        if target is not None:
+        leader_actor = next(a for a in new_world.actors if a.id == self.state.leader.id)
+        if marker_target is not None:
+            leader_actor.position.x = max(leader_actor.radius, min(new_world.width - leader_actor.radius, marker_target.position.x))
+            leader_actor.position.y = max(leader_actor.radius, min(new_world.height - leader_actor.radius, marker_target.position.y))
+            facing = leader_actor.facing
+        elif target is not None:
             facing_name = getattr(target, "portal_facing", None) or "S"
             facing = getattr(Direction, facing_name, Direction.S)
             distance = max(72.0, self.config.interaction_range * 0.9)
-            leader_actor = next(a for a in new_world.actors if a.id == self.state.leader.id)
             leader_actor.position.x = max(leader_actor.radius, min(new_world.width - leader_actor.radius, target.position.x + facing.dx * distance))
             leader_actor.position.y = max(leader_actor.radius, min(new_world.height - leader_actor.radius, target.position.y + facing.dy * distance))
             leader_actor.facing = facing
-            # Keep companions nearby rather than stacking them on the same point.
-            companions = [a for a in new_world.actors if a.id in {m.id for m in self.state.party} and a.id != leader_actor.id]
-            for index, actor in enumerate(companions, start=1):
-                actor.position.x = max(actor.radius, min(new_world.width - actor.radius, leader_actor.position.x - facing.dy * 52 * index))
-                actor.position.y = max(actor.radius, min(new_world.height - actor.radius, leader_actor.position.y + facing.dx * 52 * index))
-                actor.facing = facing
         else:
-            leader_actor = next(a for a in new_world.actors if a.id == self.state.leader.id)
             leader_actor.position.x = new_world.width / 2
             leader_actor.position.y = new_world.height / 2
+            facing = leader_actor.facing
+
+        # Keep companions nearby rather than stacking them on the same point.
+        companions = [a for a in new_world.actors if a.id in {m.id for m in self.state.party} and a.id != leader_actor.id]
+        for index, actor in enumerate(companions, start=1):
+            actor.position.x = max(actor.radius, min(new_world.width - actor.radius, leader_actor.position.x - facing.dy * 52 * index))
+            actor.position.y = max(actor.radius, min(new_world.height - actor.radius, leader_actor.position.y + facing.dx * 52 * index))
+            actor.facing = facing
 
         self.exploration = new_world
         self.mode = GameMode.EXPLORATION
