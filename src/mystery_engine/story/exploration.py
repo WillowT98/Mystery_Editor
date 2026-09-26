@@ -160,6 +160,7 @@ class ExplorationActor:
     sprite_key: str | None = None
     interaction: Callable[[], None] | None = None
     enabled: bool = True
+    interaction_sound: str | None = None
 
 
 @dataclass
@@ -178,6 +179,7 @@ class ExplorationInteractable:
     visible: bool = True
     # Optional editor/runtime metadata for scene-transition portals.
     portal_facing: str | None = None
+    interaction_sound: str | None = None
 
     def world_collision(self) -> ObstacleShape | None:
         if self.collision is None:
@@ -198,6 +200,8 @@ class ExplorationMap:
     blocked_terrain: frozenset[str] = field(default_factory=frozenset)
     music: str | None = None
     music_volume: float = 1.0
+    ambience_cue: str | None = None
+    ambience_volume: float = 1.0
 
     def actor(self, actor_id: str) -> ExplorationActor:
         actor = next((a for a in self.actors if a.id == actor_id), None)
@@ -297,20 +301,24 @@ class ExplorationMap:
                             return True
         return False
 
-    def nearest_interaction(self, actor: ExplorationActor, max_distance: float):
-        candidates: list[tuple[float, Callable[[], None], str]] = []
+    def nearest_interaction_detail(self, actor: ExplorationActor, max_distance: float):
+        candidates: list[tuple[float, Callable[[], None], str, str | None]] = []
         for other in self.actors:
             if other is actor or not other.enabled or other.interaction is None:
                 continue
             distance = math.hypot(other.position.x - actor.position.x, other.position.y - actor.position.y)
             if distance <= max_distance:
-                candidates.append((distance, other.interaction, other.name))
+                candidates.append((distance, other.interaction, other.name, other.interaction_sound))
         for item in self.interactables:
             if not item.enabled:
                 continue
             distance = math.hypot(item.position.x - actor.position.x, item.position.y - actor.position.y)
             if distance <= max_distance:
-                candidates.append((distance, item.interaction, item.label))
+                candidates.append((distance, item.interaction, item.label, item.interaction_sound))
         if not candidates:
             return None
         return min(candidates, key=lambda c: c[0])
+
+    def nearest_interaction(self, actor: ExplorationActor, max_distance: float):
+        detail = self.nearest_interaction_detail(actor, max_distance)
+        return None if detail is None else detail[:3]
