@@ -396,6 +396,7 @@ class DungeonBuilderEditor:
         self.save()
         env = os.environ.copy()
         env["MYSTERY_DUNGEON_PATH"] = str(self.path.resolve())
+        env["MYSTERY_DUNGEON_PLAYTEST"] = "1"
         env["MYSTERY_DUNGEON_START_FLOOR"] = str(self.floor_number)
         try:
             subprocess.Popen([sys.executable, str(self.project_root / "run_game.py")], cwd=self.project_root, env=env)
