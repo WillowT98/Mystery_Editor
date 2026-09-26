@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import os
 from random import Random
 from typing import Protocol, TYPE_CHECKING
 
@@ -88,6 +89,8 @@ class MysteryGame:
         self.renderer = Renderer(self.config, getattr(self.definition, "asset_root", None))
         self.exploration = self.definition.create_exploration(self)
         self._sync_exploration_music()
+        if os.environ.get("MYSTERY_DUNGEON_PLAYTEST"):
+            self.enter_dungeon(start_floor=max(1, int(os.environ.get("MYSTERY_DUNGEON_START_FLOOR", "1"))))
         clock = pygame.time.Clock()
         self.running = True
 
@@ -207,7 +210,7 @@ class MysteryGame:
         self._sync_exploration_music()
         self.add_message(f"Entered {new_world.id}.")
 
-    def enter_dungeon(self) -> None:
+    def enter_dungeon(self, start_floor: int = 1) -> None:
         if self.dialogue.active:
             return
         self.mode = GameMode.DUNGEON
@@ -218,7 +221,7 @@ class MysteryGame:
         self.input.dungeon.reset()
         for member in self.state.party:
             member.restore_for_expedition()
-        self._start_floor(1)
+        self._start_floor(min(max(1, start_floor), self.definition.dungeon_floor_count))
         self.messages = ["The expedition begins."]
 
     def return_to_exploration(self, result: DungeonResult) -> None:
