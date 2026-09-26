@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from random import Random
-from typing import Callable
+from typing import Callable, Mapping
 
 from mystery_engine.core import Character, CombatResolver, Direction, DungeonResult, GridPos, Inventory, TargetKind
 from .actions import Action, BasicAttackAction, MoveAction, PickupAction, SkillAction, WaitAction
@@ -14,6 +14,7 @@ from .visibility import ExplorationMemory, has_line_of_sight
 @dataclass
 class TurnOutcome:
     messages: list[str] = field(default_factory=list)
+    sound_cues: list[str] = field(default_factory=list)
     consumed_turn: bool = True
     dungeon_result: DungeonResult | None = None
 
@@ -26,12 +27,14 @@ class TurnManager:
         bag: Inventory,
         leader: Character,
         rng: Random | None = None,
+        event_sounds: Mapping[str, str] | None = None,
     ) -> None:
         self.floor = floor
         self.party = party
         self.bag = bag
         self.leader = leader
         self.rng = rng or Random()
+        self.event_sounds = dict(event_sounds or {})
         self.combat = CombatResolver(self.rng)
         self.memory = ExplorationMemory()
         self.turn_count = 0
@@ -57,13 +60,16 @@ class TurnManager:
             return outcome
 
         self._companions_moved_by_player.clear()
-        consumed = self._resolve_action(action, outcome.messages)
+        consumed = self._resolve_action(action, outcome.messages, outcome.sound_cues)
         outcome.consumed_turn = consumed
         if not consumed:
             return outcome
 
         self.turn_count += 1
+        before_items = len(self.floor.ground_items)
         self._pickup_underfoot(self.leader, outcome.messages)
+        if len(self.floor.ground_items) < before_items and self.event_sounds.get("item_get"):
+            outcome.sound_cues.append(self.event_sounds["item_get"])
         if self._check_stairs(outcome):
             return outcome
 
@@ -72,7 +78,7 @@ class TurnManager:
                 continue
             ai_action = self._choose_companion_action(ally)
             if ai_action:
-                self._resolve_action(ai_action, outcome.messages)
+                self._resolve_action(ai_action, outcome.messages, outcome.sound_cues)
                 self._pickup_underfoot(ally, outcome.messages, allow_pickup=False)
 
         for enemy in list(self.enemies):
@@ -80,7 +86,7 @@ class TurnManager:
                 continue
             ai_action = self._choose_enemy_action(enemy)
             if ai_action:
-                self._resolve_action(ai_action, outcome.messages)
+                self._resolve_action(ai_action, outcome.messages, outcome.sound_cues)
             if not self.leader.active:
                 outcome.dungeon_result = DungeonResult.DEFEAT
                 break
@@ -89,7 +95,8 @@ class TurnManager:
         self.refresh_visibility()
         return outcome
 
-    def _resolve_action(self, action: Action, messages: list[str]) -> bool:
+    def _resolve_action(self, action: Action, messages: list[str], sounds: list[str] | None = None) -> bool:
+        sounds = sounds if sounds is not None else []
         actor = action.actor
         if not actor.active:
             return False
@@ -99,6 +106,13 @@ class TurnManager:
         if isinstance(action, BasicAttackAction):
             event = self.combat.basic_attack(actor, action.target)
             messages.append(event.text)
+            cue = self.event_sounds.get("basic_hit")
+            if cue:
+                sounds.append(cue)
+            if not action.target.active:
+                defeat = self.event_sounds.get("defeat")
+                if defeat:
+                    sounds.append(defeat)
             return True
         if isinstance(action, SkillAction):
             if actor.grid_pos is None or action.target.grid_pos is None:
@@ -108,9 +122,22 @@ class TurnManager:
                 return False
             event = self.combat.use_skill(actor, action.skill, action.target)
             messages.append(event.text)
+            if not event.text.endswith("unavailable."):
+                definition = action.skill.definition
+                if definition.sfx_cue:
+                    sounds.append(definition.sfx_cue)
+                if event.amount > 0 and definition.impact_sfx_cue:
+                    sounds.append(definition.impact_sfx_cue)
+                if not action.target.active:
+                    defeat = self.event_sounds.get("defeat")
+                    if defeat:
+                        sounds.append(defeat)
             return not event.text.endswith("unavailable.")
         if isinstance(action, PickupAction):
-            return self._pickup_at(action.position, messages)
+            picked_up = self._pickup_at(action.position, messages)
+            if picked_up and self.event_sounds.get("item_get"):
+                sounds.append(self.event_sounds["item_get"])
+            return picked_up
         if isinstance(action, MoveAction):
             if actor.grid_pos is None:
                 return False
