@@ -1,0 +1,65 @@
+{
+  "id": "test_dungeon",
+  "name": "Ancient Ruins",
+  "floors": 3,
+  "tileset": "dungeon",
+  "generation": {
+    "type": "rooms_and_corridors",
+    "width": 38,
+    "height": 28,
+    "room_count_min": 6,
+    "room_count_max": 9,
+    "room_w_min": 4,
+    "room_w_max": 9,
+    "room_h_min": 4,
+    "room_h_max": 8,
+    "attempts": 140
+  },
+  "music": {
+    "track": "music/02_Ancient_Ruins_B1.ogg",
+    "volume": 0.8,
+    "overrides": []
+  },
+  "enemy_count": {
+    "base": 2,
+    "per_floor": 1,
+    "max": 5
+  },
+  "item_count": {
+    "min": 3,
+    "max": 3
+  },
+  "enemies": [
+    {
+      "enemy": "mossling",
+      "floors": "1-3",
+      "weight": 60,
+      "min_per_floor": 1,
+      "max_per_floor": 4
+    },
+    {
+      "enemy": "needle_wisp",
+      "floors": "1-3",
+      "weight": 40,
+      "min_per_floor": 0,
+      "max_per_floor": 3
+    }
+  ],
+  "items": [
+    {
+      "item": "field_salve",
+      "floors": "1-3",
+      "weight": 50,
+      "min_per_floor": 0,
+      "max_per_floor": 3
+    },
+    {
+      "item": "throwing_stone",
+      "floors": "1-3",
+      "weight": 50,
+      "min_per_floor": 0,
+      "max_per_floor": 3
+    }
+  ],
+  "floor_rules": []
+}
