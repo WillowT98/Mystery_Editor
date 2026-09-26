@@ -1275,6 +1275,45 @@ class ExplorationSceneEditor:
                     self.screen.blit(self.font_small.render(shown, True, (242, 240, 232)), (br.x + 10, br.y + 9))
                     y += 48
             self._draw_sidebar_help(y + 8, ["Scene music loops automatically in game.", "Global volume: Esc → Audio."])
+            y += 66
+
+            ambience = self.sfx_catalog.get(self.scene.ambience_cue)
+            ambience_name = ambience.label if ambience else "None"
+            self._draw_sidebar_help(y, ["Ambience", f"Current: {ambience_name}", f"Scene gain: {round(self.scene.ambience_volume * 100)}%"])
+            y += 84
+
+            for key, caption in (
+                ("__ambience_preview", "Preview ambience"),
+                ("__ambience_clear", "Clear ambience"),
+            ):
+                br = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
+                self._palette_items.append(PaletteItem(key, caption, br, None))
+                pygame.draw.rect(self.screen, (55, 66, 82), br, border_radius=6)
+                self.screen.blit(self.font_small.render(caption, True, (235, 238, 232)), (br.x + 10, br.y + 7))
+                y += 40
+
+            minus = pygame.Rect(rect.x + 18, y, (rect.w - 42)//2, 34)
+            plus = pygame.Rect(minus.right + 6, y, minus.w, 34)
+            self._palette_items.append(PaletteItem("__ambience_quieter", "-10%", minus, None))
+            self._palette_items.append(PaletteItem("__ambience_louder", "+10%", plus, None))
+            for br, caption in ((minus, "−10% ambience"), (plus, "+10% ambience")):
+                pygame.draw.rect(self.screen, (55, 66, 82), br, border_radius=6)
+                label = self.font_small.render(caption, True, (235, 238, 232))
+                self.screen.blit(label, (br.centerx - label.get_width()//2, br.y + 7))
+            y += 48
+
+            ambience_cues = self.sfx_catalog.by_category("Ambience")
+            if ambience_cues:
+                self._draw_sidebar_help(y, ["Available ambience cues"]); y += 31
+                for cue in ambience_cues:
+                    br = pygame.Rect(rect.x + 14, y, rect.w - 28, 38)
+                    self._palette_items.append(PaletteItem(f"__ambience_cue::{cue.id}", cue.label, br, cue.id))
+                    active = self.scene.ambience_cue == cue.id
+                    pygame.draw.rect(self.screen, (76, 91, 112) if active else (43, 51, 65), br, border_radius=6)
+                    self.screen.blit(self.font_small.render(cue.label, True, (242, 240, 232)), (br.x + 10, br.y + 7))
+                    y += 44
+            else:
+                self._draw_sidebar_help(y, ["No ambience cues registered.", "Add assets/sfx_cues.json to enable them."])
 
         else:
             if self.selected_object is None or not (0 <= self.selected_object < len(self.scene.objects)):
@@ -1373,6 +1412,29 @@ class ExplorationSceneEditor:
                         field_name = self._text_edit_field.capitalize()
                         self._draw_sidebar_help(y + 4, [f"{field_name}:", self._text_edit_buffer + "|"])
                         y += 62
+
+                if definition.category in {"interactable", "portal", "actor"}:
+                    cue_id = self._effective_object_sound(obj, definition)
+                    cue = self.sfx_catalog.get(cue_id)
+                    cue_name = cue.label if cue else (cue_id or "None")
+                    inherited_sound = not bool(obj.sound_cues.get("use" if definition.category == "portal" else "interact"))
+                    self._draw_sidebar_help(y, [
+                        "Interaction sound",
+                        f"Cue: {cue_name}",
+                        "Asset default" if inherited_sound else "Instance override",
+                    ])
+                    y += 82
+                    for key, caption in (
+                        ("__sound_prev", "← Previous cue"),
+                        ("__sound_preview", "Preview cue"),
+                        ("__sound_next", "Next cue →"),
+                        ("__sound_reset", "Reset to asset default"),
+                    ):
+                        br = pygame.Rect(rect.x + 18, y, rect.w - 36, 32)
+                        self._palette_items.append(PaletteItem(key, caption, br, None))
+                        pygame.draw.rect(self.screen, (55, 66, 82), br, border_radius=6)
+                        self.screen.blit(self.font_small.render(caption, True, (232, 238, 232)), (br.x + 10, br.y + 6))
+                        y += 37
 
                 self._draw_sidebar_help(y + 8, ["Drag: move object", "Ctrl+D: duplicate", "Delete: remove", "Arrows: nudge"])
 
@@ -1547,6 +1609,11 @@ class ExplorationSceneEditor:
                     elif item.key == "__music_quieter": self._set_scene_music_volume(-0.10)
                     elif item.key == "__music_louder": self._set_scene_music_volume(0.10)
                     elif item.key.startswith("__music_track::"): self._select_music_track(str(item.value))
+                    elif item.key == "__ambience_preview": self._preview_sound_cue(self.scene.ambience_cue)
+                    elif item.key == "__ambience_clear": self._set_scene_ambience(None)
+                    elif item.key == "__ambience_quieter": self._set_scene_ambience_volume(-0.10)
+                    elif item.key == "__ambience_louder": self._set_scene_ambience_volume(0.10)
+                    elif item.key.startswith("__ambience_cue::"): self._set_scene_ambience(str(item.value))
                 elif self.mode == "select":
                     if item.key == "__collision_edit": self.add_or_edit_collision()
                     elif item.key == "__collision_polygon": self.convert_selected_collision_to_polygon()
@@ -1561,6 +1628,12 @@ class ExplorationSceneEditor:
                     elif item.key == "__edit_target_door": self._start_text_edit("target_door")
                     elif item.key == "__portal_facing": self.cycle_portal_facing()
                     elif item.key == "__portal_back": self.back_scene()
+                    elif item.key == "__sound_prev": self._cycle_selected_object_sound(-1)
+                    elif item.key == "__sound_next": self._cycle_selected_object_sound(1)
+                    elif item.key == "__sound_preview":
+                        pair = self._selected_pair()
+                        if pair: self._preview_sound_cue(self._effective_object_sound(*pair))
+                    elif item.key == "__sound_reset": self._reset_selected_object_sound()
                 return True
         return False
 
@@ -1865,6 +1938,7 @@ class ExplorationSceneEditor:
             self.draw()
             pygame.display.flip()
         self._stop_music_preview()
+        self._stop_sfx_preview()
         pygame.quit()
 
 
