@@ -213,6 +213,7 @@ class MysteryGame:
         self.mode = GameMode.DUNGEON
         self.menu.close()
         self.audio.stop(fade_ms=350)
+        self.audio.stop_ambience()
         assert self.input is not None
         self.input.dungeon.reset()
         for member in self.state.party:
@@ -556,6 +557,8 @@ class MysteryGame:
         self.menu.close()
         if self.mode is GameMode.DUNGEON and self.dungeon:
             outcome = self.dungeon.turns.execute_player_action(WaitAction(leader))
+            for cue in outcome.sound_cues:
+                self.audio.play_sfx(cue)
             for msg in outcome.messages:
                 if not msg.endswith("waits."):
                     self.add_message(msg)
@@ -577,6 +580,8 @@ class MysteryGame:
         self.add_message(f"Fox throws {item.name}; {target.name} takes {dealt} damage.")
         self.menu.close()
         outcome = self.dungeon.turns.execute_player_action(WaitAction(self.state.leader))
+        for cue in outcome.sound_cues:
+            self.audio.play_sfx(cue)
         for msg in outcome.messages:
             if not msg.endswith("waits."):
                 self.add_message(msg)
@@ -624,6 +629,8 @@ class MysteryGame:
             return
         self.menu.close()
         outcome = self.dungeon.turns.execute_player_action(WaitAction(self.state.leader))
+        for cue in outcome.sound_cues:
+            self.audio.play_sfx(cue)
         for msg in outcome.messages:
             self.add_message(msg)
         if outcome.dungeon_result is DungeonResult.DEFEAT:
