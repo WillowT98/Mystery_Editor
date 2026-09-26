@@ -6,9 +6,6 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import tkinter as tk
-from tkinter import messagebox, simpledialog
-
 import pygame
 
 from mystery_engine.story import StoryGraph
@@ -86,12 +83,14 @@ class StoryGraphEditor:
 
     @staticmethod
     def _root():
+        import tkinter as tk
         root = tk.Tk()
         root.withdraw()
         root.attributes("-topmost", True)
         return root
 
     def _ask(self, title: str, prompt: str, initial: str = "") -> str | None:
+        from tkinter import simpledialog
         root = self._root()
         try:
             return simpledialog.askstring(title, prompt, initialvalue=initial, parent=root)
@@ -99,6 +98,7 @@ class StoryGraphEditor:
             root.destroy()
 
     def _edit_json(self, title: str, payload: dict) -> dict | None:
+        import tkinter as tk
         root = self._root()
         result: dict | None = None
         win = tk.Toplevel(root)
@@ -256,6 +256,7 @@ class StoryGraphEditor:
 
     def validate(self) -> None:
         issues = self.graph.validation_issues()
+        from tkinter import messagebox
         root = self._root()
         try:
             if issues:
