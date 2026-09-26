@@ -163,6 +163,12 @@ class ExplorationActor:
     interaction_sound: str | None = None
 
 
+@dataclass(frozen=True)
+class ExplorationMarker:
+    id: str
+    position: Vec2
+
+
 @dataclass
 class ExplorationInteractable:
     id: str
@@ -197,6 +203,7 @@ class ExplorationMap:
     interactables: list[ExplorationInteractable] = field(default_factory=list)
     terrain: TerrainTileMap | None = None
     scenery: list[ExplorationScenery] = field(default_factory=list)
+    markers: list[ExplorationMarker] = field(default_factory=list)
     blocked_terrain: frozenset[str] = field(default_factory=frozenset)
     music: str | None = None
     music_volume: float = 1.0
@@ -208,6 +215,27 @@ class ExplorationMap:
         if actor is None:
             raise KeyError(actor_id)
         return actor
+
+    def marker(self, marker_id: str) -> ExplorationMarker:
+        marker = next((m for m in self.markers if m.id == marker_id), None)
+        if marker is None:
+            raise KeyError(marker_id)
+        return marker
+
+    def target_position(self, target_id: str) -> Vec2:
+        actor = next((a for a in self.actors if a.id == target_id), None)
+        if actor is not None:
+            return actor.position
+        marker = next((m for m in self.markers if m.id == target_id), None)
+        if marker is not None:
+            return marker.position
+        item = next((i for i in self.interactables if i.id == target_id), None)
+        if item is not None:
+            return item.position
+        scenery = next((s for s in self.scenery if s.id == target_id), None)
+        if scenery is not None:
+            return scenery.position
+        raise KeyError(target_id)
 
     def try_move(self, actor: ExplorationActor, delta: Vec2) -> None:
         # Resolve each axis independently so characters slide naturally along
