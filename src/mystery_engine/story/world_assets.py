@@ -286,6 +286,7 @@ def build_exploration_map(
                     sprite_key=definition.sprite_key,
                     interaction=interaction,
                     enabled=placed.enabled,
+                    interaction_sound=placed.sound_cues.get("interact") or definition.sound_cues.get("interact"),
                 )
             )
         elif definition.category in {"interactable", "portal"}:
