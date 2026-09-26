@@ -2051,8 +2051,8 @@
     {
       "id": "boulder_1",
       "asset": "boulder",
-      "x": 800,
-      "y": 448
+      "x": 800.0,
+      "y": 448.0
     },
     {
       "id": "boulder_2",
@@ -2081,8 +2081,8 @@
     {
       "id": "flower_3",
       "asset": "flower_bush",
-      "x": 2160,
-      "y": 880
+      "x": 2160.0,
+      "y": 880.0
     },
     {
       "id": "bush_1",
@@ -2093,8 +2093,8 @@
     {
       "id": "bush_2",
       "asset": "bush",
-      "x": 1696,
-      "y": 896
+      "x": 1696.0,
+      "y": 896.0
     },
     {
       "id": "bush_3",
@@ -2117,8 +2117,8 @@
     {
       "id": "sign_1",
       "asset": "signpost",
-      "x": 1216,
-      "y": 640
+      "x": 1216.0,
+      "y": 640.0
     },
     {
       "id": "edge_tree_1",
@@ -2172,18 +2172,28 @@
     {
       "id": "dungeon_gate",
       "asset": "dungeon_gate",
-      "x": 1680,
-      "y": 608,
+      "x": 1680.0,
+      "y": 608.0,
       "action": "enter_test_dungeon",
       "label": "Dungeon entrance"
     },
     {
       "id": "waystone",
       "asset": "waystone",
-      "x": 1088,
-      "y": 640,
+      "x": 1088.0,
+      "y": 640.0,
       "action": "inspect_waystone",
       "label": "Waystone"
+    },
+    {
+      "id": "scene_door",
+      "asset": "scene_door",
+      "x": 960.0,
+      "y": 848.0,
+      "label": "Door",
+      "target_scene": "Extra test.json",
+      "target_door": "return_door"
     }
-  ]
+  ],
+  "music": "music/01_Waystone_Meadow.ogg"
 }
