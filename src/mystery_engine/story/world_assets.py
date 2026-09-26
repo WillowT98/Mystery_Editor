@@ -65,6 +65,9 @@ class WorldAssetDefinition:
     actor_name: str | None = None
     color_key: str = "neutral"
     radius: float = 28.0
+    # Semantic sound cues keyed by event name (for example "interact" or "use").
+    # Scene instances may override these without changing the game-wide asset.
+    sound_cues: Mapping[str, str] = field(default_factory=dict)
     # Runtime-invisible assets (notably scene portals) are still shown by the
     # editor using a generated marker rather than a game sprite.
     runtime_visible: bool = True
@@ -107,6 +110,8 @@ class SceneObjectData:
     target_door: str | None = None
     portal_facing: str = "S"
     portal_mode: str = "two_way"
+    # Optional per-instance semantic sound-cue overrides.
+    sound_cues: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict) -> "SceneObjectData":
@@ -123,6 +128,7 @@ class SceneObjectData:
             target_door=data.get("target_door"),
             portal_facing=str(data.get("portal_facing", "S")).upper(),
             portal_mode=("one_way" if str(data.get("portal_mode", "two_way")).lower() == "one_way" else "two_way"),
+            sound_cues={str(k): str(v) for k, v in dict(data.get("sound_cues", {})).items() if v},
         )
 
     def to_dict(self) -> dict:
@@ -143,6 +149,8 @@ class SceneObjectData:
             data["portal_facing"] = self.portal_facing
         if self.portal_mode == "one_way":
             data["portal_mode"] = "one_way"
+        if self.sound_cues:
+            data["sound_cues"] = dict(sorted(self.sound_cues.items()))
         return data
 
 
@@ -161,6 +169,8 @@ class ExplorationSceneData:
     # Scene gain is multiplied by the player's global in-game music volume.
     music: str | None = None
     music_volume: float = 1.0
+    ambience_cue: str | None = None
+    ambience_volume: float = 1.0
 
     @property
     def width(self) -> int:
@@ -203,6 +213,8 @@ class ExplorationSceneData:
             elevation_face_depth=int(data.get("elevation_face_depth", 44)),
             music=(str(data["music"]) if data.get("music") else None),
             music_volume=max(0.0, min(1.0, float(data.get("music_volume", 1.0)))),
+            ambience_cue=(str(data["ambience_cue"]) if data.get("ambience_cue") else None),
+            ambience_volume=max(0.0, min(1.0, float(data.get("ambience_volume", 1.0)))),
         )
 
     def to_dict(self) -> dict:
@@ -222,6 +234,10 @@ class ExplorationSceneData:
             data["music"] = self.music
         if self.music_volume != 1.0:
             data["music_volume"] = round(max(0.0, min(1.0, self.music_volume)), 3)
+        if self.ambience_cue:
+            data["ambience_cue"] = self.ambience_cue
+        if self.ambience_volume != 1.0:
+            data["ambience_volume"] = round(max(0.0, min(1.0, self.ambience_volume)), 3)
         return data
 
 
@@ -293,6 +309,7 @@ def build_exploration_map(
                     anchor=definition.anchor,
                     visible=definition.runtime_visible,
                     portal_facing=placed.portal_facing if definition.category == "portal" else None,
+                    interaction_sound=placed.sound_cues.get("interact") or placed.sound_cues.get("use") or definition.sound_cues.get("interact") or definition.sound_cues.get("use"),
                 )
             )
         else:
@@ -319,4 +336,6 @@ def build_exploration_map(
         blocked_terrain=frozenset(scene.blocked_terrain),
         music=scene.music,
         music_volume=scene.music_volume,
+        ambience_cue=scene.ambience_cue,
+        ambience_volume=scene.ambience_volume,
     )
