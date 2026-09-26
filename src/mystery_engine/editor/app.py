@@ -869,6 +869,107 @@ class ExplorationSceneEditor:
             pass
         self._music_previewing = False
 
+    # ---------- semantic SFX / ambience ----------
+
+    def _preview_sound_cue(self, cue_id: str | None) -> None:
+        self._stop_sfx_preview()
+        cue = self.sfx_catalog.get(cue_id)
+        if cue is None:
+            self.status = "No sound cue selected"
+            return
+        if not cue.variants:
+            self.status = f"Cue has no variants: {cue.label}"
+            return
+        path = self.asset_root / cue.variants[0]
+        if not path.exists():
+            self.status = f"Missing SFX file: {path.name}"
+            return
+        try:
+            if pygame.mixer.get_init() is None:
+                pygame.mixer.init()
+            sound = pygame.mixer.Sound(str(path))
+            channel = pygame.mixer.find_channel(True)
+            if channel is None:
+                self.status = "No free audio channel"
+                return
+            channel.set_volume(cue.volume)
+            channel.play(sound, loops=-1 if cue.loop else 0)
+            self._sfx_preview_channel = channel
+            self.status = f"Previewing cue: {cue.label}"
+        except pygame.error as exc:
+            self.status = f"Could not preview SFX: {exc}"
+
+    def _stop_sfx_preview(self) -> None:
+        if self._sfx_preview_channel is not None:
+            try:
+                self._sfx_preview_channel.stop()
+            except pygame.error:
+                pass
+        self._sfx_preview_channel = None
+
+    def _set_scene_ambience(self, cue_id: str | None) -> None:
+        before = self.history.snapshot(self.scene)
+        self.scene.ambience_cue = cue_id
+        self.history.remember(before)
+        self.dirty = True
+        self._stop_sfx_preview()
+        cue = self.sfx_catalog.get(cue_id)
+        self.status = "Scene ambience cleared" if cue is None else f"Scene ambience: {cue.label}"
+
+    def _set_scene_ambience_volume(self, delta: float) -> None:
+        before = self.history.snapshot(self.scene)
+        self.scene.ambience_volume = max(0.0, min(1.0, round(self.scene.ambience_volume + delta, 2)))
+        self.history.remember(before)
+        self.dirty = True
+        self.status = f"Ambience gain: {round(self.scene.ambience_volume * 100)}%"
+
+    def _effective_object_sound(self, obj: SceneObjectData, definition: WorldAssetDefinition) -> str | None:
+        event = "use" if definition.category == "portal" else "interact"
+        return obj.sound_cues.get(event) or definition.sound_cues.get(event)
+
+    def _object_sound_candidates(self) -> list[str]:
+        allowed = {"Ui", "Magic", "Combat"}
+        return [cue.id for cue in self.sfx_catalog.all() if cue.category in allowed]
+
+    def _cycle_selected_object_sound(self, delta: int) -> None:
+        pair = self._selected_pair()
+        if pair is None:
+            return
+        obj, definition = pair
+        if definition.category not in {"interactable", "portal", "actor"}:
+            self.status = "This object has no interaction sound event"
+            return
+        candidates = self._object_sound_candidates()
+        if not candidates:
+            self.status = "No SFX cues are registered"
+            return
+        event = "use" if definition.category == "portal" else "interact"
+        current = self._effective_object_sound(obj, definition)
+        if current in candidates:
+            index = (candidates.index(current) + delta) % len(candidates)
+        else:
+            index = 0 if delta >= 0 else len(candidates) - 1
+        before = self.history.snapshot(self.scene)
+        obj.sound_cues[event] = candidates[index]
+        self.history.remember(before)
+        self.dirty = True
+        cue = self.sfx_catalog.get(candidates[index])
+        self.status = f"{event.title()} sound: {cue.label if cue else candidates[index]}"
+
+    def _reset_selected_object_sound(self) -> None:
+        pair = self._selected_pair()
+        if pair is None:
+            return
+        obj, definition = pair
+        event = "use" if definition.category == "portal" else "interact"
+        if event not in obj.sound_cues:
+            return
+        before = self.history.snapshot(self.scene)
+        obj.sound_cues.pop(event, None)
+        self.history.remember(before)
+        self.dirty = True
+        self.status = "Sound reset to asset default"
+
     # ---------- rendering ----------
 
     def draw(self) -> None:
