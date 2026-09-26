@@ -520,21 +520,26 @@ class ExplorationSceneEditor:
             self._text_edit_field = None
             return
         obj, _ = pair
+        field = self._text_edit_field
         value = self._text_edit_buffer.strip() or None
-        if self._text_edit_field == "action":
+        if field == "action":
             obj.action = value
-        elif self._text_edit_field == "label":
+        elif field == "label":
             obj.label = value
-        elif self._text_edit_field == "target_scene":
+        elif field == "target_scene":
             obj.target_scene = value
-        elif self._text_edit_field == "target_door":
+        elif field == "target_door":
             obj.target_door = value
         if self._text_edit_before is not None:
             self.history.remember(self._text_edit_before)
         self._text_edit_before = None
         self._text_edit_field = None
         self.dirty = True
-        self.status = "Property updated"
+        if field in {"target_scene", "target_door"} and obj.target_scene:
+            if not self._sync_selected_portal_pair():
+                self.status = "Property updated; open destination to finish linking"
+        else:
+            self.status = "Property updated"
 
     def _cancel_text_edit(self) -> None:
         self._text_edit_field = None
