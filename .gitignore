@@ -6,3 +6,8 @@ saves/
 dist/
 build/
 *.egg-info/
+.idea/
+venv/
+env/
+.DS_Store
+Thumbs.db
