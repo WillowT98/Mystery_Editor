@@ -331,8 +331,8 @@ class StoryGraphEditor:
         pygame.draw.rect(self.screen, (31, 38, 49), (0, 0, self.screen.get_width(), self.TOP_H))
         buttons = [
             ("Dialogue", "add", "dialogue"), ("Choice", "add", "choice"), ("Condition", "add", "condition"),
-            ("Effect", "add", "effect"), ("Wait", "add", "wait"), ("Parallel", "add", "parallel"),
-            ("Call", "add", "call"), ("End", "add", "end"),
+            ("Random", "add", "random"), ("Effect", "add", "effect"), ("Wait", "add", "wait"),
+            ("Parallel", "add", "parallel"), ("Call", "add", "call"), ("End", "add", "end"),
         ]
         x = 10
         for label, action, value in buttons:
@@ -432,11 +432,15 @@ class StoryGraphEditor:
 
         y += 12
         self.screen.blit(self.font.render("Action nodes", True, (242, 240, 231)), (r.x + 16, y)); y += 34
-        for label in self.ACTION_TEMPLATES:
-            self._button(pygame.Rect(r.x + 16, y, r.w - 32, 30), label, "action_template", label)
-            y += 34
-            if y > r.bottom - 36:
-                break
+        labels = list(self.ACTION_TEMPLATES)
+        gap = 6
+        button_w = (r.w - 32 - gap) // 2
+        for index, label in enumerate(labels):
+            col = index % 2
+            row = index // 2
+            bx = r.x + 16 + col * (button_w + gap)
+            by = y + row * 34
+            self._button(pygame.Rect(bx, by, button_w, 30), label, "action_template", label)
 
     # ---------- input ----------
 
