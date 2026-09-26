@@ -176,3 +176,30 @@ def test_sample_story_is_packaged_and_valid():
     graph = StoryGraph.load(path)
     assert graph.id == "mara_meadow"
     assert graph.validation_issues() == []
+
+
+def test_background_action_keeps_updating_after_graph_end():
+    story = StoryState()
+    dialogue = DialogueController()
+    handle = TimedAction(0.2)
+    ctx = StoryRuntimeContext(
+        story=story,
+        dialogue=dialogue,
+        choose=lambda *_: None,
+        run_action=lambda _name, _params: handle,
+    )
+    graph = StoryGraph.from_dict({
+        "id": "async_finish",
+        "entries": {"default": "action"},
+        "nodes": {
+            "action": {"type": "action", "action": "move_actor", "params": {}, "wait": False, "next": "end"},
+            "end": {"type": "end"},
+        },
+    })
+    runner = StoryGraphRunner(ctx)
+    runner.start(graph)
+    runner.update(0.05)
+    assert not runner.active
+    assert len(runner.background) == 1
+    runner.update(0.20)
+    assert runner.background == []
