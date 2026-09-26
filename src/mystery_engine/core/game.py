@@ -19,7 +19,18 @@ from mystery_engine.dungeon.floor import DungeonFloor
 from mystery_engine.dungeon.turns import TurnManager
 from mystery_engine.input import InputManager
 from mystery_engine.presentation import CinematicOverlay, MusicController, Renderer
-from mystery_engine.story import (\n    ChoiceOption, DialogueController, DialogueLine, DialogueSequence, ExplorationActor, ExplorationMap,\n    StoryActionDispatcher, StoryGraph, StoryGraphRunner, StoryRuntimeContext,\n)
+from mystery_engine.story import (
+    ChoiceOption,
+    DialogueController,
+    DialogueLine,
+    DialogueSequence,
+    ExplorationActor,
+    ExplorationMap,
+    StoryActionDispatcher,
+    StoryGraph,
+    StoryGraphRunner,
+    StoryRuntimeContext,
+)
 from mystery_engine.ui import MenuController, MenuEntry
 
 if TYPE_CHECKING:
