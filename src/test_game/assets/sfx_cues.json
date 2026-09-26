@@ -1,0 +1,758 @@
+{
+  "format": 1,
+  "cues": [
+    {
+      "id": "ambience.ancient_engine",
+      "label": "Ancient Engine",
+      "category": "Ambience",
+      "variants": [
+        "sfx/ambience/ancient_engine_01.ogg",
+        "sfx/ambience/ancient_engine_02.ogg"
+      ],
+      "volume": 0.55,
+      "cooldown": 0,
+      "loop": true
+    },
+    {
+      "id": "ambience.arcane_room_hum",
+      "label": "Arcane Room Hum",
+      "category": "Ambience",
+      "variants": [
+        "sfx/ambience/arcane_room_hum_01.ogg",
+        "sfx/ambience/arcane_room_hum_02.ogg"
+      ],
+      "volume": 0.55,
+      "cooldown": 0,
+      "loop": true
+    },
+    {
+      "id": "ambience.cave_magic",
+      "label": "Cave Magic",
+      "category": "Ambience",
+      "variants": [
+        "sfx/ambience/cave_magic_01.ogg",
+        "sfx/ambience/cave_magic_02.ogg"
+      ],
+      "volume": 0.55,
+      "cooldown": 0,
+      "loop": true
+    },
+    {
+      "id": "ambience.dream_space",
+      "label": "Dream Space",
+      "category": "Ambience",
+      "variants": [
+        "sfx/ambience/dream_space_01.ogg",
+        "sfx/ambience/dream_space_02.ogg"
+      ],
+      "volume": 0.55,
+      "cooldown": 0,
+      "loop": true
+    },
+    {
+      "id": "ambience.memory_haze",
+      "label": "Memory Haze",
+      "category": "Ambience",
+      "variants": [
+        "sfx/ambience/memory_haze_01.ogg",
+        "sfx/ambience/memory_haze_02.ogg"
+      ],
+      "volume": 0.55,
+      "cooldown": 0,
+      "loop": true
+    },
+    {
+      "id": "ambience.night_field",
+      "label": "Night Field",
+      "category": "Ambience",
+      "variants": [
+        "sfx/ambience/night_field_01.ogg",
+        "sfx/ambience/night_field_02.ogg"
+      ],
+      "volume": 0.55,
+      "cooldown": 0,
+      "loop": true
+    },
+    {
+      "id": "ambience.portal_idle",
+      "label": "Portal Idle",
+      "category": "Ambience",
+      "variants": [
+        "sfx/ambience/portal_idle_01.ogg",
+        "sfx/ambience/portal_idle_02.ogg"
+      ],
+      "volume": 0.55,
+      "cooldown": 0,
+      "loop": true
+    },
+    {
+      "id": "ambience.storm_magic",
+      "label": "Storm Magic",
+      "category": "Ambience",
+      "variants": [
+        "sfx/ambience/storm_magic_01.ogg",
+        "sfx/ambience/storm_magic_02.ogg"
+      ],
+      "volume": 0.55,
+      "cooldown": 0,
+      "loop": true
+    },
+    {
+      "id": "combat.block",
+      "label": "Block",
+      "category": "Combat",
+      "variants": [
+        "sfx/combat/block_01.ogg",
+        "sfx/combat/block_02.ogg",
+        "sfx/combat/block_03.ogg",
+        "sfx/combat/block_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "combat.critical_hit",
+      "label": "Critical Hit",
+      "category": "Combat",
+      "variants": [
+        "sfx/combat/critical_hit_01.ogg",
+        "sfx/combat/critical_hit_02.ogg",
+        "sfx/combat/critical_hit_03.ogg",
+        "sfx/combat/critical_hit_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "combat.defeat",
+      "label": "Defeat",
+      "category": "Combat",
+      "variants": [
+        "sfx/combat/defeat_01.ogg",
+        "sfx/combat/defeat_02.ogg",
+        "sfx/combat/defeat_03.ogg",
+        "sfx/combat/defeat_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "combat.evade",
+      "label": "Evade",
+      "category": "Combat",
+      "variants": [
+        "sfx/combat/evade_01.ogg",
+        "sfx/combat/evade_02.ogg",
+        "sfx/combat/evade_03.ogg",
+        "sfx/combat/evade_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "combat.heavy_hit",
+      "label": "Heavy Hit",
+      "category": "Combat",
+      "variants": [
+        "sfx/combat/heavy_hit_01.ogg",
+        "sfx/combat/heavy_hit_02.ogg",
+        "sfx/combat/heavy_hit_03.ogg",
+        "sfx/combat/heavy_hit_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "combat.light_hit",
+      "label": "Light Hit",
+      "category": "Combat",
+      "variants": [
+        "sfx/combat/light_hit_01.ogg",
+        "sfx/combat/light_hit_02.ogg",
+        "sfx/combat/light_hit_03.ogg",
+        "sfx/combat/light_hit_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "combat.stun",
+      "label": "Stun",
+      "category": "Combat",
+      "variants": [
+        "sfx/combat/stun_01.ogg",
+        "sfx/combat/stun_02.ogg",
+        "sfx/combat/stun_03.ogg",
+        "sfx/combat/stun_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.arcane_cast",
+      "label": "Arcane Cast",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/arcane_cast_01.ogg",
+        "sfx/magic/arcane_cast_02.ogg",
+        "sfx/magic/arcane_cast_03.ogg",
+        "sfx/magic/arcane_cast_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.arcane_charge",
+      "label": "Arcane Charge",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/arcane_charge_01.ogg",
+        "sfx/magic/arcane_charge_02.ogg",
+        "sfx/magic/arcane_charge_03.ogg",
+        "sfx/magic/arcane_charge_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.bolt_impact",
+      "label": "Bolt Impact",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/bolt_impact_01.ogg",
+        "sfx/magic/bolt_impact_02.ogg",
+        "sfx/magic/bolt_impact_03.ogg",
+        "sfx/magic/bolt_impact_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.bolt_launch",
+      "label": "Bolt Launch",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/bolt_launch_01.ogg",
+        "sfx/magic/bolt_launch_02.ogg",
+        "sfx/magic/bolt_launch_03.ogg",
+        "sfx/magic/bolt_launch_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.buff",
+      "label": "Buff",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/buff_01.ogg",
+        "sfx/magic/buff_02.ogg",
+        "sfx/magic/buff_03.ogg",
+        "sfx/magic/buff_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.debuff",
+      "label": "Debuff",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/debuff_01.ogg",
+        "sfx/magic/debuff_02.ogg",
+        "sfx/magic/debuff_03.ogg",
+        "sfx/magic/debuff_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.heal",
+      "label": "Heal",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/heal_01.ogg",
+        "sfx/magic/heal_02.ogg",
+        "sfx/magic/heal_03.ogg",
+        "sfx/magic/heal_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.portal_close",
+      "label": "Portal Close",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/portal_close_01.ogg",
+        "sfx/magic/portal_close_02.ogg",
+        "sfx/magic/portal_close_03.ogg",
+        "sfx/magic/portal_close_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.portal_open",
+      "label": "Portal Open",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/portal_open_01.ogg",
+        "sfx/magic/portal_open_02.ogg",
+        "sfx/magic/portal_open_03.ogg",
+        "sfx/magic/portal_open_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.shield_hit",
+      "label": "Shield Hit",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/shield_hit_01.ogg",
+        "sfx/magic/shield_hit_02.ogg",
+        "sfx/magic/shield_hit_03.ogg",
+        "sfx/magic/shield_hit_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.shield_on",
+      "label": "Shield On",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/shield_on_01.ogg",
+        "sfx/magic/shield_on_02.ogg",
+        "sfx/magic/shield_on_03.ogg",
+        "sfx/magic/shield_on_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.teleport",
+      "label": "Teleport",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/teleport_01.ogg",
+        "sfx/magic/teleport_02.ogg",
+        "sfx/magic/teleport_03.ogg",
+        "sfx/magic/teleport_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "magic.transformation",
+      "label": "Transformation",
+      "category": "Magic",
+      "variants": [
+        "sfx/magic/transformation_01.ogg",
+        "sfx/magic/transformation_02.ogg",
+        "sfx/magic/transformation_03.ogg",
+        "sfx/magic/transformation_04.ogg"
+      ],
+      "volume": 0.85,
+      "cooldown": 0.02,
+      "loop": false
+    },
+    {
+      "id": "reactions.affection",
+      "label": "Affection",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/affection_01.ogg",
+        "sfx/reactions/affection_02.ogg",
+        "sfx/reactions/affection_03.ogg",
+        "sfx/reactions/affection_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.afraid",
+      "label": "Afraid",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/afraid_01.ogg",
+        "sfx/reactions/afraid_02.ogg",
+        "sfx/reactions/afraid_03.ogg",
+        "sfx/reactions/afraid_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.angry",
+      "label": "Angry",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/angry_01.ogg",
+        "sfx/reactions/angry_02.ogg",
+        "sfx/reactions/angry_03.ogg",
+        "sfx/reactions/angry_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.confusion",
+      "label": "Confusion",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/confusion_01.ogg",
+        "sfx/reactions/confusion_02.ogg",
+        "sfx/reactions/confusion_03.ogg",
+        "sfx/reactions/confusion_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.determined",
+      "label": "Determined",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/determined_01.ogg",
+        "sfx/reactions/determined_02.ogg",
+        "sfx/reactions/determined_03.ogg",
+        "sfx/reactions/determined_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.disappointed",
+      "label": "Disappointed",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/disappointed_01.ogg",
+        "sfx/reactions/disappointed_02.ogg",
+        "sfx/reactions/disappointed_03.ogg",
+        "sfx/reactions/disappointed_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.embarrassed",
+      "label": "Embarrassed",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/embarrassed_01.ogg",
+        "sfx/reactions/embarrassed_02.ogg",
+        "sfx/reactions/embarrassed_03.ogg",
+        "sfx/reactions/embarrassed_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.exasperated",
+      "label": "Exasperated",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/exasperated_01.ogg",
+        "sfx/reactions/exasperated_02.ogg",
+        "sfx/reactions/exasperated_03.ogg",
+        "sfx/reactions/exasperated_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.happy",
+      "label": "Happy",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/happy_01.ogg",
+        "sfx/reactions/happy_02.ogg",
+        "sfx/reactions/happy_03.ogg",
+        "sfx/reactions/happy_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.realization",
+      "label": "Realization",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/realization_01.ogg",
+        "sfx/reactions/realization_02.ogg",
+        "sfx/reactions/realization_03.ogg",
+        "sfx/reactions/realization_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.relief",
+      "label": "Relief",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/relief_01.ogg",
+        "sfx/reactions/relief_02.ogg",
+        "sfx/reactions/relief_03.ogg",
+        "sfx/reactions/relief_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.sad",
+      "label": "Sad",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/sad_01.ogg",
+        "sfx/reactions/sad_02.ogg",
+        "sfx/reactions/sad_03.ogg",
+        "sfx/reactions/sad_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.shock",
+      "label": "Shock",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/shock_01.ogg",
+        "sfx/reactions/shock_02.ogg",
+        "sfx/reactions/shock_03.ogg",
+        "sfx/reactions/shock_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.surprise",
+      "label": "Surprise",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/surprise_01.ogg",
+        "sfx/reactions/surprise_02.ogg",
+        "sfx/reactions/surprise_03.ogg",
+        "sfx/reactions/surprise_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "reactions.worried",
+      "label": "Worried",
+      "category": "Reactions",
+      "variants": [
+        "sfx/reactions/worried_01.ogg",
+        "sfx/reactions/worried_02.ogg",
+        "sfx/reactions/worried_03.ogg",
+        "sfx/reactions/worried_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.08,
+      "loop": false
+    },
+    {
+      "id": "ui.cancel",
+      "label": "Cancel",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/cancel_01.ogg",
+        "sfx/ui/cancel_02.ogg",
+        "sfx/ui/cancel_03.ogg",
+        "sfx/ui/cancel_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    },
+    {
+      "id": "ui.confirm",
+      "label": "Confirm",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/confirm_01.ogg",
+        "sfx/ui/confirm_02.ogg",
+        "sfx/ui/confirm_03.ogg",
+        "sfx/ui/confirm_04.ogg",
+        "sfx/ui/confirm_05.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    },
+    {
+      "id": "ui.cursor_move",
+      "label": "Cursor Move",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/cursor_move_01.ogg",
+        "sfx/ui/cursor_move_02.ogg",
+        "sfx/ui/cursor_move_03.ogg",
+        "sfx/ui/cursor_move_04.ogg",
+        "sfx/ui/cursor_move_05.ogg",
+        "sfx/ui/cursor_move_06.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    },
+    {
+      "id": "ui.error",
+      "label": "Error",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/error_01.ogg",
+        "sfx/ui/error_02.ogg",
+        "sfx/ui/error_03.ogg",
+        "sfx/ui/error_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    },
+    {
+      "id": "ui.item_get",
+      "label": "Item Get",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/item_get_01.ogg",
+        "sfx/ui/item_get_02.ogg",
+        "sfx/ui/item_get_03.ogg",
+        "sfx/ui/item_get_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    },
+    {
+      "id": "ui.menu_close",
+      "label": "Menu Close",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/menu_close_01.ogg",
+        "sfx/ui/menu_close_02.ogg",
+        "sfx/ui/menu_close_03.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    },
+    {
+      "id": "ui.menu_open",
+      "label": "Menu Open",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/menu_open_01.ogg",
+        "sfx/ui/menu_open_02.ogg",
+        "sfx/ui/menu_open_03.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    },
+    {
+      "id": "ui.quest_accept",
+      "label": "Quest Accept",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/quest_accept_01.ogg",
+        "sfx/ui/quest_accept_02.ogg",
+        "sfx/ui/quest_accept_03.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    },
+    {
+      "id": "ui.quest_complete",
+      "label": "Quest Complete",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/quest_complete_01.ogg",
+        "sfx/ui/quest_complete_02.ogg",
+        "sfx/ui/quest_complete_03.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    },
+    {
+      "id": "ui.save",
+      "label": "Save",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/save_01.ogg",
+        "sfx/ui/save_02.ogg",
+        "sfx/ui/save_03.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    },
+    {
+      "id": "ui.text_advance",
+      "label": "Text Advance",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/text_advance_01.ogg",
+        "sfx/ui/text_advance_02.ogg",
+        "sfx/ui/text_advance_03.ogg",
+        "sfx/ui/text_advance_04.ogg",
+        "sfx/ui/text_advance_05.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    },
+    {
+      "id": "ui.warning",
+      "label": "Warning",
+      "category": "Ui",
+      "variants": [
+        "sfx/ui/warning_01.ogg",
+        "sfx/ui/warning_02.ogg",
+        "sfx/ui/warning_03.ogg",
+        "sfx/ui/warning_04.ogg"
+      ],
+      "volume": 0.75,
+      "cooldown": 0.03,
+      "loop": false
+    }
+  ]
+}
