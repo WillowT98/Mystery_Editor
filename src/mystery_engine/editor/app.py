@@ -10,6 +10,7 @@ from typing import Iterable
 
 import pygame
 
+from mystery_engine.presentation.sfx import SoundCueCatalog
 from mystery_engine.core.autotile import autotile_asset, elevation_cliff_assets, oriented_neighbor_mask
 from mystery_engine.story import (
     ExplorationSceneData,
@@ -88,6 +89,8 @@ class ExplorationSceneEditor:
         self._pan_camera_anchor: tuple[float, float] | None = None
         self._palette_scroll = 0
         self._music_previewing = False
+        self._sfx_preview_channel: pygame.mixer.Channel | None = None
+        self.sfx_catalog = SoundCueCatalog.load(self.asset_root / "sfx_cues.json")
         # Scene-link navigation. Opening a portal pushes the current scene so
         # Alt+Left / the sidebar Back button can return immediately.
         self.scene_nav_stack: list[Path] = []
@@ -566,6 +569,7 @@ class ExplorationSceneEditor:
 
     def _switch_scene(self, path: Path, *, select_object_id: str | None = None, push_current: bool = True) -> None:
         self._stop_music_preview()
+        self._stop_sfx_preview()
         path = Path(path).resolve()
         if push_current:
             self.save()
@@ -1409,7 +1413,7 @@ class ExplorationSceneEditor:
             id=self._unique_id(src.asset), asset=src.asset, x=src.x + 16, y=src.y + 16,
             action=src.action, label=src.label, enabled=src.enabled, collision=copied_collision,
             target_scene=src.target_scene, target_door=src.target_door, portal_facing=src.portal_facing,
-            portal_mode=src.portal_mode,
+            portal_mode=src.portal_mode, sound_cues=dict(src.sound_cues),
         )
         self.scene.objects.append(dup)
         self.history.remember(before)
