@@ -32,6 +32,22 @@ from .content import (
 class TestGameDefinition:
     game_id = "fox_and_mara_test"
     asset_root = Path(__file__).resolve().parent / "assets"
+    sfx_catalog_path = asset_root / "sfx_cues.json"
+    # Engine events resolve to semantic cues. The files behind these cues can be
+    # swapped or expanded without touching gameplay code or scene JSON.
+    sfx_event_cues = {
+        "menu_open": "ui.menu_open",
+        "menu_close": "ui.menu_close",
+        "cursor_move": "ui.cursor_move",
+        "confirm": "ui.confirm",
+        "cancel": "ui.cancel",
+        "error": "ui.error",
+        "text_advance": "ui.text_advance",
+        "item_get": "ui.item_get",
+        "save": "ui.save",
+        "basic_hit": "combat.light_hit",
+        "defeat": "combat.defeat",
+    }
     game_version = "0.1.0"
     title = "Fox & Mara — Mystery Engine Test"
     dungeon_floor_count = 3

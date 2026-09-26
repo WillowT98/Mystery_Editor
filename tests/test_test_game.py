@@ -9,7 +9,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from test_game.content import WAYSTONE_SHARD
+from test_game.content import FOX_LUNGE, MARA_MEND, MARA_SPARK, WAYSTONE_SHARD, WISP_BOLT
 from test_game.game_definition import TestGameDefinition
 
 
@@ -27,6 +27,19 @@ class TestGameContentTests(unittest.TestCase):
     def test_starting_money(self):
         state = TestGameDefinition().create_state()
         self.assertEqual(state.wallet.carried, 100)
+
+    def test_sfx_defaults_match_current_content(self):
+        game_def = TestGameDefinition()
+        self.assertEqual(game_def.sfx_event_cues["cursor_move"], "ui.cursor_move")
+        self.assertEqual(game_def.sfx_event_cues["basic_hit"], "combat.light_hit")
+        self.assertEqual(FOX_LUNGE.sfx_cue, "combat.light_hit")
+        self.assertEqual(MARA_SPARK.sfx_cue, "magic.bolt_launch")
+        self.assertEqual(MARA_SPARK.impact_sfx_cue, "magic.bolt_impact")
+        self.assertEqual(MARA_MEND.sfx_cue, "magic.heal")
+        self.assertEqual(WISP_BOLT.sfx_cue, "magic.bolt_launch")
+
+    def test_sfx_catalog_is_shipped_with_test_game(self):
+        self.assertTrue(TestGameDefinition.sfx_catalog_path.exists())
 
     def test_exploration_uses_semantic_terrain_and_scenery(self):
         game_def = TestGameDefinition()

@@ -161,6 +161,34 @@ class SceneDataTests(unittest.TestCase):
         self.assertEqual(world.music, "music/meadow.ogg")
         self.assertAlmostEqual(world.music_volume, 0.65)
 
+    def test_scene_ambience_roundtrip_and_runtime_metadata(self):
+        scene = ExplorationSceneData.blank("ambience_scene", 6, 5)
+        scene.ambience_cue = "ambience.night_field"
+        scene.ambience_volume = 0.55
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "scene.json"
+            save_exploration_scene(scene, path)
+            loaded = load_exploration_scene(path)
+        self.assertEqual(loaded.ambience_cue, "ambience.night_field")
+        self.assertAlmostEqual(loaded.ambience_volume, 0.55)
+        world = build_exploration_map(loaded, WORLD_ASSETS)
+        self.assertEqual(world.ambience_cue, "ambience.night_field")
+        self.assertAlmostEqual(world.ambience_volume, 0.55)
+
+    def test_object_sound_override_roundtrip_and_runtime(self):
+        scene = ExplorationSceneData.blank("sfx_scene", 6, 5)
+        scene.objects.append(SceneObjectData(
+            "stone", "waystone", 128, 128,
+            sound_cues={"interact": "magic.arcane_cast"},
+        ))
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "scene.json"
+            save_exploration_scene(scene, path)
+            loaded = load_exploration_scene(path)
+        self.assertEqual(loaded.objects[0].sound_cues["interact"], "magic.arcane_cast")
+        world = build_exploration_map(loaded, WORLD_ASSETS, {"inspect_waystone": lambda: None})
+        self.assertEqual(world.interactables[0].interaction_sound, "magic.arcane_cast")
+
     def test_every_scene_asset_exists_in_catalog(self):
         path = Path(__file__).resolve().parents[1] / "src" / "test_game" / "scenes" / "test_clearing.json"
         scene = load_exploration_scene(path)

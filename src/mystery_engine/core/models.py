@@ -33,6 +33,8 @@ class SkillDefinition:
     costs: dict[str, int] = field(default_factory=dict)
     max_charges: int | None = None
     accuracy: float = 1.0
+    sfx_cue: str | None = None
+    impact_sfx_cue: str | None = None
 
 
 @dataclass

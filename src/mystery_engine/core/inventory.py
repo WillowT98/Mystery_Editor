@@ -14,6 +14,8 @@ class ItemDefinition:
     damage_type: str | None = None
     droppable: bool = True
     key_item: bool = False
+    sfx_cue: str | None = None
+    impact_sfx_cue: str | None = None
 
 
 @dataclass
