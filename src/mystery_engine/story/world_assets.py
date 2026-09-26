@@ -9,6 +9,7 @@ from .exploration import (
     ExplorationActor,
     ExplorationInteractable,
     ExplorationMap,
+    ExplorationMarker,
     ExplorationScenery,
     ObstacleShape,
     PolygonObstacle,
@@ -254,6 +255,7 @@ def build_exploration_map(
     scenery: list[ExplorationScenery] = []
     actors: list[ExplorationActor] = []
     interactables: list[ExplorationInteractable] = []
+    markers: list[ExplorationMarker] = []
 
     for placed in scene.objects:
         definition = catalog.get(placed.asset)
@@ -289,6 +291,8 @@ def build_exploration_map(
                     interaction_sound=placed.sound_cues.get("interact") or definition.sound_cues.get("interact"),
                 )
             )
+        elif definition.category == "marker":
+            markers.append(ExplorationMarker(placed.id, pos))
         elif definition.category in {"interactable", "portal"}:
             # Portals are generic scene links. The game definition supplies the
             # transition callback factory, while ordinary interactables still use
@@ -334,6 +338,7 @@ def build_exploration_map(
         scenery=scenery,
         actors=actors,
         interactables=interactables,
+        markers=markers,
         blocked_terrain=frozenset(scene.blocked_terrain),
         music=scene.music,
         music_volume=scene.music_volume,
