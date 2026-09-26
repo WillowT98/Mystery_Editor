@@ -61,6 +61,9 @@ class MusicController:
             if pygame.mixer.get_init() is None:
                 pygame.mixer.init()
             pygame.mixer.set_num_channels(max(16, pygame.mixer.get_num_channels()))
+            # Channel 0 is reserved for long-lived scene ambience so bursty SFX
+            # cannot steal it when pygame finds a free/ejectable channel.
+            pygame.mixer.set_reserved(1)
             self._ambience_channel = pygame.mixer.Channel(0)
             self.available = True
             pygame.mixer.music.set_volume(self.effective_volume)
