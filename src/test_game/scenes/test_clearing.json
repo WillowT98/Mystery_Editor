@@ -465,12 +465,12 @@
       "path",
       "path",
       "path",
-      "grass",
-      "grass",
-      "grass",
-      "grass",
-      "upper_grass",
-      "void"
+      "path",
+      "path",
+      "path",
+      "path",
+      "path",
+      "path"
     ],
     [
       "void",
@@ -507,12 +507,12 @@
       "path",
       "path",
       "path",
-      "grass",
-      "grass",
-      "grass",
-      "grass",
-      "upper_grass",
-      "void"
+      "path",
+      "path",
+      "path",
+      "path",
+      "path",
+      "path"
     ],
     [
       "void",
@@ -549,12 +549,12 @@
       "path",
       "path",
       "path",
-      "grass",
-      "grass",
-      "grass",
-      "grass",
-      "upper_grass",
-      "void"
+      "path",
+      "path",
+      "path",
+      "path",
+      "path",
+      "path"
     ],
     [
       "void",
@@ -1479,7 +1479,7 @@
       0,
       0,
       0,
-      1,
+      0,
       0
     ],
     [
@@ -1521,7 +1521,7 @@
       0,
       0,
       0,
-      1,
+      0,
       0
     ],
     [
@@ -1563,7 +1563,7 @@
       0,
       0,
       0,
-      1,
+      0,
       0
     ],
     [
@@ -2033,155 +2033,155 @@
     {
       "id": "tree_mid_1",
       "asset": "tree",
-      "x": 560,
-      "y": 520
+      "x": 560.0,
+      "y": 520.0
     },
     {
       "id": "tree_mid_2",
       "asset": "tree",
-      "x": 2050,
-      "y": 1040
+      "x": 2050.0,
+      "y": 1040.0
     },
     {
       "id": "tree_mid_3",
       "asset": "tree",
-      "x": 1210,
-      "y": 1200
+      "x": 1210.0,
+      "y": 1200.0
     },
     {
       "id": "boulder_1",
       "asset": "boulder",
-      "x": 760,
-      "y": 525
+      "x": 800,
+      "y": 448
     },
     {
       "id": "boulder_2",
       "asset": "boulder",
-      "x": 1860,
-      "y": 1050
+      "x": 1860.0,
+      "y": 1050.0
     },
     {
       "id": "boulder_3",
       "asset": "boulder",
-      "x": 1390,
-      "y": 1190
+      "x": 1390.0,
+      "y": 1190.0
     },
     {
       "id": "flower_1",
       "asset": "flower_bush",
-      "x": 560,
-      "y": 850
+      "x": 560.0,
+      "y": 850.0
     },
     {
       "id": "flower_2",
       "asset": "flower_bush",
-      "x": 1520,
-      "y": 590
+      "x": 1520.0,
+      "y": 590.0
     },
     {
       "id": "flower_3",
       "asset": "flower_bush",
       "x": 2160,
-      "y": 850
+      "y": 880
     },
     {
       "id": "bush_1",
       "asset": "bush",
-      "x": 520,
-      "y": 600
+      "x": 520.0,
+      "y": 600.0
     },
     {
       "id": "bush_2",
       "asset": "bush",
-      "x": 1710,
-      "y": 780
+      "x": 1696,
+      "y": 896
     },
     {
       "id": "bush_3",
       "asset": "bush",
-      "x": 1500,
-      "y": 900
+      "x": 1500.0,
+      "y": 900.0
     },
     {
       "id": "fence_1",
       "asset": "fence",
-      "x": 1420,
-      "y": 655
+      "x": 1420.0,
+      "y": 655.0
     },
     {
       "id": "fence_2",
       "asset": "fence",
-      "x": 1880,
-      "y": 655
+      "x": 1880.0,
+      "y": 655.0
     },
     {
       "id": "sign_1",
       "asset": "signpost",
-      "x": 1560,
-      "y": 690
+      "x": 1216,
+      "y": 640
     },
     {
       "id": "edge_tree_1",
       "asset": "tree",
-      "x": 260,
-      "y": 310
+      "x": 260.0,
+      "y": 310.0
     },
     {
       "id": "edge_tree_2",
       "asset": "tree",
-      "x": 470,
-      "y": 285
+      "x": 470.0,
+      "y": 285.0
     },
     {
       "id": "edge_tree_3",
       "asset": "tree",
-      "x": 2180,
-      "y": 300
+      "x": 2180.0,
+      "y": 300.0
     },
     {
       "id": "edge_tree_4",
       "asset": "tree",
-      "x": 2360,
-      "y": 420
+      "x": 2360.0,
+      "y": 420.0
     },
     {
       "id": "edge_tree_5",
       "asset": "tree",
-      "x": 300,
-      "y": 1370
+      "x": 300.0,
+      "y": 1370.0
     },
     {
       "id": "edge_tree_6",
       "asset": "tree",
-      "x": 2250,
-      "y": 1370
+      "x": 2250.0,
+      "y": 1370.0
     },
     {
       "id": "fox",
       "asset": "fox",
-      "x": 920,
-      "y": 736
+      "x": 920.0,
+      "y": 736.0
     },
     {
       "id": "mara",
       "asset": "mara",
-      "x": 1110,
-      "y": 736,
+      "x": 1110.0,
+      "y": 736.0,
       "action": "talk_mara"
     },
     {
       "id": "dungeon_gate",
       "asset": "dungeon_gate",
-      "x": 1632,
-      "y": 736,
+      "x": 1680,
+      "y": 608,
       "action": "enter_test_dungeon",
       "label": "Dungeon entrance"
     },
     {
       "id": "waystone",
       "asset": "waystone",
-      "x": 768,
-      "y": 608,
+      "x": 1088,
+      "y": 640,
       "action": "inspect_waystone",
       "label": "Waystone"
     }
