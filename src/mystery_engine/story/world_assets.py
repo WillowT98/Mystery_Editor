@@ -100,10 +100,13 @@ class SceneObjectData:
     # Scene-portal metadata. `target_scene` is stored relative to the current
     # scene file when possible; `target_door` names the destination portal to
     # arrive beside. `portal_facing` controls which side of the destination
-    # portal the party is placed on (N/E/S/W).
+    # portal the party is placed on (N/E/S/W). `portal_mode` is editor metadata:
+    # normal doors default to a maintained reciprocal pair, while one-way links
+    # keep only the outgoing transition.
     target_scene: str | None = None
     target_door: str | None = None
     portal_facing: str = "S"
+    portal_mode: str = "two_way"
 
     @classmethod
     def from_dict(cls, data: dict) -> "SceneObjectData":
@@ -119,6 +122,7 @@ class SceneObjectData:
             target_scene=data.get("target_scene"),
             target_door=data.get("target_door"),
             portal_facing=str(data.get("portal_facing", "S")).upper(),
+            portal_mode=("one_way" if str(data.get("portal_mode", "two_way")).lower() == "one_way" else "two_way"),
         )
 
     def to_dict(self) -> dict:
@@ -137,6 +141,8 @@ class SceneObjectData:
             data["target_door"] = self.target_door
         if self.portal_facing and self.portal_facing != "S":
             data["portal_facing"] = self.portal_facing
+        if self.portal_mode == "one_way":
+            data["portal_mode"] = "one_way"
         return data
 
 
