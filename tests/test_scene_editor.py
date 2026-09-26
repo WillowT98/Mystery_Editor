@@ -115,6 +115,38 @@ class SceneDataTests(unittest.TestCase):
         self.assertEqual(called, ["door_a"])
 
 
+    def test_scene_door_defaults_to_two_way_mode(self):
+        door = SceneObjectData("door_a", "scene_door", 64, 64)
+        self.assertEqual(door.portal_mode, "two_way")
+        self.assertNotIn("portal_mode", door.to_dict())
+
+    def test_one_way_scene_door_roundtrip(self):
+        scene = ExplorationSceneData.blank("one_way", 8, 8)
+        scene.objects.append(SceneObjectData(
+            "drop", "scene_door", 192, 256,
+            target_scene="below.json", target_door="drop_arrival",
+            portal_facing="N", portal_mode="one_way",
+        ))
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "scene.json"
+            save_exploration_scene(scene, path)
+            loaded = load_exploration_scene(path)
+        door = loaded.objects[0]
+        self.assertEqual(door.portal_mode, "one_way")
+        self.assertEqual(door.to_dict()["portal_mode"], "one_way")
+
+    def test_unknown_portal_mode_falls_back_to_two_way(self):
+        data = {
+            "id": "door",
+            "asset": "scene_door",
+            "x": 64,
+            "y": 64,
+            "portal_mode": "future_mode",
+        }
+        door = SceneObjectData.from_dict(data)
+        self.assertEqual(door.portal_mode, "two_way")
+
+
     def test_scene_music_roundtrip_and_runtime_metadata(self):
         scene = ExplorationSceneData.blank("music_scene", 6, 5)
         scene.music = "music/meadow.ogg"
