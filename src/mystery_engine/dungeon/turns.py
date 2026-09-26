@@ -148,6 +148,13 @@ class TurnManager:
                 if occupant.hostile != actor.hostile:
                     event = self.combat.basic_attack(actor, occupant)
                     messages.append(event.text)
+                    cue = self.event_sounds.get("basic_hit")
+                    if cue:
+                        sounds.append(cue)
+                    if not occupant.active:
+                        defeat = self.event_sounds.get("defeat")
+                        if defeat:
+                            sounds.append(defeat)
                     return True
 
                 # The player-controlled leader may move through a companion by
