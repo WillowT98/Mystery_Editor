@@ -238,7 +238,7 @@ class ExplorationSceneEditor:
         Actors deliberately do not use this helper for rendering: the runtime
         prefers a shared 2x2 directional sheet, so the editor now does too.
         """
-        if not definition.sprite_key or definition.category == "portal":
+        if not definition.sprite_key or definition.category in {"portal", "marker"}:
             return ""
         if definition.category == "actor":
             return f"characters/{definition.sprite_key}_s.png"
@@ -336,7 +336,7 @@ class ExplorationSceneEditor:
         if pair is None:
             return None
         obj, definition = pair
-        if definition.category in {"actor", "portal"}:
+        if definition.category in {"actor", "portal", "marker"}:
             return None
         if obj.collision is None:
             base = self._effective_collision(obj, definition)
@@ -439,7 +439,7 @@ class ExplorationSceneEditor:
 
     def add_or_edit_collision(self) -> None:
         pair = self._selected_pair()
-        if pair is None or pair[1].category in {"actor", "portal"}:
+        if pair is None or pair[1].category in {"actor", "portal", "marker"}:
             self.status = "This asset does not use a collision box"
             return
         before = self.history.snapshot(self.scene)
@@ -454,7 +454,7 @@ class ExplorationSceneEditor:
 
     def convert_selected_collision_to_polygon(self) -> None:
         pair = self._selected_pair()
-        if pair is None or pair[1].category in {"actor", "portal"}:
+        if pair is None or pair[1].category in {"actor", "portal", "marker"}:
             self.status = "This asset does not use a collision polygon"
             return
         before = self.history.snapshot(self.scene)
@@ -469,7 +469,7 @@ class ExplorationSceneEditor:
 
     def convert_selected_collision_to_rect(self) -> None:
         pair = self._selected_pair()
-        if pair is None or pair[1].category in {"actor", "portal"}:
+        if pair is None or pair[1].category in {"actor", "portal", "marker"}:
             self.status = "This asset does not use a collision box"
             return
         obj, definition = pair
@@ -1228,7 +1228,7 @@ class ExplorationSceneEditor:
             self._draw_sidebar_help(y + 10, ["Paint heights, not cliff tiles.", "Cliffs are generated automatically.", "F: flood fill"])
 
         elif self.mode == "objects":
-            for definition in self.catalog.by_category("scenery", "interactable", "portal", "actor"):
+            for definition in self.catalog.by_category("scenery", "interactable", "portal", "marker", "actor"):
                 item_rect = pygame.Rect(rect.x + 14, y, rect.w - 28, 74)
                 self._palette_items.append(PaletteItem(definition.id, definition.display_name, item_rect, definition.id))
                 pygame.draw.rect(self.screen, (77, 93, 112) if self.asset_brush == definition.id else (43, 51, 65), item_rect, border_radius=7)
