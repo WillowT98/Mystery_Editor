@@ -331,6 +331,9 @@ class MysteryGame:
             event_sounds=getattr(self.definition, "sfx_event_cues", {}),
         )
         self.dungeon = DungeonSession(floor_number, floor, turns)
+        error = self.audio.play_scene(floor.music, floor.music_volume)
+        if error:
+            self.add_message(error)
 
     @staticmethod
     def _find_nearby_open(floor: DungeonFloor, center: GridPos, occupied: set[GridPos]) -> GridPos | None:
