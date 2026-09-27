@@ -9,6 +9,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from mystery_engine.core import RangePattern
 from test_game.content import FOX_LUNGE, MARA_MEND, MARA_SPARK, THROWING_STONE, WAYSTONE_SHARD, WISP_BOLT
 from test_game.game_definition import TestGameDefinition
 
@@ -37,6 +38,14 @@ class TestGameContentTests(unittest.TestCase):
         self.assertEqual(MARA_SPARK.impact_sfx_cue, "magic.bolt_impact")
         self.assertEqual(MARA_MEND.sfx_cue, "magic.heal")
         self.assertEqual(WISP_BOLT.sfx_cue, "magic.bolt_launch")
+
+    def test_skill_range_patterns_match_pmd_style_roles(self):
+        self.assertIs(FOX_LUNGE.range_pattern, RangePattern.TWO_TILES)
+        self.assertIs(MARA_SPARK.range_pattern, RangePattern.LINE)
+        self.assertEqual(MARA_SPARK.range, 10)
+        self.assertIs(MARA_MEND.range_pattern, RangePattern.ROOM)
+        self.assertIs(WISP_BOLT.range_pattern, RangePattern.LINE)
+        self.assertEqual(WISP_BOLT.range, 10)
 
     def test_ranged_content_has_projectile_visuals(self):
         self.assertEqual(MARA_SPARK.projectile_key, "spark")
