@@ -312,9 +312,9 @@ class Renderer:
         scale = min(rect.w / floor.width, rect.h / floor.height)
         ox = rect.x + (rect.w - floor.width * scale) / 2
         oy = rect.y + (rect.h - floor.height * scale) / 2
-        for pos in memory.discovered:
+        for pos in memory.mapped_tiles(floor):
             t = floor.tile(pos)
-            color = pygame.Color("#767c82") if t.kind is not TileKind.STAIRS else self.stairs
+            color = self.stairs if t.kind is TileKind.STAIRS else pygame.Color("#767c82")
             r = pygame.Rect(int(ox + pos.x * scale), int(oy + pos.y * scale), max(1, math.ceil(scale)), max(1, math.ceil(scale)))
             pygame.draw.rect(self.canvas, color, r)
         for ground in floor.ground_items:

@@ -73,6 +73,26 @@ class VisibilityTests(unittest.TestCase):
         self.assertNotEqual(first, memory.visible)
 
 
+    def test_minimap_geometry_excludes_discovered_wall_cells(self):
+        floor = DungeonFloor.empty(7, 7)
+        for y in range(2, 5):
+            for x in range(2, 5):
+                floor.set_floor(GridPos(x, y))
+        memory = ExplorationMemory()
+        memory.update(floor, GridPos(3, 3), radius=3)
+
+        # LOS discovery includes the blocking wall ring around the room.
+        self.assertIn(GridPos(1, 3), memory.discovered)
+        self.assertFalse(floor.tile(GridPos(1, 3)).walkable)
+
+        mapped = memory.mapped_tiles(floor)
+        self.assertNotIn(GridPos(1, 3), mapped)
+        self.assertEqual(
+            mapped,
+            {GridPos(x, y) for y in range(2, 5) for x in range(2, 5)},
+        )
+
+
 class CombatTests(unittest.TestCase):
     def test_typed_resistance_reduces_damage(self):
         rng_a = Random(7)
