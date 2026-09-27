@@ -112,7 +112,7 @@ def test_room_pattern_targets_only_matching_entities_in_same_room():
         "room", "Room", "", TargetKind.ENEMY, 99,
         power=1, range_pattern=RangePattern.ROOM,
     )
-    assert set(targets_for_skill(floor, actor, skill)) == {in_room_a, in_room_b}
+    assert {target.id for target in targets_for_skill(floor, actor, skill)} == {"a", "b"}
 
 
 def test_self_pattern_targets_only_user():
