@@ -9,7 +9,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from test_game.content import FOX_LUNGE, MARA_MEND, MARA_SPARK, WAYSTONE_SHARD, WISP_BOLT
+from test_game.content import FOX_LUNGE, MARA_MEND, MARA_SPARK, THROWING_STONE, WAYSTONE_SHARD, WISP_BOLT
 from test_game.game_definition import TestGameDefinition
 
 
@@ -37,6 +37,15 @@ class TestGameContentTests(unittest.TestCase):
         self.assertEqual(MARA_SPARK.impact_sfx_cue, "magic.bolt_impact")
         self.assertEqual(MARA_MEND.sfx_cue, "magic.heal")
         self.assertEqual(WISP_BOLT.sfx_cue, "magic.bolt_launch")
+
+    def test_ranged_content_has_projectile_visuals(self):
+        self.assertEqual(MARA_SPARK.projectile_key, "spark")
+        self.assertEqual(WISP_BOLT.projectile_key, "needle")
+        self.assertEqual(THROWING_STONE.projectile_key, "stone")
+        self.assertGreater(THROWING_STONE.projectile_arc_px, 0)
+        asset_root = TestGameDefinition.asset_root / "projectiles"
+        for key in ("spark", "needle", "stone"):
+            self.assertTrue((asset_root / f"{key}.png").exists())
 
     def test_sfx_catalog_is_shipped_with_test_game(self):
         self.assertTrue(TestGameDefinition.sfx_catalog_path.exists())
