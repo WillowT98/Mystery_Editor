@@ -13,6 +13,14 @@ class TargetKind(Enum):
     SELF = auto()
 
 
+class RangePattern(Enum):
+    ADJACENT = "adjacent"
+    TWO_TILES = "two_tiles"
+    LINE = "line"
+    ROOM = "room"
+    SELF = "self"
+
+
 class AITactic(Enum):
     FOLLOW = "Follow closely"
     ATTACK = "Attack nearby"
@@ -37,6 +45,7 @@ class SkillDefinition:
     impact_sfx_cue: str | None = None
     projectile_key: str | None = None
     projectile_arc_px: float = 0.0
+    range_pattern: RangePattern | None = None
 
 
 @dataclass
