@@ -12,10 +12,11 @@ from mystery_engine.config import EngineConfig
 from mystery_engine.core.combat import CombatResolver, ProjectileEvent
 from mystery_engine.core.game_state import PersistentGameState, SaveManager
 from mystery_engine.core.inventory import ItemDefinition
-from mystery_engine.core.models import AITactic, Character, TargetKind
+from mystery_engine.core.models import AITactic, Character, RangePattern, TargetKind
 from mystery_engine.core.types import Direction, DungeonResult, GameMode, GridPos, Vec2
 from mystery_engine.dungeon.actions import BasicAttackAction, MoveAction, SkillAction, WaitAction
 from mystery_engine.dungeon.floor import DungeonFloor
+from mystery_engine.dungeon.targeting import effective_range_pattern, targets_for_skill
 from mystery_engine.dungeon.turns import TurnManager
 from mystery_engine.input import InputManager
 from mystery_engine.presentation import CinematicOverlay, MusicController, ProjectileAnimation, Renderer
@@ -771,16 +772,28 @@ class MysteryGame:
             return
         leader = self.state.leader
         definition = skill.definition
-        if definition.target is TargetKind.SELF:
-            target = leader
-        elif definition.target is TargetKind.ALLY:
-            candidates = [c for c in self.state.party if c.active and c.grid_pos and leader.grid_pos and leader.grid_pos.chebyshev(c.grid_pos) <= definition.range]
-            target = min(candidates, key=lambda c: c.stats.hp_ratio) if candidates else None
+        pattern = effective_range_pattern(definition)
+
+        if pattern is RangePattern.ROOM:
+            candidates = targets_for_skill(self.dungeon.floor, leader, definition)
+            target = None
+        elif pattern is RangePattern.SELF:
+            candidates = targets_for_skill(self.dungeon.floor, leader, definition)
+            target = leader if candidates else None
         else:
-            target = self._first_hostile_in_facing(definition.range)
-        if target is None:
-            self.add_message("No valid target in that direction.")
+            candidates = targets_for_skill(
+                self.dungeon.floor,
+                leader,
+                definition,
+                facing=leader.facing,
+            )
+            target = candidates[0] if candidates else None
+
+        if not candidates:
+            where = "in this room" if pattern is RangePattern.ROOM else "in that direction"
+            self.add_message(f"No valid target {where}.")
             return
+
         self.menu.close()
         outcome = self.dungeon.turns.execute_player_action(SkillAction(leader, skill, target))
         for cue in outcome.sound_cues:

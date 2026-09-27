@@ -5,6 +5,7 @@ from mystery_engine.core import (
     Character,
     Inventory,
     ItemDefinition,
+    RangePattern,
     SkillDefinition,
     SkillRuntime,
     Stats,
@@ -53,45 +54,49 @@ FOX_LUNGE = SkillDefinition(
     damage_type="physical",
     max_charges=8,
     sfx_cue="combat.light_hit",
+    range_pattern=RangePattern.TWO_TILES,
 )
 
 MARA_SPARK = SkillDefinition(
     id="mara_spark",
     name="Spark",
-    description="A ranged bolt of lightning.",
+    description="Send a bolt of lightning down a straight line.",
     target=TargetKind.ENEMY,
-    range=5,
+    range=10,
     power=5,
     damage_type="lightning",
     max_charges=10,
     sfx_cue="magic.bolt_launch",
     impact_sfx_cue="magic.bolt_impact",
     projectile_key="spark",
+    range_pattern=RangePattern.LINE,
 )
 
 MARA_MEND = SkillDefinition(
     id="mara_mend",
     name="Mend",
-    description="Restore 11 HP to an ally.",
+    description="Restore 11 HP to all allies in the room.",
     target=TargetKind.ALLY,
     range=4,
     heal=11,
     max_charges=6,
     sfx_cue="magic.heal",
+    range_pattern=RangePattern.ROOM,
 )
 
 WISP_BOLT = SkillDefinition(
     id="wisp_bolt",
     name="Needle Bolt",
-    description="A simple ranged enemy attack.",
+    description="Fire a piercing needle down a straight line.",
     target=TargetKind.ENEMY,
-    range=4,
+    range=10,
     power=2,
     damage_type="piercing",
     max_charges=None,
     sfx_cue="magic.bolt_launch",
     impact_sfx_cue="magic.bolt_impact",
     projectile_key="needle",
+    range_pattern=RangePattern.LINE,
 )
 
 

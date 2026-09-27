@@ -36,22 +36,25 @@ class CombatResolver:
         dealt = defender.stats.damage(raw)
         return CombatEvent(f"{attacker.name} attacks {defender.name} for {dealt} damage.", dealt, "damage")
 
-    def use_skill(self, user: Character, skill: SkillRuntime, target: Character) -> CombatEvent:
+    def use_skill(self, user: Character, skill: SkillRuntime, target: Character, *, spend: bool = True) -> CombatEvent:
         definition = skill.definition
         if not skill.available(user.resources):
             return CombatEvent(f"{definition.name} is unavailable.")
         if self.rng.random() > definition.accuracy:
-            skill.spend(user.resources)
+            if spend:
+                skill.spend(user.resources)
             return CombatEvent(f"{user.name}'s {definition.name} misses.", 0, "miss")
 
         if definition.target in (TargetKind.ALLY, TargetKind.SELF) and definition.heal > 0:
             healed = target.stats.heal(definition.heal)
-            skill.spend(user.resources)
+            if spend:
+                skill.spend(user.resources)
             return CombatEvent(f"{user.name} uses {definition.name}; {target.name} recovers {healed} HP.", healed, "heal")
 
         raw = max(1, definition.power + user.stats.attack - target.stats.defense + self.rng.randint(-1, 1))
         multiplier = target.resistance_to(definition.damage_type)
         dealt = target.stats.damage(max(1, round(raw * multiplier)))
-        skill.spend(user.resources)
+        if spend:
+            skill.spend(user.resources)
         type_note = f" {definition.damage_type}" if definition.damage_type else ""
         return CombatEvent(f"{user.name} uses {definition.name} for {dealt}{type_note} damage.", dealt, "damage")

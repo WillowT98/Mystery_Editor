@@ -4,11 +4,12 @@ from dataclasses import dataclass, field
 from random import Random
 from typing import Callable, Mapping
 
-from mystery_engine.core import Character, CombatResolver, Direction, DungeonResult, GridPos, Inventory, ProjectileEvent, TargetKind
+from mystery_engine.core import Character, CombatResolver, Direction, DungeonResult, GridPos, Inventory, ProjectileEvent, RangePattern, TargetKind
 from .actions import Action, BasicAttackAction, MoveAction, PickupAction, SkillAction, WaitAction
 from .floor import DungeonFloor
 from .pathfinding import next_step_toward
-from .visibility import ExplorationMemory, has_line_of_sight
+from .visibility import ExplorationMemory
+from .targeting import effective_range_pattern, target_is_valid, targets_for_skill
 
 
 @dataclass
@@ -123,39 +124,7 @@ class TurnManager:
                     sounds.append(defeat)
             return True
         if isinstance(action, SkillAction):
-            if actor.grid_pos is None or action.target.grid_pos is None:
-                return False
-            if actor.grid_pos.chebyshev(action.target.grid_pos) > action.skill.definition.range:
-                messages.append(f"{action.skill.definition.name} has no target in range.")
-                return False
-            source_pos = actor.grid_pos
-            target_pos = action.target.grid_pos
-            event = self.combat.use_skill(actor, action.skill, action.target)
-            messages.append(event.text)
-            if not event.text.endswith("unavailable."):
-                definition = action.skill.definition
-                if definition.projectile_key and source_pos is not None and target_pos is not None:
-                    projectiles.append(ProjectileEvent(
-                        source_id=actor.id,
-                        target_id=action.target.id,
-                        source_pos=source_pos,
-                        target_pos=target_pos,
-                        projectile_key=definition.projectile_key,
-                        hit=event.kind != "miss",
-                        launch_sfx_cue=definition.sfx_cue,
-                        impact_sfx_cue=definition.impact_sfx_cue if event.kind != "miss" else None,
-                        arc_px=definition.projectile_arc_px,
-                    ))
-                else:
-                    if definition.sfx_cue:
-                        sounds.append(definition.sfx_cue)
-                    if event.amount > 0 and definition.impact_sfx_cue:
-                        sounds.append(definition.impact_sfx_cue)
-                if not action.target.active:
-                    defeat = self.event_sounds.get("defeat")
-                    if defeat:
-                        sounds.append(defeat)
-            return not event.text.endswith("unavailable.")
+            return self._resolve_skill_action(action, messages, sounds, projectiles)
         if isinstance(action, PickupAction):
             picked_up = self._pickup_at(action.position, messages)
             if picked_up and self.event_sounds.get("item_get"):
@@ -199,6 +168,84 @@ class TurnManager:
             return True
         return False
 
+    def _resolve_skill_action(
+        self,
+        action: SkillAction,
+        messages: list[str],
+        sounds: list[str],
+        projectiles: list[ProjectileEvent],
+    ) -> bool:
+        actor = action.actor
+        skill = action.skill
+        definition = skill.definition
+        if actor.grid_pos is None:
+            return False
+        if not skill.available(actor.resources):
+            messages.append(f"{definition.name} is unavailable.")
+            return False
+
+        pattern = effective_range_pattern(definition)
+        if pattern is RangePattern.ROOM:
+            targets = targets_for_skill(self.floor, actor, definition)
+        elif pattern is RangePattern.SELF:
+            targets = [actor] if target_is_valid(self.floor, actor, actor, definition) else []
+        elif action.target is not None and target_is_valid(self.floor, actor, action.target, definition):
+            targets = [action.target]
+        else:
+            targets = []
+
+        if not targets:
+            messages.append(f"{definition.name} has no valid target.")
+            return False
+
+        if action.target is not None and action.target.grid_pos is not None and pattern not in {RangePattern.ROOM, RangePattern.SELF}:
+            direction = Direction.from_axes(
+                action.target.grid_pos.x - actor.grid_pos.x,
+                action.target.grid_pos.y - actor.grid_pos.y,
+            )
+            if direction is not None:
+                actor.facing = direction
+
+        # One skill use may affect an entire room, but charges/resources are paid
+        # once. Accuracy and damage/healing are still resolved independently per
+        # target, matching the useful PMD-style multi-target behavior.
+        any_effect = False
+        source_pos = actor.grid_pos
+        for target in targets:
+            if target.grid_pos is None:
+                continue
+            target_pos = target.grid_pos
+            event = self.combat.use_skill(actor, skill, target, spend=False)
+            messages.append(event.text)
+            any_effect = True
+
+            if definition.projectile_key:
+                projectiles.append(ProjectileEvent(
+                    source_id=actor.id,
+                    target_id=target.id,
+                    source_pos=source_pos,
+                    target_pos=target_pos,
+                    projectile_key=definition.projectile_key,
+                    hit=event.kind != "miss",
+                    launch_sfx_cue=definition.sfx_cue,
+                    impact_sfx_cue=definition.impact_sfx_cue if event.kind != "miss" else None,
+                    arc_px=definition.projectile_arc_px,
+                ))
+            else:
+                if definition.sfx_cue and definition.sfx_cue not in sounds:
+                    sounds.append(definition.sfx_cue)
+                if event.amount > 0 and definition.impact_sfx_cue:
+                    sounds.append(definition.impact_sfx_cue)
+
+            if not target.active:
+                defeat = self.event_sounds.get("defeat")
+                if defeat:
+                    sounds.append(defeat)
+
+        if any_effect:
+            skill.spend(actor.resources)
+        return any_effect
+
     def _pickup_at(self, pos: GridPos, messages: list[str]) -> bool:
         ground = self.floor.item_at(pos)
         if ground is None:
@@ -235,15 +282,21 @@ class TurnManager:
         # "Follow closely" should actually keep the companion near the leader.
         leash = 1 if ally.ai_tactic.name == "FOLLOW" else (2 if ally.ai_tactic.name == "PROTECT" else 99)
 
-        # Heal a seriously injured active ally first, as long as doing so does not break the leash.
+        # Heal a seriously injured valid target first, as long as doing so does not break the leash.
         heal_skill = next((s for s in ally.skills if s.definition.heal > 0 and s.available(ally.resources)), None)
         if heal_skill and ally.ai_tactic.name != "CONSERVE":
-            candidates = [a for a in self.allies if a.stats.hp_ratio <= 0.60 and a.grid_pos is not None]
-            candidates = [a for a in candidates if ally.grid_pos.chebyshev(a.grid_pos) <= heal_skill.definition.range]
+            candidates = [
+                a for a in targets_for_skill(self.floor, ally, heal_skill.definition)
+                if a.stats.hp_ratio <= 0.60
+            ]
             if ally.ai_tactic.name == "FOLLOW":
-                candidates = [a for a in candidates if a.grid_pos.chebyshev(self.leader.grid_pos) <= leash]
+                candidates = [
+                    a for a in candidates
+                    if a.grid_pos is not None and a.grid_pos.chebyshev(self.leader.grid_pos) <= leash
+                ]
             if candidates:
-                target = min(candidates, key=lambda c: c.stats.hp_ratio)
+                pattern = effective_range_pattern(heal_skill.definition)
+                target = None if pattern is RangePattern.ROOM else min(candidates, key=lambda c: c.stats.hp_ratio)
                 return SkillAction(ally, heal_skill, target)
 
         enemy = self._nearest(ally, self.enemies)
@@ -254,10 +307,16 @@ class TurnManager:
 
             # If already in position, FOLLOW may attack, but it should not wander off to chase.
             for skill in sorted(offensive, key=lambda s: s.definition.range, reverse=True):
-                if dist_enemy <= skill.definition.range and has_line_of_sight(self.floor, ally.grid_pos, enemy.grid_pos):
+                candidates = targets_for_skill(self.floor, ally, skill.definition)
+                if candidates:
                     if ally.ai_tactic.name != "CONSERVE" or dist_enemy > 1:
                         if ally.ai_tactic.name != "FOLLOW" or dist_leader <= leash:
-                            return SkillAction(ally, skill, enemy)
+                            pattern = effective_range_pattern(skill.definition)
+                            target = None if pattern is RangePattern.ROOM else min(
+                                candidates,
+                                key=lambda c: ally.grid_pos.chebyshev(c.grid_pos) if c.grid_pos else 999,
+                            )
+                            return SkillAction(ally, skill, target)
             if dist_enemy <= 1 and (ally.ai_tactic.name != "FOLLOW" or dist_leader <= leash):
                 return BasicAttackAction(ally, enemy)
 
@@ -289,8 +348,14 @@ class TurnManager:
             return WaitAction(enemy)
         offensive = [s for s in enemy.skills if s.definition.target is TargetKind.ENEMY and s.definition.power > 0 and s.available(enemy.resources)]
         for skill in sorted(offensive, key=lambda s: s.definition.range, reverse=True):
-            if enemy.grid_pos.chebyshev(target.grid_pos) <= skill.definition.range and has_line_of_sight(self.floor, enemy.grid_pos, target.grid_pos):
-                return SkillAction(enemy, skill, target)
+            candidates = targets_for_skill(self.floor, enemy, skill.definition)
+            if candidates:
+                pattern = effective_range_pattern(skill.definition)
+                chosen = None if pattern is RangePattern.ROOM else min(
+                    candidates,
+                    key=lambda c: enemy.grid_pos.chebyshev(c.grid_pos) if c.grid_pos else 999,
+                )
+                return SkillAction(enemy, skill, chosen)
         if enemy.grid_pos.chebyshev(target.grid_pos) <= 1:
             return BasicAttackAction(enemy, target)
         step = next_step_toward(self.floor, enemy.grid_pos, target.grid_pos)
