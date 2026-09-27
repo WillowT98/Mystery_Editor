@@ -312,14 +312,8 @@ class Renderer:
         scale = min(rect.w / floor.width, rect.h / floor.height)
         ox = rect.x + (rect.w - floor.width * scale) / 2
         oy = rect.y + (rect.h - floor.height * scale) / 2
-        for pos in memory.discovered:
+        for pos in memory.mapped_tiles(floor):
             t = floor.tile(pos)
-            # Discovered FOV includes the wall cell that stopped line-of-sight.
-            # The dungeon renderer treats those wall cells as void and bakes the
-            # visible boundary into adjacent walkable autotiles, so the minimap
-            # should mirror that model and only draw traversable geometry.
-            if not t.walkable:
-                continue
             color = self.stairs if t.kind is TileKind.STAIRS else pygame.Color("#767c82")
             r = pygame.Rect(int(ox + pos.x * scale), int(oy + pos.y * scale), max(1, math.ceil(scale)), max(1, math.ceil(scale)))
             pygame.draw.rect(self.canvas, color, r)
