@@ -9,7 +9,7 @@ from typing import Protocol, TYPE_CHECKING
 import pygame
 
 from mystery_engine.config import EngineConfig
-from mystery_engine.core.combat import CombatResolver
+from mystery_engine.core.combat import CombatResolver, ProjectileEvent
 from mystery_engine.core.game_state import PersistentGameState, SaveManager
 from mystery_engine.core.inventory import ItemDefinition
 from mystery_engine.core.models import AITactic, Character, TargetKind
@@ -18,7 +18,7 @@ from mystery_engine.dungeon.actions import BasicAttackAction, MoveAction, SkillA
 from mystery_engine.dungeon.floor import DungeonFloor
 from mystery_engine.dungeon.turns import TurnManager
 from mystery_engine.input import InputManager
-from mystery_engine.presentation import CinematicOverlay, MusicController, Renderer
+from mystery_engine.presentation import CinematicOverlay, MusicController, ProjectileAnimation, Renderer
 from mystery_engine.story import (
     ChoiceOption,
     DialogueController,
@@ -92,6 +92,9 @@ class MysteryGame:
         self.save_manager = SaveManager()
         self.cinematic_overlay = CinematicOverlay()
         self.story_actions = StoryActionDispatcher(self)
+        self.projectile_queue: list[ProjectileAnimation] = []
+        self.active_projectile: ProjectileAnimation | None = None
+        self._pending_dungeon_result: DungeonResult | None = None
         self.story_runner = StoryGraphRunner(StoryRuntimeContext(
             story=self.state.story,
             dialogue=self.dialogue,
@@ -136,6 +139,7 @@ class MysteryGame:
             if self.exploration is not None and self.exploration.camera_shake_time > 0:
                 self.exploration.camera_shake_time = max(0.0, self.exploration.camera_shake_time - dt)
             self.story_runner.update(dt)
+            self._update_projectiles(dt)
 
             if self.dialogue.active:
                 self._handle_dialogue(events)
@@ -144,6 +148,10 @@ class MysteryGame:
             elif self.story_runner.active:
                 # Story graphs own player control while a cutscene/conversation
                 # is running, even during non-dialogue choreography.
+                pass
+            elif self.active_projectile is not None or self.projectile_queue:
+                # Dungeon action animations briefly own input so ranged attacks
+                # are readable instead of resolving as invisible number changes.
                 pass
             else:
                 if frame.menu:
@@ -166,6 +174,46 @@ class MysteryGame:
 
     def _play_event_sfx(self, event: str, *, gain: float = 1.0) -> None:
         self.audio.play_sfx(self._cue(event), gain=gain)
+
+    def _queue_projectiles(self, events) -> None:
+        for event in events:
+            self.projectile_queue.append(ProjectileAnimation.from_event(event))
+        self._start_next_projectile()
+
+    def _start_next_projectile(self) -> None:
+        if self.active_projectile is not None or not self.projectile_queue:
+            return
+        self.active_projectile = self.projectile_queue.pop(0)
+        self.audio.play_sfx(self.active_projectile.event.launch_sfx_cue)
+
+    def _update_projectiles(self, dt: float) -> None:
+        animation = self.active_projectile
+        if animation is None:
+            self._start_next_projectile()
+            if self.active_projectile is None and self._pending_dungeon_result is not None:
+                result, self._pending_dungeon_result = self._pending_dungeon_result, None
+                self.return_to_exploration(result)
+            return
+        was_impact = animation.in_impact
+        animation.update(dt)
+        if animation.in_impact and not was_impact and not animation.impact_sound_played:
+            self.audio.play_sfx(animation.event.impact_sfx_cue)
+            animation.impact_sound_played = True
+        if animation.finished:
+            self.active_projectile = None
+            self._start_next_projectile()
+            if self.active_projectile is None and not self.projectile_queue and self._pending_dungeon_result is not None:
+                result, self._pending_dungeon_result = self._pending_dungeon_result, None
+                self.return_to_exploration(result)
+
+    def _queue_turn_projectiles(self, outcome) -> None:
+        self._queue_projectiles(getattr(outcome, "projectiles", []))
+
+    def _finish_or_defer_dungeon_result(self, result: DungeonResult) -> None:
+        if self.active_projectile is not None or self.projectile_queue:
+            self._pending_dungeon_result = result
+        else:
+            self.return_to_exploration(result)
 
     def _play_dialogue_reaction(self) -> None:
         line = self.dialogue.current
@@ -369,9 +417,10 @@ class MysteryGame:
             self.audio.play_sfx(cue)
         for message in outcome.messages:
             self.add_message(message)
+        self._queue_turn_projectiles(outcome)
 
         if outcome.dungeon_result is DungeonResult.DEFEAT or not self.state.leader.active:
-            self.return_to_exploration(DungeonResult.DEFEAT)
+            self._finish_or_defer_dungeon_result(DungeonResult.DEFEAT)
             return
 
         # Stairs are intentionally automatic in the test vertical slice.
@@ -650,8 +699,9 @@ class MysteryGame:
             for msg in outcome.messages:
                 if not msg.endswith("waits."):
                     self.add_message(msg)
+            self._queue_turn_projectiles(outcome)
             if outcome.dungeon_result is DungeonResult.DEFEAT:
-                self.return_to_exploration(DungeonResult.DEFEAT)
+                self._finish_or_defer_dungeon_result(DungeonResult.DEFEAT)
 
     def _throw_item(self, item: ItemDefinition) -> None:
         if self.dungeon is None or self.state.leader.grid_pos is None:
@@ -660,11 +710,11 @@ class MysteryGame:
         if target is None:
             self.add_message("No target in that direction.")
             return
+        source_pos = self.state.leader.grid_pos
+        target_pos = target.grid_pos
         self.state.bag.remove(item.id)
         raw = item.throwable_damage
         dealt = target.stats.damage(max(1, round(raw * target.resistance_to(item.damage_type))))
-        self.audio.play_sfx(item.sfx_cue)
-        self.audio.play_sfx(item.impact_sfx_cue)
         self.add_message(f"Fox throws {item.name}; {target.name} takes {dealt} damage.")
         self.menu.close()
         outcome = self.dungeon.turns.execute_player_action(WaitAction(self.state.leader))
@@ -673,8 +723,22 @@ class MysteryGame:
         for msg in outcome.messages:
             if not msg.endswith("waits."):
                 self.add_message(msg)
+        thrown = []
+        if item.projectile_key and source_pos is not None and target_pos is not None:
+            thrown.append(ProjectileEvent(
+                source_id=self.state.leader.id,
+                target_id=target.id,
+                source_pos=source_pos,
+                target_pos=target_pos,
+                projectile_key=item.projectile_key,
+                hit=True,
+                launch_sfx_cue=item.sfx_cue,
+                impact_sfx_cue=item.impact_sfx_cue,
+                arc_px=item.projectile_arc_px,
+            ))
+        self._queue_projectiles([*thrown, *outcome.projectiles])
         if outcome.dungeon_result is DungeonResult.DEFEAT:
-            self.return_to_exploration(DungeonResult.DEFEAT)
+            self._finish_or_defer_dungeon_result(DungeonResult.DEFEAT)
 
     def _use_skill_from_menu(self, skill) -> None:
         if self.dungeon is None:
@@ -697,8 +761,9 @@ class MysteryGame:
             self.audio.play_sfx(cue)
         for msg in outcome.messages:
             self.add_message(msg)
+        self._queue_turn_projectiles(outcome)
         if outcome.dungeon_result is DungeonResult.DEFEAT:
-            self.return_to_exploration(DungeonResult.DEFEAT)
+            self._finish_or_defer_dungeon_result(DungeonResult.DEFEAT)
 
     def _pickup_ground_from_menu(self) -> None:
         if self.dungeon is None or self.state.leader.grid_pos is None:
@@ -721,8 +786,9 @@ class MysteryGame:
             self.audio.play_sfx(cue)
         for msg in outcome.messages:
             self.add_message(msg)
+        self._queue_turn_projectiles(outcome)
         if outcome.dungeon_result is DungeonResult.DEFEAT:
-            self.return_to_exploration(DungeonResult.DEFEAT)
+            self._finish_or_defer_dungeon_result(DungeonResult.DEFEAT)
 
     def _give_up_from_menu(self) -> None:
         self.menu.close()
@@ -802,13 +868,17 @@ class MysteryGame:
             self.renderer.draw_exploration(self.exploration, self.state.leader.id)
         else:
             assert self.dungeon is not None
+            preserve = {self.active_projectile.event.target_id} if self.active_projectile is not None else set()
             self.renderer.draw_dungeon(
                 self.dungeon.floor,
                 self.dungeon.turns.memory,
                 self.state.party,
                 self.dungeon.floor_number,
                 self.definition.dungeon_floor_count,
+                preserve_entity_ids=preserve,
             )
+            if self.active_projectile is not None:
+                self.renderer.draw_projectile(self.active_projectile, self.dungeon.floor, self.state.party)
         self.renderer.draw_message_log(self.messages, self.mode is GameMode.DUNGEON)
         if self.menu.active:
             self.renderer.draw_menu(self.menu)

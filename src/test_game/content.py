@@ -28,6 +28,8 @@ THROWING_STONE = ItemDefinition(
     description="A smooth, palm-sized stone. Can be thrown in a straight line for 10 physical damage.",
     throwable_damage=10,
     damage_type="physical",
+    projectile_key="stone",
+    projectile_arc_px=24.0,
 )
 
 WAYSTONE_SHARD = ItemDefinition(
@@ -64,6 +66,7 @@ MARA_SPARK = SkillDefinition(
     max_charges=10,
     sfx_cue="magic.bolt_launch",
     impact_sfx_cue="magic.bolt_impact",
+    projectile_key="spark",
 )
 
 MARA_MEND = SkillDefinition(
@@ -88,6 +91,7 @@ WISP_BOLT = SkillDefinition(
     max_charges=None,
     sfx_cue="magic.bolt_launch",
     impact_sfx_cue="magic.bolt_impact",
+    projectile_key="needle",
 )
 
 

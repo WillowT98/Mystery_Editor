@@ -4,6 +4,20 @@ from dataclasses import dataclass
 from random import Random
 
 from .models import Character, SkillRuntime, TargetKind
+from .types import GridPos
+
+
+@dataclass(frozen=True)
+class ProjectileEvent:
+    source_id: str
+    target_id: str
+    source_pos: GridPos
+    target_pos: GridPos
+    projectile_key: str
+    hit: bool = True
+    launch_sfx_cue: str | None = None
+    impact_sfx_cue: str | None = None
+    arc_px: float = 0.0
 
 
 @dataclass(frozen=True)

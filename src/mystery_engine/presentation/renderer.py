@@ -146,7 +146,9 @@ class Renderer:
         party: list[Character],
         floor_number: int,
         floor_total: int,
+        preserve_entity_ids: set[str] | None = None,
     ) -> None:
+        preserve_entity_ids = preserve_entity_ids or set()
         view = pygame.Rect(0, 0, self.config.dungeon_view_width, self.config.logical_height)
         self.canvas.fill(self.unknown, view)
         leader = next(c for c in party if c.leader)
@@ -227,7 +229,7 @@ class Renderer:
                 pygame.draw.circle(self.canvas, self.item, rect.center, 10)
 
         for entity in floor.entities:
-            if not entity.active or entity.grid_pos is None or entity.grid_pos not in memory.visible:
+            if (not entity.active and entity.id not in preserve_entity_ids) or entity.grid_pos is None or entity.grid_pos not in memory.visible:
                 continue
             rect = pygame.Rect(int(entity.grid_pos.x * tile - camera_world_x), int(entity.grid_pos.y * tile - camera_world_y), tile, tile)
             sprite_key = entity.metadata.get("sprite_key", entity.id)
@@ -244,6 +246,47 @@ class Renderer:
             self._draw_world_label(entity.name[:11], rect.centerx, rect.y - 20)
 
         self._draw_sidebar(floor, memory, party, floor_number, floor_total)
+
+    def draw_projectile(self, animation, floor: DungeonFloor, party: list[Character]) -> None:
+        event = animation.event
+        leader = next((c for c in party if c.leader), None)
+        if leader is None or leader.grid_pos is None:
+            return
+        tile = self.config.tile_px
+        center_x, center_y = self.config.dungeon_view_width // 2, self.config.logical_height // 2
+        camera_world_x = leader.grid_pos.x * tile + tile // 2 - center_x
+        camera_world_y = leader.grid_pos.y * tile + tile // 2 - center_y
+
+        sx = event.source_pos.x * tile + tile / 2 - camera_world_x
+        sy = event.source_pos.y * tile + tile / 2 - camera_world_y
+        tx = event.target_pos.x * tile + tile / 2 - camera_world_x
+        ty = event.target_pos.y * tile + tile / 2 - camera_world_y
+
+        if animation.in_impact:
+            px, py = tx, ty
+        else:
+            t = animation.progress
+            px = sx + (tx - sx) * t
+            py = sy + (ty - sy) * t - math.sin(math.pi * t) * float(event.arc_px)
+
+        sheet = self._load_native_surface(f"projectiles/{event.projectile_key}.png")
+        if sheet is None:
+            pygame.draw.circle(self.canvas, self.accent, (round(px), round(py)), 10)
+            return
+        frames = 6
+        fw = sheet.get_width() // frames
+        fh = sheet.get_height()
+        index = max(0, min(frames - 1, animation.frame_index))
+        frame = pygame.Surface((fw, fh), pygame.SRCALPHA)
+        frame.blit(sheet, (0, 0), pygame.Rect(index * fw, 0, fw, fh))
+        bounds = frame.get_bounding_rect()
+        if bounds.width > 0 and bounds.height > 0:
+            frame = frame.subsurface(bounds).copy()
+
+        if index < 4:
+            angle = math.degrees(math.atan2(-(ty - sy), tx - sx))
+            frame = pygame.transform.rotate(frame, angle)
+        self.canvas.blit(frame, frame.get_rect(center=(round(px), round(py))))
 
     def _draw_sidebar(self, floor: DungeonFloor, memory: ExplorationMemory, party: list[Character], floor_number: int, floor_total: int) -> None:
         x0 = self.config.dungeon_view_width

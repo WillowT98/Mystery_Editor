@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from random import Random
 from typing import Callable, Mapping
 
-from mystery_engine.core import Character, CombatResolver, Direction, DungeonResult, GridPos, Inventory, TargetKind
+from mystery_engine.core import Character, CombatResolver, Direction, DungeonResult, GridPos, Inventory, ProjectileEvent, TargetKind
 from .actions import Action, BasicAttackAction, MoveAction, PickupAction, SkillAction, WaitAction
 from .floor import DungeonFloor
 from .pathfinding import next_step_toward
@@ -15,6 +15,7 @@ from .visibility import ExplorationMemory, has_line_of_sight
 class TurnOutcome:
     messages: list[str] = field(default_factory=list)
     sound_cues: list[str] = field(default_factory=list)
+    projectiles: list[ProjectileEvent] = field(default_factory=list)
     consumed_turn: bool = True
     dungeon_result: DungeonResult | None = None
 
@@ -60,7 +61,7 @@ class TurnManager:
             return outcome
 
         self._companions_moved_by_player.clear()
-        consumed = self._resolve_action(action, outcome.messages, outcome.sound_cues)
+        consumed = self._resolve_action(action, outcome.messages, outcome.sound_cues, outcome.projectiles)
         outcome.consumed_turn = consumed
         if not consumed:
             return outcome
@@ -78,7 +79,7 @@ class TurnManager:
                 continue
             ai_action = self._choose_companion_action(ally)
             if ai_action:
-                self._resolve_action(ai_action, outcome.messages, outcome.sound_cues)
+                self._resolve_action(ai_action, outcome.messages, outcome.sound_cues, outcome.projectiles)
                 self._pickup_underfoot(ally, outcome.messages, allow_pickup=False)
 
         for enemy in list(self.enemies):
@@ -86,7 +87,7 @@ class TurnManager:
                 continue
             ai_action = self._choose_enemy_action(enemy)
             if ai_action:
-                self._resolve_action(ai_action, outcome.messages, outcome.sound_cues)
+                self._resolve_action(ai_action, outcome.messages, outcome.sound_cues, outcome.projectiles)
             if not self.leader.active:
                 outcome.dungeon_result = DungeonResult.DEFEAT
                 break
@@ -95,8 +96,15 @@ class TurnManager:
         self.refresh_visibility()
         return outcome
 
-    def _resolve_action(self, action: Action, messages: list[str], sounds: list[str] | None = None) -> bool:
+    def _resolve_action(
+        self,
+        action: Action,
+        messages: list[str],
+        sounds: list[str] | None = None,
+        projectiles: list[ProjectileEvent] | None = None,
+    ) -> bool:
         sounds = sounds if sounds is not None else []
+        projectiles = projectiles if projectiles is not None else []
         actor = action.actor
         if not actor.active:
             return False
@@ -120,14 +128,29 @@ class TurnManager:
             if actor.grid_pos.chebyshev(action.target.grid_pos) > action.skill.definition.range:
                 messages.append(f"{action.skill.definition.name} has no target in range.")
                 return False
+            source_pos = actor.grid_pos
+            target_pos = action.target.grid_pos
             event = self.combat.use_skill(actor, action.skill, action.target)
             messages.append(event.text)
             if not event.text.endswith("unavailable."):
                 definition = action.skill.definition
-                if definition.sfx_cue:
-                    sounds.append(definition.sfx_cue)
-                if event.amount > 0 and definition.impact_sfx_cue:
-                    sounds.append(definition.impact_sfx_cue)
+                if definition.projectile_key and source_pos is not None and target_pos is not None:
+                    projectiles.append(ProjectileEvent(
+                        source_id=actor.id,
+                        target_id=action.target.id,
+                        source_pos=source_pos,
+                        target_pos=target_pos,
+                        projectile_key=definition.projectile_key,
+                        hit=event.kind != "miss",
+                        launch_sfx_cue=definition.sfx_cue,
+                        impact_sfx_cue=definition.impact_sfx_cue if event.kind != "miss" else None,
+                        arc_px=definition.projectile_arc_px,
+                    ))
+                else:
+                    if definition.sfx_cue:
+                        sounds.append(definition.sfx_cue)
+                    if event.amount > 0 and definition.impact_sfx_cue:
+                        sounds.append(definition.impact_sfx_cue)
                 if not action.target.active:
                     defeat = self.event_sounds.get("defeat")
                     if defeat:
