@@ -15,6 +15,17 @@ class ExplorationMemory:
         self.visible = compute_fov(floor, origin, radius)
         self.discovered.update(self.visible)
 
+    def mapped_tiles(self, floor: DungeonFloor) -> set[GridPos]:
+        """Traversable discovered cells suitable for minimap geometry.
+
+        FOV discovery intentionally includes blocking wall cells at the edge of
+        sight. Those are useful for visibility, but the dungeon presentation
+        treats wall cells as void and draws boundaries on adjacent walkable
+        autotiles. The minimap should therefore map only discovered walkable
+        terrain.
+        """
+        return {pos for pos in self.discovered if floor.tile(pos).walkable}
+
 
 def compute_fov(floor: DungeonFloor, origin: GridPos, radius: int) -> set[GridPos]:
     visible: set[GridPos] = {origin}
