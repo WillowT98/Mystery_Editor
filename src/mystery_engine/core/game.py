@@ -150,9 +150,13 @@ class MysteryGame:
                 # is running, even during non-dialogue choreography.
                 pass
             elif self.active_projectile is not None or self.projectile_queue:
-                # Dungeon action animations briefly own input so ranged attacks
-                # are readable instead of resolving as invisible number changes.
-                pass
+                # Projectiles temporarily own dungeon actions, but key releases
+                # must still be observed or held movement can get "stuck" after
+                # the animation ends. Movement presses during the lock are
+                # deliberately discarded rather than buffered.
+                if self.mode is GameMode.DUNGEON:
+                    for event in events:
+                        self.input.dungeon.feed_locked(event)
             else:
                 if frame.menu:
                     self._open_gameplay_menu()
@@ -175,15 +179,37 @@ class MysteryGame:
     def _play_event_sfx(self, event: str, *, gain: float = 1.0) -> None:
         self.audio.play_sfx(self._cue(event), gain=gain)
 
+    def _projectile_source_is_visible(self, event: ProjectileEvent) -> bool:
+        """Only animate attacks whose attacker is actually visible on screen."""
+        if self.mode is not GameMode.DUNGEON or self.dungeon is None:
+            return False
+        leader = self.state.leader
+        if leader.grid_pos is None:
+            return False
+        if event.source_pos not in self.dungeon.turns.memory.visible:
+            return False
+
+        tile = self.config.tile_px
+        center_x = self.config.dungeon_view_width // 2
+        center_y = self.config.logical_height // 2
+        camera_world_x = leader.grid_pos.x * tile + tile // 2 - center_x
+        camera_world_y = leader.grid_pos.y * tile + tile // 2 - center_y
+        source_x = event.source_pos.x * tile + tile // 2 - camera_world_x
+        source_y = event.source_pos.y * tile + tile // 2 - camera_world_y
+        return 0 <= source_x < self.config.dungeon_view_width and 0 <= source_y < self.config.logical_height
+
     def _queue_projectiles(self, events) -> None:
         for event in events:
-            self.projectile_queue.append(ProjectileAnimation.from_event(event))
+            if self._projectile_source_is_visible(event):
+                self.projectile_queue.append(ProjectileAnimation.from_event(event))
         self._start_next_projectile()
 
     def _start_next_projectile(self) -> None:
         if self.active_projectile is not None or not self.projectile_queue:
             return
         self.active_projectile = self.projectile_queue.pop(0)
+        if self.input is not None and self.mode is GameMode.DUNGEON:
+            self.input.dungeon.suspend_until_release()
         self.audio.play_sfx(self.active_projectile.event.launch_sfx_cue)
 
     def _update_projectiles(self, dt: float) -> None:
