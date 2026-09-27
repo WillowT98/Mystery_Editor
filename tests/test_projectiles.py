@@ -3,13 +3,19 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 from random import Random
+from types import SimpleNamespace
+
+import pygame
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from mystery_engine.core import GridPos, ProjectileEvent
+from mystery_engine.config import EngineConfig
+from mystery_engine.core import GameMode, GridPos, ProjectileEvent
+from mystery_engine.core.game import MysteryGame
+from mystery_engine.input import DungeonDirectionalInput
 from mystery_engine.dungeon import DungeonFloor
 from mystery_engine.dungeon.actions import SkillAction
 from mystery_engine.dungeon.turns import TurnManager
@@ -93,3 +99,66 @@ def test_ranged_skill_emits_projectile_event_instead_of_immediate_projectile_sfx
     assert event.launch_sfx_cue == "magic.bolt_launch"
     assert "magic.bolt_launch" not in sounds
     assert "magic.bolt_impact" not in sounds
+
+
+def test_locked_dungeon_input_discards_held_and_buffered_movement():
+    directional = DungeonDirectionalInput(EngineConfig())
+    now = 1.0
+    directional.feed(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_d), now)
+    assert pygame.K_d in directional.held
+
+    directional.suspend_until_release()
+    assert directional.poll(now + 1.0, sprint=False) is None
+
+    # Repeat/down events while locked do not become queued movement.
+    directional.feed_locked(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_d))
+    assert directional.poll(now + 2.0, sprint=False) is None
+
+    # Releasing clears the lock; a fresh press can move normally.
+    directional.feed_locked(pygame.event.Event(pygame.KEYUP, key=pygame.K_d))
+    directional.feed(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_d), now + 3.0)
+    direction = directional.poll(now + 3.0 + directional.config.dungeon_diagonal_grace, sprint=False)
+    assert direction is not None
+    assert direction.dx == 1 and direction.dy == 0
+
+
+def test_projectile_animation_requires_visible_on_screen_attacker():
+    game = MysteryGame.__new__(MysteryGame)
+    game.mode = GameMode.DUNGEON
+    game.config = EngineConfig()
+    leader = SimpleNamespace(grid_pos=GridPos(10, 10))
+    game.state = SimpleNamespace(leader=leader)
+
+    visible_source = GridPos(12, 10)
+    far_source = GridPos(40, 10)
+    game.dungeon = SimpleNamespace(
+        turns=SimpleNamespace(
+            memory=SimpleNamespace(visible={visible_source, far_source})
+        )
+    )
+
+    visible_event = ProjectileEvent(
+        source_id="mara",
+        target_id="enemy",
+        source_pos=visible_source,
+        target_pos=GridPos(14, 10),
+        projectile_key="spark",
+    )
+    far_event = ProjectileEvent(
+        source_id="wisp",
+        target_id="fox",
+        source_pos=far_source,
+        target_pos=GridPos(10, 10),
+        projectile_key="needle",
+    )
+    hidden_event = ProjectileEvent(
+        source_id="hidden",
+        target_id="fox",
+        source_pos=GridPos(11, 11),
+        target_pos=GridPos(10, 10),
+        projectile_key="needle",
+    )
+
+    assert game._projectile_source_is_visible(visible_event)
+    assert not game._projectile_source_is_visible(far_event)
+    assert not game._projectile_source_is_visible(hidden_event)
