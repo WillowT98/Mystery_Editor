@@ -28,7 +28,7 @@ class BasicAttackAction(Action):
 @dataclass(frozen=True)
 class SkillAction(Action):
     skill: SkillRuntime
-    target: Character
+    target: Character | None = None
 
 
 @dataclass(frozen=True)
