@@ -35,6 +35,8 @@ class SkillDefinition:
     accuracy: float = 1.0
     sfx_cue: str | None = None
     impact_sfx_cue: str | None = None
+    projectile_key: str | None = None
+    projectile_arc_px: float = 0.0
 
 
 @dataclass
