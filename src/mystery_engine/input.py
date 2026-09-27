@@ -39,6 +39,7 @@ class DungeonDirectionalInput:
         self.last_emit: float | None = None
         self.repeat_started = False
         self.dash_stopped = False
+        self.blocked_until_release: set[int] = set()
 
     def reset(self) -> None:
         self.held.clear()
@@ -48,12 +49,42 @@ class DungeonDirectionalInput:
         self.last_emit = None
         self.repeat_started = False
         self.dash_stopped = False
+        self.blocked_until_release.clear()
+
+    def suspend_until_release(self) -> None:
+        """Discard movement during a temporary gameplay lock.
+
+        Keys that were held when the lock began, or pressed while locked, must
+        be released before they can produce movement again. This prevents a
+        projectile/cutscene pause from turning held-key repeat into buffered
+        dungeon steps when control returns.
+        """
+        self.blocked_until_release.update(self.held)
+        self.held.clear()
+        self.pending_keys.clear()
+        self.pending_since = None
+        self.force_emit = False
+        self.last_emit = None
+        self.repeat_started = False
+        self.dash_stopped = False
+
+    def feed_locked(self, event: pygame.event.Event) -> None:
+        """Track releases while ignoring movement presses during a lock."""
+        if getattr(event, "key", None) not in _MOVE_KEYS:
+            return
+        if event.type == pygame.KEYDOWN:
+            self.blocked_until_release.add(event.key)
+        elif event.type == pygame.KEYUP:
+            self.held.discard(event.key)
+            self.blocked_until_release.discard(event.key)
 
     def stop_dash(self) -> None:
         self.dash_stopped = True
 
     def feed(self, event: pygame.event.Event, now: float) -> None:
         if event.type == pygame.KEYDOWN and event.key in _MOVE_KEYS:
+            if event.key in self.blocked_until_release:
+                return
             if event.key not in self.held:
                 self.held.add(event.key)
                 if self.pending_since is None:
@@ -67,6 +98,7 @@ class DungeonDirectionalInput:
                         self.force_emit = True
         elif event.type == pygame.KEYUP and event.key in _MOVE_KEYS:
             self.held.discard(event.key)
+            self.blocked_until_release.discard(event.key)
 
     def poll(self, now: float, sprint: bool) -> Direction | None:
         if self.pending_since is not None:
