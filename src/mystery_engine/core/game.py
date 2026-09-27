@@ -868,12 +868,14 @@ class MysteryGame:
             self.renderer.draw_exploration(self.exploration, self.state.leader.id)
         else:
             assert self.dungeon is not None
+            preserve = {self.active_projectile.event.target_id} if self.active_projectile is not None else set()
             self.renderer.draw_dungeon(
                 self.dungeon.floor,
                 self.dungeon.turns.memory,
                 self.state.party,
                 self.dungeon.floor_number,
                 self.definition.dungeon_floor_count,
+                preserve_entity_ids=preserve,
             )
             if self.active_projectile is not None:
                 self.renderer.draw_projectile(self.active_projectile, self.dungeon.floor, self.state.party)
