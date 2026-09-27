@@ -16,6 +16,8 @@ class ItemDefinition:
     key_item: bool = False
     sfx_cue: str | None = None
     impact_sfx_cue: str | None = None
+    projectile_key: str | None = None
+    projectile_arc_px: float = 0.0
 
 
 @dataclass
