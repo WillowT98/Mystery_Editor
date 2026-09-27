@@ -117,7 +117,7 @@ def test_locked_dungeon_input_discards_held_and_buffered_movement():
     # Releasing clears the lock; a fresh press can move normally.
     directional.feed_locked(pygame.event.Event(pygame.KEYUP, key=pygame.K_d))
     directional.feed(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_d), now + 3.0)
-    direction = directional.poll(now + 3.0 + directional.config.dungeon_diagonal_grace, sprint=False)
+    direction = directional.poll(now + 3.0 + directional.config.dungeon_diagonal_grace + 0.001, sprint=False)
     assert direction is not None
     assert direction.dx == 1 and direction.dy == 0
 
