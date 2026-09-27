@@ -1,20 +1,8 @@
 from __future__ import annotations
 
-from enum import Enum
-
-from mystery_engine.core import Character, Direction, GridPos, TargetKind
+from mystery_engine.core import Character, Direction, GridPos, RangePattern, TargetKind
 from mystery_engine.core.models import SkillDefinition
 from .floor import DungeonFloor
-
-
-class RangePattern(Enum):
-    """PMD-style skill targeting shapes."""
-
-    ADJACENT = "adjacent"
-    TWO_TILES = "two_tiles"
-    LINE = "line"
-    ROOM = "room"
-    SELF = "self"
 
 
 def effective_range_pattern(definition: SkillDefinition) -> RangePattern:
