@@ -9,7 +9,7 @@ from typing import Protocol, TYPE_CHECKING
 import pygame
 
 from mystery_engine.config import EngineConfig
-from mystery_engine.core.combat import CombatResolver
+from mystery_engine.core.combat import CombatResolver, ProjectileEvent
 from mystery_engine.core.game_state import PersistentGameState, SaveManager
 from mystery_engine.core.inventory import ItemDefinition
 from mystery_engine.core.models import AITactic, Character, TargetKind
@@ -710,11 +710,11 @@ class MysteryGame:
         if target is None:
             self.add_message("No target in that direction.")
             return
+        source_pos = self.state.leader.grid_pos
+        target_pos = target.grid_pos
         self.state.bag.remove(item.id)
         raw = item.throwable_damage
         dealt = target.stats.damage(max(1, round(raw * target.resistance_to(item.damage_type))))
-        self.audio.play_sfx(item.sfx_cue)
-        self.audio.play_sfx(item.impact_sfx_cue)
         self.add_message(f"Fox throws {item.name}; {target.name} takes {dealt} damage.")
         self.menu.close()
         outcome = self.dungeon.turns.execute_player_action(WaitAction(self.state.leader))
@@ -723,8 +723,22 @@ class MysteryGame:
         for msg in outcome.messages:
             if not msg.endswith("waits."):
                 self.add_message(msg)
+        thrown = []
+        if item.projectile_key and source_pos is not None and target_pos is not None:
+            thrown.append(ProjectileEvent(
+                source_id=self.state.leader.id,
+                target_id=target.id,
+                source_pos=source_pos,
+                target_pos=target_pos,
+                projectile_key=item.projectile_key,
+                hit=True,
+                launch_sfx_cue=item.sfx_cue,
+                impact_sfx_cue=item.impact_sfx_cue,
+                arc_px=item.projectile_arc_px,
+            ))
+        self._queue_projectiles([*thrown, *outcome.projectiles])
         if outcome.dungeon_result is DungeonResult.DEFEAT:
-            self.return_to_exploration(DungeonResult.DEFEAT)
+            self._finish_or_defer_dungeon_result(DungeonResult.DEFEAT)
 
     def _use_skill_from_menu(self, skill) -> None:
         if self.dungeon is None:
