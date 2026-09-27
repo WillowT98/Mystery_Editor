@@ -146,7 +146,9 @@ class Renderer:
         party: list[Character],
         floor_number: int,
         floor_total: int,
+        preserve_entity_ids: set[str] | None = None,
     ) -> None:
+        preserve_entity_ids = preserve_entity_ids or set()
         view = pygame.Rect(0, 0, self.config.dungeon_view_width, self.config.logical_height)
         self.canvas.fill(self.unknown, view)
         leader = next(c for c in party if c.leader)
@@ -227,7 +229,7 @@ class Renderer:
                 pygame.draw.circle(self.canvas, self.item, rect.center, 10)
 
         for entity in floor.entities:
-            if not entity.active or entity.grid_pos is None or entity.grid_pos not in memory.visible:
+            if (not entity.active and entity.id not in preserve_entity_ids) or entity.grid_pos is None or entity.grid_pos not in memory.visible:
                 continue
             rect = pygame.Rect(int(entity.grid_pos.x * tile - camera_world_x), int(entity.grid_pos.y * tile - camera_world_y), tile, tile)
             sprite_key = entity.metadata.get("sprite_key", entity.id)
