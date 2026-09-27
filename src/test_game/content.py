@@ -5,6 +5,7 @@ from mystery_engine.core import (
     Character,
     Inventory,
     ItemDefinition,
+    RangePattern,
     SkillDefinition,
     SkillRuntime,
     Stats,
@@ -53,6 +54,7 @@ FOX_LUNGE = SkillDefinition(
     damage_type="physical",
     max_charges=8,
     sfx_cue="combat.light_hit",
+    range_pattern=RangePattern.TWO_TILES,
 )
 
 MARA_SPARK = SkillDefinition(
@@ -67,6 +69,7 @@ MARA_SPARK = SkillDefinition(
     sfx_cue="magic.bolt_launch",
     impact_sfx_cue="magic.bolt_impact",
     projectile_key="spark",
+    range_pattern=RangePattern.LINE,
 )
 
 MARA_MEND = SkillDefinition(
@@ -78,6 +81,7 @@ MARA_MEND = SkillDefinition(
     heal=11,
     max_charges=6,
     sfx_cue="magic.heal",
+    range_pattern=RangePattern.ROOM,
 )
 
 WISP_BOLT = SkillDefinition(
@@ -92,6 +96,7 @@ WISP_BOLT = SkillDefinition(
     sfx_cue="magic.bolt_launch",
     impact_sfx_cue="magic.bolt_impact",
     projectile_key="needle",
+    range_pattern=RangePattern.LINE,
 )
 
 
