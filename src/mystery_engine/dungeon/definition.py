@@ -11,7 +11,14 @@ from mystery_engine.core.models import Character
 from mystery_engine.core.types import GridPos
 
 from .floor import DungeonFloor, GroundItem
-from .generation import GeneratorConfig, OpenRoomConfig, OpenRoomGenerator, RoomsAndCorridorsGenerator
+from .generation import (
+    GENERATION_PROFILES,
+    GeneratorConfig,
+    OpenRoomConfig,
+    OpenRoomGenerator,
+    RoomsAndCorridorsGenerator,
+    generation_profile_settings,
+)
 
 
 def floor_spec_matches(spec: str | int | None, floor_number: int, floor_total: int) -> bool:
@@ -105,6 +112,7 @@ class DungeonDefinition:
     enemies: list[SpawnRule] = field(default_factory=list)
     items: list[SpawnRule] = field(default_factory=list)
     floor_rules: list[dict[str, Any]] = field(default_factory=list)
+    generation_profile_rules: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def blank(cls, dungeon_id: str = "new_dungeon", name: str = "New Dungeon") -> "DungeonDefinition":
@@ -135,6 +143,7 @@ class DungeonDefinition:
             enemies=[SpawnRule.from_dict(item, "enemy") for item in payload.get("enemies", []) if item.get("enemy")],
             items=[SpawnRule.from_dict(item, "item") for item in payload.get("items", []) if item.get("item")],
             floor_rules=[dict(rule) for rule in payload.get("floor_rules", [])],
+            generation_profile_rules=[dict(rule) for rule in payload.get("generation_profile_rules", [])],
         )
 
     @classmethod
@@ -154,6 +163,7 @@ class DungeonDefinition:
             "enemies": [rule.to_dict("enemy") for rule in self.enemies],
             "items": [rule.to_dict("item") for rule in self.items],
             "floor_rules": self.floor_rules,
+            "generation_profile_rules": self.generation_profile_rules,
         }
 
     def save(self, path: Path) -> None:
@@ -216,9 +226,41 @@ class DungeonDefinition:
     def active_items(self, floor_number: int) -> list[SpawnRule]:
         return [r for r in self.items if floor_spec_matches(r.floors, floor_number, self.floor_count)]
 
+    def active_generation_profiles(self, floor_number: int) -> list[dict[str, Any]]:
+        active: list[dict[str, Any]] = []
+        for rule in self.generation_profile_rules:
+            if not floor_spec_matches(rule.get("floors", "all"), floor_number, self.floor_count):
+                continue
+            profile_id = str(rule.get("profile", "default"))
+            if profile_id not in GENERATION_PROFILES:
+                continue
+            weight = max(0.0, float(rule.get("weight", 1.0)))
+            if weight <= 0:
+                continue
+            active.append({"profile": profile_id, "weight": weight})
+        return active
+
+    def choose_generation_profile(self, floor_number: int, rng: Random) -> str:
+        active = self.active_generation_profiles(floor_number)
+        if not active:
+            return "default"
+        return str(rng.choices(
+            [rule["profile"] for rule in active],
+            weights=[rule["weight"] for rule in active],
+            k=1,
+        )[0])
+
+    def generation_for_floor(self, floor_number: int, rng: Random) -> tuple[str, dict[str, Any]]:
+        settings = self.settings_for_floor(floor_number)
+        profile_id = self.choose_generation_profile(floor_number, rng)
+        raw = dict(settings["generation"])
+        if profile_id != "default":
+            raw.update(generation_profile_settings(profile_id))
+        return profile_id, raw
+
     def generate_layout(self, floor_number: int, rng: Random) -> DungeonFloor:
         settings = self.settings_for_floor(floor_number)
-        raw = dict(settings["generation"])
+        profile_id, raw = self.generation_for_floor(floor_number, rng)
         kind = str(raw.pop("type", "rooms_and_corridors"))
 
         if kind == "open_room":
@@ -234,6 +276,7 @@ class DungeonDefinition:
         floor.music = settings.get("music")
         floor.music_volume = float(settings.get("music_volume", 1.0))
         floor.dungeon_name = self.name
+        floor.generation_profile = profile_id
         return floor
 
     def build_floor(

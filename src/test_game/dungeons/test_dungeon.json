@@ -103,5 +103,27 @@
       "max_per_floor": 3
     }
   ],
-  "floor_rules": []
+  "floor_rules": [],
+  "generation_profile_rules": [
+    {
+      "profile": "default",
+      "floors": "1-3",
+      "weight": 5
+    },
+    {
+      "profile": "compact",
+      "floors": "1-3",
+      "weight": 2
+    },
+    {
+      "profile": "many_small_rooms",
+      "floors": "1-3",
+      "weight": 2
+    },
+    {
+      "profile": "sparse_large_rooms",
+      "floors": "3",
+      "weight": 1
+    }
+  ]
 }

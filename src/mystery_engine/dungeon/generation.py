@@ -27,6 +27,115 @@ class OpenRoomConfig:
     margin: int = 2
 
 
+# Reusable PMD-style floor tendencies. These deliberately change only the
+# parameters of the generic generators; they do not encode dungeon-specific
+# content. A dungeon may mix them by floor range and relative weight.
+GENERATION_PROFILES: dict[str, dict[str, object]] = {
+    "default": {
+        "label": "Dungeon Default",
+        "description": "Use the dungeon's base generation settings unchanged.",
+        "generation": {},
+    },
+    "compact": {
+        "label": "Compact",
+        "description": "A smaller map with a normal number of moderately sized rooms.",
+        "generation": {
+            "type": "rooms_and_corridors",
+            "width": 30,
+            "height": 22,
+            "room_count_min": 6,
+            "room_count_max": 8,
+            "room_w_min": 4,
+            "room_w_max": 7,
+            "room_h_min": 4,
+            "room_h_max": 6,
+            "attempts": 160,
+        },
+    },
+    "many_small_rooms": {
+        "label": "Many Small Rooms",
+        "description": "A room-dense floor made from numerous small chambers.",
+        "generation": {
+            "type": "rooms_and_corridors",
+            "width": 38,
+            "height": 28,
+            "room_count_min": 10,
+            "room_count_max": 14,
+            "room_w_min": 3,
+            "room_w_max": 5,
+            "room_h_min": 3,
+            "room_h_max": 5,
+            "attempts": 260,
+        },
+    },
+    "sprawling": {
+        "label": "Sprawling",
+        "description": "A large floor with long travel distances and a broad room spread.",
+        "generation": {
+            "type": "rooms_and_corridors",
+            "width": 52,
+            "height": 38,
+            "room_count_min": 8,
+            "room_count_max": 12,
+            "room_w_min": 5,
+            "room_w_max": 10,
+            "room_h_min": 5,
+            "room_h_max": 9,
+            "attempts": 260,
+        },
+    },
+    "sparse_large_rooms": {
+        "label": "Sparse Large Rooms",
+        "description": "A roomy map with only a handful of broad chambers.",
+        "generation": {
+            "type": "rooms_and_corridors",
+            "width": 46,
+            "height": 34,
+            "room_count_min": 4,
+            "room_count_max": 6,
+            "room_w_min": 8,
+            "room_w_max": 13,
+            "room_h_min": 7,
+            "room_h_max": 11,
+            "attempts": 180,
+        },
+    },
+    "tight_labyrinth": {
+        "label": "Tight Labyrinth",
+        "description": "A compact floor packed with tiny rooms and short connecting corridors.",
+        "generation": {
+            "type": "rooms_and_corridors",
+            "width": 34,
+            "height": 26,
+            "room_count_min": 9,
+            "room_count_max": 12,
+            "room_w_min": 3,
+            "room_w_max": 4,
+            "room_h_min": 3,
+            "room_h_max": 4,
+            "attempts": 280,
+        },
+    },
+    "open_hall": {
+        "label": "Open Hall",
+        "description": "One large open room for arenas, set pieces, and unusual floors.",
+        "generation": {
+            "type": "open_room",
+            "width": 32,
+            "height": 24,
+            "margin": 2,
+        },
+    },
+}
+
+
+def generation_profile_settings(profile_id: str) -> dict[str, object]:
+    profile = GENERATION_PROFILES.get(profile_id)
+    if profile is None:
+        return {}
+    return dict(profile.get("generation") or {})
+
+
 class OpenRoomGenerator:
     """Simple rectangular floor useful for arenas, tutorials, and previews."""
 
