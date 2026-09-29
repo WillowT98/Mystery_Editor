@@ -10,7 +10,21 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from mystery_engine.core import RangePattern
-from test_game.content import FOX_LUNGE, MARA_MEND, MARA_SPARK, THROWING_STONE, WAYSTONE_SHARD, WISP_BOLT
+from test_game.content import (
+    CLOCKWORK_SENTINEL_TIME_PULSE,
+    ENEMY_FACTORIES,
+    FOX_LUNGE,
+    FORGOTTEN_HOUND_POUNCE,
+    LOST_LANTERN_GLOW_SHOT,
+    MARA_MEND,
+    MARA_SPARK,
+    MIRROR_SHADE_SHARD_VOLLEY,
+    THROWING_STONE,
+    VEIL_BLOOM_SPORE_BURST,
+    WAYSTONE_SHARD,
+    WEAVING_WISP_WAVE_BURST,
+    WISP_BOLT,
+)
 from test_game.game_definition import TestGameDefinition
 
 
@@ -55,6 +69,31 @@ class TestGameContentTests(unittest.TestCase):
         asset_root = TestGameDefinition.asset_root / "projectiles"
         for key in ("spark", "needle", "stone"):
             self.assertTrue((asset_root / f"{key}.png").exists())
+
+    def test_new_enemy_roster_is_registered_and_has_assets(self):
+        expected = {
+            "lost_lantern",
+            "mirror_shade",
+            "weaving_wisp",
+            "clockwork_sentinel",
+            "forgotten_hound",
+            "veil_bloom",
+        }
+        self.assertTrue(expected.issubset(ENEMY_FACTORIES))
+        asset_root = TestGameDefinition.asset_root / "characters"
+        for enemy_id in expected:
+            enemy = ENEMY_FACTORIES[enemy_id](f"test_{enemy_id}")
+            self.assertTrue(enemy.hostile)
+            self.assertTrue(enemy.skills)
+            self.assertTrue((asset_root / f"{enemy_id}.png").exists())
+
+    def test_new_enemy_attacks_use_supported_targeting_patterns(self):
+        self.assertIs(LOST_LANTERN_GLOW_SHOT.range_pattern, RangePattern.LINE)
+        self.assertIs(MIRROR_SHADE_SHARD_VOLLEY.range_pattern, RangePattern.LINE)
+        self.assertIs(WEAVING_WISP_WAVE_BURST.range_pattern, RangePattern.LINE)
+        self.assertIs(CLOCKWORK_SENTINEL_TIME_PULSE.range_pattern, RangePattern.ROOM)
+        self.assertIs(FORGOTTEN_HOUND_POUNCE.range_pattern, RangePattern.TWO_TILES)
+        self.assertIs(VEIL_BLOOM_SPORE_BURST.range_pattern, RangePattern.ROOM)
 
     def test_sfx_catalog_is_shipped_with_test_game(self):
         self.assertTrue(TestGameDefinition.sfx_catalog_path.exists())
