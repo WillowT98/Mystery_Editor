@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import base64
 import math
 from dataclasses import dataclass
-from io import BytesIO
 from pathlib import Path
 
 import pygame
@@ -764,35 +762,8 @@ class Renderer:
         frame = int(max(0.0, now - state.walk_started_at) * self._WALK_FPS) % self._WALK_COLUMNS
         return x, y, frame
 
-    def _load_character_walk_sheet(self, sprite_key: str) -> pygame.Surface | None:
-        relative = f"characters/{sprite_key}_walk.png"
-        sheet = self._load_native_surface(relative)
-        if sheet is not None:
-            return sheet
-        if self.asset_root is None:
-            return None
-
-        encoded_relative = f"{relative}.b64"
-        cache_key = (f"native:{encoded_relative}", (-1, -1))
-        if cache_key in self._surface_cache:
-            return self._surface_cache[cache_key]
-
-        path = self.asset_root / encoded_relative
-        if not path.exists():
-            self._surface_cache[cache_key] = None
-            return None
-        try:
-            raw = base64.b64decode(path.read_text(encoding="ascii"), validate=True)
-            sheet = pygame.image.load(BytesIO(raw), relative).convert_alpha()
-        except (OSError, ValueError):
-            self._surface_cache[cache_key] = None
-            return None
-
-        self._surface_cache[cache_key] = sheet
-        return sheet
-
     def _has_character_walk_sheet(self, sprite_key: str) -> bool:
-        return self._load_character_walk_sheet(sprite_key) is not None
+        return self._load_native_surface(f"characters/{sprite_key}_walk.png") is not None
 
     def _load_character_walk_frame(
         self,
@@ -807,7 +778,7 @@ class Renderer:
         if cache_key in self._surface_cache:
             return self._surface_cache[cache_key]
 
-        sheet = self._load_character_walk_sheet(sprite_key)
+        sheet = self._load_native_surface(f"characters/{sprite_key}_walk.png")
         if sheet is None:
             self._surface_cache[cache_key] = None
             return None
