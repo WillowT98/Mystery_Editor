@@ -26,6 +26,7 @@ class DungeonFloor:
     music: str | None = None
     music_volume: float = 1.0
     dungeon_name: str = "Dungeon"
+    generation_profile: str = "default"
 
     @classmethod
     def empty(cls, width: int, height: int) -> "DungeonFloor":
