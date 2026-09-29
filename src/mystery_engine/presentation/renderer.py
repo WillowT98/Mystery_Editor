@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from pathlib import Path
 
 import pygame
@@ -13,7 +14,28 @@ from mystery_engine.core.autotile import autotile_asset, dungeon_walkable_mask, 
 from mystery_engine.ui import MenuController
 
 
+@dataclass
+class _ExplorationWalkState:
+    position: tuple[float, float]
+    started_at: float
+    moving: bool = False
+
+
+@dataclass
+class _DungeonWalkState:
+    logical: tuple[int, int]
+    start: tuple[float, float]
+    target: tuple[float, float]
+    started_at: float
+    duration: float
+    walk_started_at: float
+
+
 class Renderer:
+    _WALK_COLUMNS = 8
+    _WALK_ROWS = 4
+    _WALK_FPS = 12.0
+    _DUNGEON_STEP_SECONDS = 0.11
     def __init__(self, config: EngineConfig, asset_root: Path | None = None) -> None:
         self.config = config
         self.asset_root = Path(asset_root) if asset_root else None
@@ -40,6 +62,9 @@ class Renderer:
         self.hp_good = pygame.Color("#77b56a")
         self.hp_low = pygame.Color("#d46a5f")
         self._surface_cache: dict[tuple[str, tuple[int, int]], pygame.Surface | None] = {}
+        self._exploration_walk_states: dict[str, _ExplorationWalkState] = {}
+        self._dungeon_walk_states: dict[str, _DungeonWalkState] = {}
+        self._dungeon_walk_floor_token: int | None = None
 
     def begin(self) -> pygame.Surface:
         self.canvas.fill(self.bg)
@@ -62,6 +87,7 @@ class Renderer:
     # ---------- exploration ----------
 
     def draw_exploration(self, world: ExplorationMap, player_id: str) -> None:
+        now = pygame.time.get_ticks() / 1000.0
         viewport = pygame.Rect(0, 0, self.config.logical_width, self.config.logical_height)
         player = world.actor(player_id)
         camera_subject = player.position
@@ -119,7 +145,10 @@ class Renderer:
                 sx, sy = round(actor.position.x) - camera_ix, round(actor.position.y) - camera_iy
                 sprite_key = actor.sprite_key or actor.id
                 suffix = self._facing_suffix(actor.facing)
-                sprite = self._load_character_sprite(sprite_key, suffix, (84, 84))
+                walk_frame = self._exploration_walk_frame(actor.id, actor.position.x, actor.position.y, now)
+                sprite = self._load_character_walk_frame(sprite_key, suffix, walk_frame, (84, 84))
+                if sprite is None:
+                    sprite = self._load_character_sprite(sprite_key, suffix, (84, 84))
                 if sprite is None:
                     sprite = self._load_surface(f"characters/{sprite_key}.png", (84, 84))
                 if sprite is not None:
@@ -149,6 +178,8 @@ class Renderer:
         preserve_entity_ids: set[str] | None = None,
     ) -> None:
         preserve_entity_ids = preserve_entity_ids or set()
+        now = pygame.time.get_ticks() / 1000.0
+        self._sync_dungeon_walk_states(floor, now)
         view = pygame.Rect(0, 0, self.config.dungeon_view_width, self.config.logical_height)
         self.canvas.fill(self.unknown, view)
         leader = next(c for c in party if c.leader)
@@ -156,8 +187,13 @@ class Renderer:
             return
         tile = self.config.tile_px
         center_x, center_y = self.config.dungeon_view_width // 2, self.config.logical_height // 2
-        camera_world_x = leader.grid_pos.x * tile + tile // 2 - center_x
-        camera_world_y = leader.grid_pos.y * tile + tile // 2 - center_y
+        leader_sprite_key = leader.metadata.get("sprite_key", leader.id)
+        if self._has_character_walk_sheet(leader_sprite_key):
+            leader_x, leader_y, _ = self._dungeon_walk_sample(leader, now)
+        else:
+            leader_x, leader_y = float(leader.grid_pos.x), float(leader.grid_pos.y)
+        camera_world_x = leader_x * tile + tile / 2 - center_x
+        camera_world_y = leader_y * tile + tile / 2 - center_y
 
         edge_h = self._load_native_surface("tiles/dungeon_edge_h.png")
         edge_v = self._load_native_surface("tiles/dungeon_edge_v.png")
@@ -231,10 +267,20 @@ class Renderer:
         for entity in floor.entities:
             if (not entity.active and entity.id not in preserve_entity_ids) or entity.grid_pos is None or entity.grid_pos not in memory.visible:
                 continue
-            rect = pygame.Rect(int(entity.grid_pos.x * tile - camera_world_x), int(entity.grid_pos.y * tile - camera_world_y), tile, tile)
             sprite_key = entity.metadata.get("sprite_key", entity.id)
             suffix = self._facing_suffix(entity.facing)
-            sprite = self._load_character_sprite(sprite_key, suffix, (56, 56))
+            if self._has_character_walk_sheet(sprite_key):
+                visual_x, visual_y, walk_frame = self._dungeon_walk_sample(entity, now)
+            else:
+                visual_x, visual_y, walk_frame = float(entity.grid_pos.x), float(entity.grid_pos.y), 0
+            rect = pygame.Rect(0, 0, tile, tile)
+            rect.center = (
+                round(visual_x * tile + tile / 2 - camera_world_x),
+                round(visual_y * tile + tile / 2 - camera_world_y),
+            )
+            sprite = self._load_character_walk_frame(sprite_key, suffix, walk_frame, (56, 56))
+            if sprite is None:
+                sprite = self._load_character_sprite(sprite_key, suffix, (56, 56))
             if sprite is None:
                 sprite = self._load_surface(f"characters/{sprite_key}.png", (56, 56))
             if sprite is not None:
@@ -252,10 +298,17 @@ class Renderer:
         leader = next((c for c in party if c.leader), None)
         if leader is None or leader.grid_pos is None:
             return
+        now = pygame.time.get_ticks() / 1000.0
+        self._sync_dungeon_walk_states(floor, now)
         tile = self.config.tile_px
         center_x, center_y = self.config.dungeon_view_width // 2, self.config.logical_height // 2
-        camera_world_x = leader.grid_pos.x * tile + tile // 2 - center_x
-        camera_world_y = leader.grid_pos.y * tile + tile // 2 - center_y
+        leader_sprite_key = leader.metadata.get("sprite_key", leader.id)
+        if self._has_character_walk_sheet(leader_sprite_key):
+            leader_x, leader_y, _ = self._dungeon_walk_sample(leader, now)
+        else:
+            leader_x, leader_y = float(leader.grid_pos.x), float(leader.grid_pos.y)
+        camera_world_x = leader_x * tile + tile / 2 - center_x
+        camera_world_y = leader_y * tile + tile / 2 - center_y
 
         sx = event.source_pos.x * tile + tile / 2 - camera_world_x
         sy = event.source_pos.y * tile + tile / 2 - camera_world_y
@@ -623,6 +676,127 @@ class Renderer:
             for x in range(rect.left, rect.right, tw):
                 self.canvas.blit(sprite, (x, y))
         self.canvas.set_clip(old_clip)
+
+    def _exploration_walk_frame(self, actor_id: str, x: float, y: float, now: float) -> int:
+        current = (float(x), float(y))
+        state = self._exploration_walk_states.get(actor_id)
+        if state is None:
+            self._exploration_walk_states[actor_id] = _ExplorationWalkState(current, now)
+            return 0
+
+        distance = math.hypot(current[0] - state.position[0], current[1] - state.position[1])
+        if distance > 128.0:
+            # Scene changes and scripted teleports should not play a giant walk step.
+            state.moving = False
+            state.started_at = now
+        elif distance > 0.1:
+            if not state.moving:
+                state.started_at = now
+            state.moving = True
+        else:
+            state.moving = False
+
+        state.position = current
+        if not state.moving:
+            return 0
+        return int(max(0.0, now - state.started_at) * self._WALK_FPS) % self._WALK_COLUMNS
+
+    def _sync_dungeon_walk_states(self, floor: DungeonFloor, now: float) -> None:
+        floor_token = id(floor)
+        if floor_token != self._dungeon_walk_floor_token:
+            self._dungeon_walk_states.clear()
+            self._dungeon_walk_floor_token = floor_token
+
+        active_ids: set[str] = set()
+        for entity in floor.entities:
+            if entity.grid_pos is None:
+                continue
+            active_ids.add(entity.id)
+            logical = (entity.grid_pos.x, entity.grid_pos.y)
+            state = self._dungeon_walk_states.get(entity.id)
+            if state is None:
+                point = (float(logical[0]), float(logical[1]))
+                self._dungeon_walk_states[entity.id] = _DungeonWalkState(
+                    logical=logical,
+                    start=point,
+                    target=point,
+                    started_at=now,
+                    duration=self._DUNGEON_STEP_SECONDS,
+                    walk_started_at=now,
+                )
+                continue
+            if logical == state.logical:
+                continue
+
+            visual_x, visual_y, moving = self._sample_dungeon_state(state, now)
+            if not moving:
+                state.walk_started_at = now
+            state.logical = logical
+            state.start = (visual_x, visual_y)
+            state.target = (float(logical[0]), float(logical[1]))
+            state.started_at = now
+            state.duration = self._DUNGEON_STEP_SECONDS
+
+        for entity_id in tuple(self._dungeon_walk_states):
+            if entity_id not in active_ids:
+                del self._dungeon_walk_states[entity_id]
+
+    @staticmethod
+    def _sample_dungeon_state(state: _DungeonWalkState, now: float) -> tuple[float, float, bool]:
+        if state.duration <= 0:
+            return state.target[0], state.target[1], False
+        progress = max(0.0, min(1.0, (now - state.started_at) / state.duration))
+        x = state.start[0] + (state.target[0] - state.start[0]) * progress
+        y = state.start[1] + (state.target[1] - state.start[1]) * progress
+        return x, y, progress < 1.0
+
+    def _dungeon_walk_sample(self, entity: Character, now: float) -> tuple[float, float, int]:
+        if entity.grid_pos is None:
+            return 0.0, 0.0, 0
+        state = self._dungeon_walk_states.get(entity.id)
+        if state is None:
+            return float(entity.grid_pos.x), float(entity.grid_pos.y), 0
+        x, y, moving = self._sample_dungeon_state(state, now)
+        if not moving:
+            return x, y, 0
+        frame = int(max(0.0, now - state.walk_started_at) * self._WALK_FPS) % self._WALK_COLUMNS
+        return x, y, frame
+
+    def _has_character_walk_sheet(self, sprite_key: str) -> bool:
+        return self._load_native_surface(f"characters/{sprite_key}_walk.png") is not None
+
+    def _load_character_walk_frame(
+        self,
+        sprite_key: str,
+        suffix: str,
+        frame_index: int,
+        size: tuple[int, int],
+    ) -> pygame.Surface | None:
+        frame_index %= self._WALK_COLUMNS
+        row = {"n": 0, "e": 1, "s": 2, "w": 3}.get(suffix, 2)
+        cache_key = (f"characters/{sprite_key}_walk.png#{suffix}:{frame_index}", size)
+        if cache_key in self._surface_cache:
+            return self._surface_cache[cache_key]
+
+        sheet = self._load_native_surface(f"characters/{sprite_key}_walk.png")
+        if sheet is None:
+            self._surface_cache[cache_key] = None
+            return None
+
+        # Use proportional cell boundaries instead of integer division so authored
+        # sheets whose dimensions are not perfectly divisible by 8x4 still keep
+        # every source pixel. Do not crop individual alpha bounds: a fixed cell
+        # keeps feet, hats, and tails from visually bobbing as frames change.
+        x0 = round(frame_index * sheet.get_width() / self._WALK_COLUMNS)
+        x1 = round((frame_index + 1) * sheet.get_width() / self._WALK_COLUMNS)
+        y0 = round(row * sheet.get_height() / self._WALK_ROWS)
+        y1 = round((row + 1) * sheet.get_height() / self._WALK_ROWS)
+        frame = pygame.Surface((max(1, x1 - x0), max(1, y1 - y0)), pygame.SRCALPHA)
+        frame.blit(sheet, (0, 0), pygame.Rect(x0, y0, x1 - x0, y1 - y0))
+        if frame.get_size() != size:
+            frame = pygame.transform.scale(frame, size)
+        self._surface_cache[cache_key] = frame
+        return frame
 
     def _load_character_sprite(self, sprite_key: str, suffix: str, size: tuple[int, int]) -> pygame.Surface | None:
         # Prefer a shared 2x2 directional sheet when present. Layout:
