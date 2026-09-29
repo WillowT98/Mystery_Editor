@@ -36,6 +36,28 @@ class Renderer:
     _WALK_ROWS = 4
     _WALK_FPS = 12.0
     _DUNGEON_STEP_SECONDS = 0.11
+    # The supplied Fox/Mara atlases are laid out visually as 8x4 sheets, but the
+    # individual poses are not centered on mathematically equal-width columns.
+    # Treating them as a strict grid slices hats, faces, hair and tails at the
+    # nominal cell boundaries. These are the authored frame centers measured on
+    # the original 1774px-wide sheets; they are scaled to whatever asset size is
+    # loaded at runtime.
+    _WALK_LAYOUT_REFERENCE_WIDTH = 1774.0
+    _WALK_COLUMN_CENTERS: dict[str, tuple[tuple[float, ...], ...]] = {
+        "mara": (
+            (121.0, 342.0, 563.0, 785.0, 1006.5, 1229.0, 1449.5, 1672.0),
+            (123.0, 344.0, 566.0, 787.0, 1009.5, 1231.0, 1453.0, 1674.0),
+            (119.5, 340.0, 560.0, 782.5, 1004.5, 1227.0, 1446.5, 1666.5),
+            (116.0, 337.5, 558.5, 781.5, 1002.5, 1224.0, 1445.5, 1666.5),
+        ),
+        "fox": (
+            (128.5, 337.5, 560.5, 783.0, 991.0, 1214.5, 1438.0, 1645.0),
+            (114.0, 330.5, 545.5, 759.0, 980.5, 1204.5, 1423.5, 1632.5),
+            (140.0, 355.5, 562.0, 778.5, 996.5, 1217.0, 1423.0, 1636.5),
+            (142.0, 354.5, 573.5, 792.0, 1009.5, 1231.5, 1449.0, 1658.0),
+        ),
+    }
+    _WALK_FRAME_SHRINK = 0.875
     def __init__(self, config: EngineConfig, asset_root: Path | None = None) -> None:
         self.config = config
         self.asset_root = Path(asset_root) if asset_root else None
@@ -783,16 +805,45 @@ class Renderer:
             self._surface_cache[cache_key] = None
             return None
 
-        # Use proportional cell boundaries instead of integer division so authored
-        # sheets whose dimensions are not perfectly divisible by 8x4 still keep
-        # every source pixel. Do not crop individual alpha bounds: a fixed cell
-        # keeps feet, hats, and tails from visually bobbing as frames change.
-        x0 = round(frame_index * sheet.get_width() / self._WALK_COLUMNS)
-        x1 = round((frame_index + 1) * sheet.get_width() / self._WALK_COLUMNS)
+        layout = self._WALK_COLUMN_CENTERS.get(sprite_key.lower())
+        if layout is not None:
+            centers = [
+                value * sheet.get_width() / self._WALK_LAYOUT_REFERENCE_WIDTH
+                for value in layout[row]
+            ]
+            x_bounds = [0]
+            x_bounds.extend(round((centers[i] + centers[i + 1]) / 2) for i in range(self._WALK_COLUMNS - 1))
+            x_bounds.append(sheet.get_width())
+            x0, x1 = x_bounds[frame_index], x_bounds[frame_index + 1]
+        else:
+            # Generic walk sheets still use a conventional evenly-spaced 8x4 grid.
+            x0 = round(frame_index * sheet.get_width() / self._WALK_COLUMNS)
+            x1 = round((frame_index + 1) * sheet.get_width() / self._WALK_COLUMNS)
+
         y0 = round(row * sheet.get_height() / self._WALK_ROWS)
         y1 = round((row + 1) * sheet.get_height() / self._WALK_ROWS)
-        frame = pygame.Surface((max(1, x1 - x0), max(1, y1 - y0)), pygame.SRCALPHA)
-        frame.blit(sheet, (0, 0), pygame.Rect(x0, y0, x1 - x0, y1 - y0))
+        source = pygame.Surface((max(1, x1 - x0), max(1, y1 - y0)), pygame.SRCALPHA)
+        source.blit(sheet, (0, 0), pygame.Rect(x0, y0, x1 - x0, y1 - y0))
+
+        if layout is not None:
+            # Re-center the authored frame inside a padded nominal cell before
+            # scaling it for the game. The small safety margin is intentional:
+            # several poses extend right up to the source-sheet seams.
+            nominal = (
+                max(1, round(sheet.get_width() / self._WALK_COLUMNS)),
+                max(1, round(sheet.get_height() / self._WALK_ROWS)),
+            )
+            inner_size = (
+                max(1, round(source.get_width() * self._WALK_FRAME_SHRINK)),
+                max(1, round(source.get_height() * self._WALK_FRAME_SHRINK)),
+            )
+            if source.get_size() != inner_size:
+                source = pygame.transform.scale(source, inner_size)
+            frame = pygame.Surface(nominal, pygame.SRCALPHA)
+            frame.blit(source, source.get_rect(center=frame.get_rect().center))
+        else:
+            frame = source
+
         if frame.get_size() != size:
             frame = pygame.transform.scale(frame, size)
         self._surface_cache[cache_key] = frame
