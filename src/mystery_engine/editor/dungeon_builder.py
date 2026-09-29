@@ -8,7 +8,7 @@ import subprocess
 import sys
 import pygame
 
-from mystery_engine.dungeon import DungeonDefinition, SpawnRule
+from mystery_engine.dungeon import DungeonDefinition, GENERATION_PROFILES, SpawnRule
 
 
 @dataclass
@@ -26,7 +26,7 @@ class DungeonBuilderEditor:
     while the preview regenerates a concrete floor from the current definition.
     """
 
-    TABS = ("Overview", "Generation", "Enemies", "Items", "Audio", "Preview")
+    TABS = ("Overview", "Generation", "Profiles", "Enemies", "Items", "Audio", "Preview")
 
     def __init__(
         self,
@@ -195,6 +195,75 @@ class DungeonBuilderEditor:
         (self.definition.enemies if kind == "enemy" else self.definition.items).append(rule)
         self._changed(f"Added {catalog[content_id]}")
 
+    def _add_generation_profile_rule(self) -> None:
+        choices = "\n".join(
+            f"{profile_id}: {profile['label']} — {profile['description']}"
+            for profile_id, profile in GENERATION_PROFILES.items()
+        )
+        profile_id = self._ask_text(
+            "Add generation profile",
+            f"Enter profile ID:\n\n{choices}",
+            "many_small_rooms",
+        )
+        if profile_id is None:
+            return
+        profile_id = profile_id.strip()
+        if profile_id not in GENERATION_PROFILES:
+            self.status = f"Unknown generation profile: {profile_id}"
+            return
+        floors = self._ask_text("Floor range", "Examples: all, 1-5, 8, 10+", "all")
+        if floors is None:
+            return
+        weight = self._ask_float("Profile weight", "Relative chance on matching floors", 1.0, 0.0, 10000.0)
+        if weight is None:
+            return
+        self.definition.generation_profile_rules.append({
+            "profile": profile_id,
+            "floors": floors,
+            "weight": weight,
+        })
+        self._changed(f"Added generation profile {GENERATION_PROFILES[profile_id]['label']}")
+
+    def _edit_generation_profile_rule(self, index: int) -> None:
+        rules = self.definition.generation_profile_rules
+        if not 0 <= index < len(rules):
+            return
+        rule = rules[index]
+        current_profile = str(rule.get("profile", "default"))
+        choices = "\n".join(
+            f"{profile_id}: {profile['label']}"
+            for profile_id, profile in GENERATION_PROFILES.items()
+        )
+        profile_id = self._ask_text(
+            "Generation profile",
+            f"Enter profile ID:\n\n{choices}",
+            current_profile,
+        )
+        if profile_id is None:
+            return
+        profile_id = profile_id.strip()
+        if profile_id not in GENERATION_PROFILES:
+            self.status = f"Unknown generation profile: {profile_id}"
+            return
+        floors = self._ask_text(
+            "Floor range",
+            "Examples: all, 1-5, 8, 10+",
+            str(rule.get("floors", "all")),
+        )
+        if floors is None:
+            return
+        weight = self._ask_float(
+            "Profile weight",
+            "Relative chance on matching floors",
+            float(rule.get("weight", 1.0)),
+            0.0,
+            10000.0,
+        )
+        if weight is None:
+            return
+        rule.update({"profile": profile_id, "floors": floors, "weight": weight})
+        self._changed(f"Updated generation profile {GENERATION_PROFILES[profile_id]['label']}")
+
     # ---------- drawing ----------
 
     def _button(self, rect: pygame.Rect, text: str, action: str, value=None, selected: bool = False) -> None:
@@ -232,6 +301,8 @@ class DungeonBuilderEditor:
             self._draw_overview()
         elif self.tab == "Generation":
             self._draw_generation()
+        elif self.tab == "Profiles":
+            self._draw_generation_profiles()
         elif self.tab == "Enemies":
             self._draw_rules("enemy")
         elif self.tab == "Items":
@@ -265,6 +336,41 @@ class DungeonBuilderEditor:
         else:
             y = self._field(y, "Margin", str(gen.get("margin", 2)), "edit_generation", "margin")
         self._draw_preview(origin=(790, 110), size=(610, 610))
+
+    def _draw_generation_profiles(self) -> None:
+        self._button(pygame.Rect(48, 92, 220, 40), "+ Add profile", "add_generation_profile")
+        help_text = (
+            "Matching entries form a weighted pool. One profile is rolled when each floor is generated; "
+            "'Dungeon Default' keeps the base Generation settings."
+        )
+        self.screen.blit(self.font_small.render(help_text, True, (177, 187, 201)), (290, 102))
+
+        y = 150
+        for i, rule in enumerate(self.definition.generation_profile_rules):
+            profile_id = str(rule.get("profile", "default"))
+            profile = GENERATION_PROFILES.get(profile_id, {
+                "label": profile_id,
+                "description": "Unknown profile",
+            })
+            rect = pygame.Rect(48, y, 820, 86)
+            pygame.draw.rect(self.screen, (35, 42, 53), rect, border_radius=7)
+            self.screen.blit(self.font.render(str(profile["label"]), True, (245, 243, 235)), (62, y + 8))
+            detail = (
+                f"Floors {rule.get('floors', 'all')}   weight {float(rule.get('weight', 1.0)):g}   "
+                f"{profile['description']}"
+            )
+            self.screen.blit(self.font_small.render(detail, True, (177, 187, 201)), (62, y + 43))
+            self._button(pygame.Rect(890, y + 22, 110, 40), "Edit", "edit_generation_profile", i)
+            self._button(pygame.Rect(1010, y + 22, 110, 40), "Delete", "delete_generation_profile", i)
+            y += 98
+
+        if not self.definition.generation_profile_rules:
+            self.screen.blit(
+                self.font.render("No profile pool configured; every floor uses the base Generation settings.", True, (210, 214, 220)),
+                (48, 165),
+            )
+
+        self._draw_preview(origin=(1160, 150), size=(300, 300))
 
     def _draw_rules(self, kind: str) -> None:
         rules = self.definition.enemies if kind == "enemy" else self.definition.items
@@ -315,7 +421,12 @@ class DungeonBuilderEditor:
                 if floor.stairs_pos and floor.stairs_pos.x == x and floor.stairs_pos.y == y:
                     color = (213, 181, 79)
                 pygame.draw.rect(self.screen, color, (int(px + x * scale), int(py + y * scale), max(1, int(scale + 0.5)), max(1, int(scale + 0.5))))
-        title = f"{self.definition.name} — floor {self.floor_number}/{self.definition.floor_count} — seed {self.seed}"
+        profile_id = getattr(floor, "generation_profile", "default")
+        profile_label = GENERATION_PROFILES.get(profile_id, {}).get("label", profile_id)
+        title = (
+            f"{self.definition.name} — floor {self.floor_number}/{self.definition.floor_count} — "
+            f"seed {self.seed} — {profile_label}"
+        )
         self.screen.blit(self.font_small.render(title, True, (225, 226, 224)), (ox + 12, oy + 10))
 
     # ---------- events ----------
@@ -342,6 +453,14 @@ class DungeonBuilderEditor:
             if new is not None:
                 setattr(self.definition, value, new)
                 self._changed(f"Updated {value}")
+        elif action == "add_generation_profile":
+            self._add_generation_profile_rule()
+        elif action == "edit_generation_profile":
+            self._edit_generation_profile_rule(int(value))
+        elif action == "delete_generation_profile":
+            if 0 <= int(value) < len(self.definition.generation_profile_rules):
+                removed = self.definition.generation_profile_rules.pop(int(value))
+                self._changed(f"Removed generation profile {removed.get('profile', 'default')}")
         elif action == "add_rule":
             self._add_rule(str(value))
         elif action == "edit_rule":
