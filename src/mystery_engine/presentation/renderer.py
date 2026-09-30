@@ -521,7 +521,9 @@ class Renderer:
                     self.canvas.blit(surface, (x, y))
             return
         target_size = (max(1, round(world.width)), max(1, round(world.height)))
-        scaled = surface if surface.get_size() == target_size else pygame.transform.scale(surface, target_size)
+        scaled = self._load_surface(f"backgrounds/{world.background_key}.png", target_size)
+        if scaled is None:
+            return
         source = pygame.Rect(camera_ix, camera_iy, viewport.w, viewport.h)
         self.canvas.blit(scaled, (0, 0), source)
 
