@@ -1638,6 +1638,7 @@ class ProjectEditor:
         self.items: list[tuple[str, str]] = []
         self.status = "Ready"
         self.file_menu_open = False
+        self.exit_requested = False
 
     def _switch_project(self, registry: ProjectRegistry) -> None:
         self.registry = registry
@@ -1912,7 +1913,9 @@ class ProjectEditor:
                 )
                 editor.mode = "story"
                 editor.story_id = item_id
-                editor.run()
+                if not editor.run():
+                    self.exit_requested = True
+                    return
             else:
                 from mystery_engine.editor.story_graph import StoryGraphEditor
                 editor = StoryGraphEditor(
@@ -1920,7 +1923,9 @@ class ProjectEditor:
                     project_root=self.project_root,
                     project_registry=self.registry,
                 )
-                editor.run()
+                if not editor.run():
+                    self.exit_requested = True
+                    return
             self._reinit_display()
         elif self.section == "Enemies":
             edit_enemy_dialog(self.registry, item_id)
@@ -1943,7 +1948,9 @@ class ProjectEditor:
                 self.registry.enemy_labels, self.registry.item_labels,
                 project_root=self.project_root, project_registry=self.registry,
             )
-            editor.run()
+            if not editor.run():
+                self.exit_requested = True
+                return
             self._reinit_display()
         elif self.section == "Scenes":
             from mystery_engine.editor.app import ExplorationSceneEditor
@@ -1954,7 +1961,9 @@ class ProjectEditor:
                 self.registry.world_asset_catalog(self.world_assets), self.registry.asset_root,
                 project_root=self.project_root, project_registry=self.registry,
             )
-            editor.run()
+            if not editor.run():
+                self.exit_requested = True
+                return
             self._reinit_display()
         self._refresh()
 
@@ -2026,6 +2035,11 @@ class ProjectEditor:
                         self.selected = max(0, self.selected-1)
                     elif event.key == pygame.K_DOWN:
                         self.selected = min(max(0, len(self.items)-1), self.selected+1)
+                if self.exit_requested:
+                    running = False
+                    break
+            if not running:
+                break
             self.draw()
             pygame.display.flip()
         pygame.quit()
