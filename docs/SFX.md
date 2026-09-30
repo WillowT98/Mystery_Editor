@@ -100,6 +100,11 @@ spoken dialogue. For example, a project could register cues such as
 `dialogue.fox`, `dialogue.mara`, or `dialogue.wisp`, each backed by its own
 short family of blips.
 
+The bundled test project immediately exposes five starter cues,
+`dialogue.tone_1` through `dialogue.tone_5`, using the existing text-sound
+library at a quieter dialogue volume. They can be assigned directly to Pawns or
+used as a starting point for character-specific cues.
+
 Resolution order is:
 
 1. a dialogue line's optional `voice_cue` override;
