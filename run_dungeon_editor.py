@@ -11,7 +11,6 @@ if str(SRC) not in sys.path:
 
 from mystery_engine.editor import run_dungeon_builder
 from mystery_engine.project import ProjectRegistry
-from test_game.content import ITEM_LABELS
 
 
 def main() -> None:
@@ -27,7 +26,7 @@ def main() -> None:
         args.dungeon,
         registry.asset_root,
         registry.enemy_labels,
-        ITEM_LABELS,
+        registry.item_labels,
         project_root=ROOT,
         project_registry=registry,
     )

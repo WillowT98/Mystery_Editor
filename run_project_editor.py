@@ -10,11 +10,10 @@ if str(SRC) not in sys.path:
 
 from mystery_engine.editor import run_project_editor
 from test_game.world_assets import WORLD_ASSETS
-from test_game.content import ITEM_LABELS
 
 
 def main() -> None:
-    run_project_editor(ROOT / "src" / "test_game", WORLD_ASSETS, ROOT, ITEM_LABELS)
+    run_project_editor(ROOT / "src" / "test_game", WORLD_ASSETS, ROOT)
 
 
 if __name__ == "__main__":

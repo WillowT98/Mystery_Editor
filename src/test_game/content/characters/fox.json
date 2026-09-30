@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "id": "fox",
+  "pawn": "fox",
+  "stats": {
+    "max_hp": 46,
+    "attack": 8,
+    "defense": 5
+  },
+  "attacks": [
+    "fox_lunge"
+  ],
+  "resistances": {},
+  "resources": {},
+  "ai_tactic": "follow"
+}

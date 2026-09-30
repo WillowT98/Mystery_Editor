@@ -6,7 +6,16 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import pygame
 
-from mystery_engine.project import AttackDefinitionData, EnemyDefinitionData, PawnDefinitionData, ProjectRegistry, slugify
+from mystery_engine.project import (
+    AttackDefinitionData,
+    EnemyDefinitionData,
+    GameSettingsData,
+    ItemDefinitionData,
+    PawnDefinitionData,
+    PlayableCharacterDefinitionData,
+    ProjectRegistry,
+    slugify,
+)
 
 
 def _root(title: str, geometry: str = "720x760") -> tk.Tk:
@@ -275,6 +284,287 @@ def edit_enemy_dialog(registry: ProjectRegistry, enemy_id: str | None = None) ->
     tk.Button(buttons, text="Save Enemy", command=save).pack(side="right")
     root.mainloop()
     return result["id"]
+
+
+def edit_item_dialog(registry: ProjectRegistry, item_id: str | None = None) -> str | None:
+    current = registry.items_data.get(item_id) if item_id else None
+    root = _root("Item Editor", "760x700")
+    result: dict[str, str | None] = {"id": None}
+    outer = tk.Frame(root)
+    outer.pack(fill="both", expand=True, padx=16, pady=12)
+    fields: dict[str, tk.StringVar] = {}
+
+    def entry_row(label: str, key: str, value: object = "") -> None:
+        row = tk.Frame(outer); row.pack(fill="x", pady=3)
+        tk.Label(row, text=label, width=20, anchor="w").pack(side="left")
+        var = tk.StringVar(value=str(value)); fields[key] = var
+        tk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+
+    entry_row("ID", "id", current.id if current else "")
+    entry_row("Name", "name", current.name if current else "")
+    entry_row("Description", "description", current.description if current else "")
+    entry_row("Heal amount", "heal", current.heal if current else 0)
+    entry_row("Throw damage", "throw_damage", current.throwable_damage if current else 0)
+
+    damage_row = tk.Frame(outer); damage_row.pack(fill="x", pady=3)
+    tk.Label(damage_row, text="Damage type", width=20, anchor="w").pack(side="left")
+    damage_var = tk.StringVar(value=current.damage_type or "" if current else "")
+    ttk.Combobox(damage_row, textvariable=damage_var, values=[""] + registry.damage_types, state="readonly").pack(side="left", fill="x", expand=True)
+
+    droppable = tk.BooleanVar(value=current.droppable if current else True)
+    key_item = tk.BooleanVar(value=current.key_item if current else False)
+    checks = tk.Frame(outer); checks.pack(fill="x", pady=6)
+    tk.Checkbutton(checks, text="Droppable on defeat", variable=droppable).pack(side="left")
+    tk.Checkbutton(checks, text="Key item", variable=key_item).pack(side="left", padx=(18, 0))
+
+    sprite_row = tk.Frame(outer); sprite_row.pack(fill="x", pady=3)
+    tk.Label(sprite_row, text="Ground sprite", width=20, anchor="w").pack(side="left")
+    sprite_var = tk.StringVar(value=current.sprite_key or current.id if current else "")
+    sprite_combo = ttk.Combobox(sprite_row, textvariable=sprite_var, values=registry.asset_keys("items", {".png"}), state="normal")
+    sprite_combo.pack(side="left", fill="x", expand=True)
+
+    def import_sprite() -> None:
+        chosen = filedialog.askopenfilename(parent=root, title="Import item sprite", filetypes=[("PNG image", "*.png"), ("All files", "*.*")])
+        if not chosen: return
+        try:
+            key, _ = registry.import_asset(Path(chosen), "items", allowed_suffixes={".png"})
+        except Exception as exc:
+            messagebox.showerror("Could not import sprite", str(exc), parent=root); return
+        sprite_var.set(key)
+        sprite_combo["values"] = registry.asset_keys("items", {".png"})
+
+    tk.Button(sprite_row, text="Import…", command=import_sprite).pack(side="left", padx=(6, 0))
+
+    projectile_row = tk.Frame(outer); projectile_row.pack(fill="x", pady=3)
+    tk.Label(projectile_row, text="Projectile", width=20, anchor="w").pack(side="left")
+    projectile_var = tk.StringVar(value=current.projectile_key or "" if current else "")
+    projectile_combo = ttk.Combobox(projectile_row, textvariable=projectile_var, values=[""] + registry.asset_keys("projectiles", {".png"}), state="normal")
+    projectile_combo.pack(side="left", fill="x", expand=True)
+
+    def import_projectile() -> None:
+        chosen = filedialog.askopenfilename(parent=root, title="Import projectile sheet", filetypes=[("PNG image", "*.png"), ("All files", "*.*")])
+        if not chosen: return
+        try:
+            key, _ = registry.import_asset(Path(chosen), "projectiles", allowed_suffixes={".png"})
+        except Exception as exc:
+            messagebox.showerror("Could not import projectile", str(exc), parent=root); return
+        projectile_var.set(key)
+        projectile_combo["values"] = [""] + registry.asset_keys("projectiles", {".png"})
+
+    tk.Button(projectile_row, text="Import…", command=import_projectile).pack(side="left", padx=(6, 0))
+    entry_row("Projectile arc px", "arc", current.projectile_arc_px if current else 0)
+    entry_row("Use SFX cue", "sfx", current.sfx_cue or "" if current else "")
+    entry_row("Impact SFX cue", "impact_sfx", current.impact_sfx_cue or "" if current else "")
+
+    def save() -> None:
+        try:
+            ident = fields["id"].get().strip() or slugify(fields["name"].get(), "item")
+            if current is not None and ident != current.id:
+                raise ValueError("Item IDs are stable after creation.")
+            data = ItemDefinitionData(
+                id=ident,
+                name=fields["name"].get().strip() or ident,
+                description=fields["description"].get().strip(),
+                heal=max(0, int(fields["heal"].get() or 0)),
+                throwable_damage=max(0, int(fields["throw_damage"].get() or 0)),
+                damage_type=damage_var.get() or None,
+                droppable=bool(droppable.get()),
+                key_item=bool(key_item.get()),
+                sfx_cue=fields["sfx"].get().strip() or None,
+                impact_sfx_cue=fields["impact_sfx"].get().strip() or None,
+                projectile_key=projectile_var.get().strip() or None,
+                projectile_arc_px=float(fields["arc"].get() or 0),
+                sprite_key=sprite_var.get().strip() or None,
+            )
+            registry.save_item(data)
+        except Exception as exc:
+            messagebox.showerror("Could not save item", str(exc), parent=root); return
+        result["id"] = data.id; root.destroy()
+
+    buttons = tk.Frame(outer); buttons.pack(fill="x", pady=(14, 0))
+    tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8, 0))
+    tk.Button(buttons, text="Save Item", command=save).pack(side="right")
+    root.mainloop()
+    return result["id"]
+
+
+def edit_character_dialog(registry: ProjectRegistry, character_id: str | None = None) -> str | None:
+    current = registry.characters.get(character_id) if character_id else None
+    root = _root("Playable Character Editor", "820x860")
+    result: dict[str, str | None] = {"id": None}
+    outer = tk.Frame(root); outer.pack(fill="both", expand=True, padx=16, pady=12)
+    fields: dict[str, tk.StringVar] = {}
+
+    def entry_row(label: str, key: str, value: object = "") -> None:
+        row = tk.Frame(outer); row.pack(fill="x", pady=3)
+        tk.Label(row, text=label, width=18, anchor="w").pack(side="left")
+        var = tk.StringVar(value=str(value)); fields[key] = var
+        tk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+
+    entry_row("ID", "id", current.id if current else "")
+    pawn_row = tk.Frame(outer); pawn_row.pack(fill="x", pady=3)
+    tk.Label(pawn_row, text="Pawn", width=18, anchor="w").pack(side="left")
+    pawn_ids = list(registry.pawn_labels)
+    pawn_var = tk.StringVar(value=current.pawn_id if current else (pawn_ids[0] if pawn_ids else ""))
+    ttk.Combobox(pawn_row, textvariable=pawn_var, values=pawn_ids, state="readonly").pack(side="left", fill="x", expand=True)
+
+    entry_row("HP", "hp", current.max_hp if current else 30)
+    entry_row("Attack", "attack", current.attack if current else 5)
+    entry_row("Defense", "defense", current.defense if current else 3)
+
+    tactic_row = tk.Frame(outer); tactic_row.pack(fill="x", pady=3)
+    tk.Label(tactic_row, text="AI tactic", width=18, anchor="w").pack(side="left")
+    tactic_var = tk.StringVar(value=current.ai_tactic if current else "follow")
+    ttk.Combobox(tactic_row, textvariable=tactic_var, values=["follow", "attack", "protect", "conserve"], state="readonly").pack(side="left", fill="x", expand=True)
+
+    tk.Label(outer, text="Attacks", anchor="w", font=("TkDefaultFont", 10, "bold")).pack(fill="x", pady=(10, 3))
+    attack_ids = list(registry.attack_labels)
+    attack_box = tk.Listbox(outer, selectmode="multiple", height=8, exportselection=False); attack_box.pack(fill="x")
+    for i, aid in enumerate(attack_ids):
+        attack_box.insert("end", f"{registry.attack_labels[aid]}  [{aid}]")
+        if current and aid in current.attacks: attack_box.selection_set(i)
+
+    tk.Label(outer, text="Resistances / vulnerabilities", anchor="w", font=("TkDefaultFont", 10, "bold")).pack(fill="x", pady=(10, 3))
+    resistance_vars: dict[str, tuple[tk.BooleanVar, tk.StringVar]] = {}
+    rf = tk.Frame(outer); rf.pack(fill="x")
+    for i, dtype in enumerate(registry.damage_types):
+        enabled = tk.BooleanVar(value=current is not None and dtype in current.resistances)
+        mult = tk.StringVar(value=str(current.resistances.get(dtype, 1.0) if current else 1.0))
+        resistance_vars[dtype] = (enabled, mult)
+        tk.Checkbutton(rf, text=dtype, variable=enabled, width=14, anchor="w").grid(row=i//2, column=(i%2)*2, sticky="w")
+        tk.Entry(rf, textvariable=mult, width=8).grid(row=i//2, column=(i%2)*2+1, sticky="w", padx=(0,16))
+
+    def save() -> None:
+        try:
+            ident = fields["id"].get().strip() or pawn_var.get().strip() or "character"
+            if current is not None and ident != current.id:
+                raise ValueError("Character IDs are stable after creation.")
+            if not pawn_var.get(): raise ValueError("Choose a pawn.")
+            data = PlayableCharacterDefinitionData(
+                id=ident,
+                pawn_id=pawn_var.get(),
+                max_hp=max(1, int(fields["hp"].get())),
+                attack=max(0, int(fields["attack"].get())),
+                defense=max(0, int(fields["defense"].get())),
+                attacks=tuple(attack_ids[i] for i in attack_box.curselection()),
+                resistances={dtype:max(0.0,float(mult.get())) for dtype,(enabled,mult) in resistance_vars.items() if enabled.get()},
+                ai_tactic=tactic_var.get(),
+            )
+            registry.save_character(data)
+        except Exception as exc:
+            messagebox.showerror("Could not save character", str(exc), parent=root); return
+        result["id"] = data.id; root.destroy()
+
+    buttons = tk.Frame(outer); buttons.pack(fill="x", pady=(14, 0))
+    tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8,0))
+    tk.Button(buttons, text="Save Character", command=save).pack(side="right")
+    root.mainloop()
+    return result["id"]
+
+
+def edit_game_settings_dialog(registry: ProjectRegistry) -> bool:
+    current = registry.game_settings
+    root = _root("Game Settings", "850x860")
+    saved = {"ok": False}
+    outer = tk.Frame(root); outer.pack(fill="both", expand=True, padx=16, pady=12)
+    fields: dict[str, tk.StringVar] = {}
+
+    def entry_row(label: str, key: str, value: object = "") -> None:
+        row = tk.Frame(outer); row.pack(fill="x", pady=3)
+        tk.Label(row, text=label, width=24, anchor="w").pack(side="left")
+        var = tk.StringVar(value=str(value)); fields[key] = var
+        tk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+
+    entry_row("Game title", "title", current.title)
+    entry_row("Version", "version", current.version)
+
+    def combo_row(label: str, var: tk.StringVar, values: list[str]) -> None:
+        row = tk.Frame(outer); row.pack(fill="x", pady=3)
+        tk.Label(row, text=label, width=24, anchor="w").pack(side="left")
+        ttk.Combobox(row, textvariable=var, values=[""] + values, state="readonly").pack(side="left", fill="x", expand=True)
+
+    scene_var = tk.StringVar(value=current.starting_scene or "")
+    combo_row("Starting scene", scene_var, list(registry.scene_labels()))
+    marker_var = tk.StringVar(value=current.starting_marker or "")
+    entry_row("Starting marker (optional)", "marker", current.starting_marker or "")
+    dungeon_var = tk.StringVar(value=current.default_dungeon or "")
+    combo_row("Default dungeon", dungeon_var, list(registry.dungeon_labels()))
+
+    entry_row("Bag capacity", "bag", current.bag_capacity)
+    entry_row("Storage capacity", "storage", current.storage_capacity)
+    entry_row("Starting carried money", "money", current.starting_carried_money)
+    entry_row("Starting stored money", "stored_money", current.starting_stored_money)
+    entry_row("Defeat money loss %", "money_loss", round(current.defeat_money_loss_fraction*100))
+    entry_row("Defeat item loss %", "item_loss", round(current.defeat_item_loss_chance*100))
+
+    tk.Label(outer, text="Starting party", anchor="w", font=("TkDefaultFont",10,"bold")).pack(fill="x", pady=(10,3))
+    char_ids = list(registry.character_labels)
+    party_box = tk.Listbox(outer, selectmode="multiple", height=6, exportselection=False); party_box.pack(fill="x")
+    for i,cid in enumerate(char_ids):
+        party_box.insert("end", f"{registry.character_labels[cid]}  [{cid}]")
+        if cid in current.starting_party: party_box.selection_set(i)
+
+    leader_row = tk.Frame(outer); leader_row.pack(fill="x", pady=4)
+    tk.Label(leader_row, text="Leader", width=24, anchor="w").pack(side="left")
+    leader_var = tk.StringVar(value=current.leader or "")
+    ttk.Combobox(leader_row, textvariable=leader_var, values=[""] + char_ids, state="readonly").pack(side="left", fill="x", expand=True)
+
+    tk.Label(outer, text="Starting items (one per line: item_id=quantity)", anchor="w", font=("TkDefaultFont",10,"bold")).pack(fill="x", pady=(10,3))
+    items_text = tk.Text(outer, height=5, wrap="none"); items_text.pack(fill="x")
+    items_text.insert("1.0", "\n".join(f"{k}={v}" for k,v in current.starting_items.items()))
+
+    tk.Label(outer, text="Starting flags (one per line: flag=true/false)", anchor="w", font=("TkDefaultFont",10,"bold")).pack(fill="x", pady=(10,3))
+    flags_text = tk.Text(outer, height=4, wrap="none"); flags_text.pack(fill="x")
+    flags_text.insert("1.0", "\n".join(f"{k}={'true' if v else 'false'}" for k,v in current.starting_flags.items()))
+
+    def parse_pairs(text_widget, *, boolean=False):
+        result = {}
+        for raw in text_widget.get("1.0","end").splitlines():
+            raw=raw.strip()
+            if not raw: continue
+            if "=" not in raw: raise ValueError(f"Expected key=value: {raw}")
+            key,value=[part.strip() for part in raw.split("=",1)]
+            result[key] = value.lower() in {"true","1","yes","on"} if boolean else max(0,int(value))
+        return result
+
+    def save() -> None:
+        try:
+            party = tuple(char_ids[i] for i in party_box.curselection())
+            leader = leader_var.get() or (party[0] if party else None)
+            if leader and leader not in party: raise ValueError("Leader must be in the starting party.")
+            settings = GameSettingsData(
+                title=fields["title"].get().strip() or registry.project_name,
+                version=fields["version"].get().strip() or "0.1.0",
+                starting_scene=scene_var.get() or None,
+                starting_marker=fields["marker"].get().strip() or None,
+                default_dungeon=dungeon_var.get() or None,
+                bag_capacity=max(1,int(fields["bag"].get())),
+                storage_capacity=max(1,int(fields["storage"].get())),
+                starting_carried_money=max(0,int(fields["money"].get())),
+                starting_stored_money=max(0,int(fields["stored_money"].get())),
+                defeat_money_loss_fraction=max(0,min(1,float(fields["money_loss"].get())/100)),
+                defeat_item_loss_chance=max(0,min(1,float(fields["item_loss"].get())/100)),
+                starting_party=party,
+                leader=leader,
+                starting_items=parse_pairs(items_text),
+                starting_flags=parse_pairs(flags_text, boolean=True),
+                starting_variables=current.starting_variables,
+                starting_storage=current.starting_storage,
+                dungeon_result_stories=current.dungeon_result_stories,
+                sfx_event_cues=current.sfx_event_cues,
+            )
+            for iid in settings.starting_items:
+                if iid not in registry.items: raise ValueError(f"Unknown starting item: {iid}")
+            registry.save_game_settings(settings)
+        except Exception as exc:
+            messagebox.showerror("Could not save game settings", str(exc), parent=root); return
+        saved["ok"]=True; root.destroy()
+
+    buttons=tk.Frame(outer); buttons.pack(fill="x", pady=(14,0))
+    tk.Button(buttons,text="Cancel",command=root.destroy).pack(side="right",padx=(8,0))
+    tk.Button(buttons,text="Save Game Settings",command=save).pack(side="right")
+    root.mainloop()
+    return bool(saved["ok"])
 
 
 def edit_pawn_dialog(registry: ProjectRegistry, pawn_id: str | None = None) -> str | None:
@@ -678,7 +968,7 @@ class ProjectEditor:
     the same authoring process and return here when closed.
     """
 
-    SECTIONS = ("Scenes", "Stories", "Pawns", "Dungeons", "Enemies", "Attacks", "Assets")
+    SECTIONS = ("Game", "Scenes", "Stories", "Pawns", "Characters", "Dungeons", "Enemies", "Attacks", "Items", "Assets")
 
     def __init__(self, registry: ProjectRegistry, world_assets, project_root: Path, item_labels: dict[str, str] | None = None) -> None:
         self.registry = registry
@@ -695,18 +985,24 @@ class ProjectEditor:
 
     def _refresh(self) -> None:
         self.registry.reload()
-        if self.section == "Scenes":
+        if self.section == "Game":
+            labels = {"settings": self.registry.game_settings.title}
+        elif self.section == "Scenes":
             labels = self.registry.scene_labels()
         elif self.section == "Stories":
             labels = self.registry.story_labels()
         elif self.section == "Pawns":
             labels = self.registry.pawn_labels
+        elif self.section == "Characters":
+            labels = self.registry.character_labels
         elif self.section == "Dungeons":
             labels = self.registry.dungeon_labels()
         elif self.section == "Enemies":
             labels = self.registry.enemy_labels
         elif self.section == "Attacks":
             labels = self.registry.attack_labels
+        elif self.section == "Items":
+            labels = self.registry.item_labels
         else:
             labels = {key: key for key in self.registry.asset_keys("characters", {".png"})}
         self.items = list(labels.items())
@@ -748,7 +1044,10 @@ class ProjectEditor:
         self.screen.blit(status, (x0, self.screen.get_height()-30))
 
     def _new(self) -> None:
-        if self.section == "Pawns":
+        if self.section == "Game":
+            edit_game_settings_dialog(self.registry)
+            self.status = "Game settings updated"
+        elif self.section == "Pawns":
             created = edit_pawn_dialog(self.registry)
             self.status = f"Created {created}" if created else "Cancelled"
         elif self.section == "Stories":
@@ -763,6 +1062,12 @@ class ProjectEditor:
             self.status = f"Created {created}" if created else "Cancelled"
         elif self.section == "Attacks":
             created = edit_attack_dialog(self.registry)
+            self.status = f"Created {created}" if created else "Cancelled"
+        elif self.section == "Characters":
+            created = edit_character_dialog(self.registry)
+            self.status = f"Created {created}" if created else "Cancelled"
+        elif self.section == "Items":
+            created = edit_item_dialog(self.registry)
             self.status = f"Created {created}" if created else "Cancelled"
         elif self.section == "Dungeons":
             name = simpledialog.askstring("New dungeon", "Dungeon name:")
@@ -792,7 +1097,9 @@ class ProjectEditor:
         if not self.items:
             return
         item_id = self.items[self.selected][0]
-        if self.section == "Pawns":
+        if self.section == "Game":
+            edit_game_settings_dialog(self.registry)
+        elif self.section == "Pawns":
             edit_pawn_dialog(self.registry, item_id)
         elif self.section == "Stories":
             graph = self.registry.load_story(item_id)
@@ -824,13 +1131,17 @@ class ProjectEditor:
             edit_enemy_dialog(self.registry, item_id)
         elif self.section == "Attacks":
             edit_attack_dialog(self.registry, item_id)
+        elif self.section == "Characters":
+            edit_character_dialog(self.registry, item_id)
+        elif self.section == "Items":
+            edit_item_dialog(self.registry, item_id)
         elif self.section == "Dungeons":
             from mystery_engine.editor.dungeon_builder import DungeonBuilderEditor
             path = self.registry.dungeon_path(item_id)
             definition = self.registry.load_dungeon(item_id)
             editor = DungeonBuilderEditor(
                 definition, path, self.registry.asset_root,
-                self.registry.enemy_labels, self.item_labels,
+                self.registry.enemy_labels, self.registry.item_labels,
                 project_root=self.project_root, project_registry=self.registry,
             )
             editor.run()
@@ -904,4 +1215,5 @@ def run_project_editor(
     project_root: Path,
     item_labels: dict[str, str] | None = None,
 ) -> None:
-    ProjectEditor(ProjectRegistry.load(game_root), world_assets, project_root, item_labels).run()
+    registry = ProjectRegistry.load(game_root)
+    ProjectEditor(registry, world_assets, project_root, registry.item_labels).run()
