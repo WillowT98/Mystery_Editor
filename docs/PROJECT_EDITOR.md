@@ -133,6 +133,27 @@ A pawn is a reusable project content resource under `content/pawns/`. It has a
 stable ID, editable display name, world sprite, optional dialogue portrait,
 interaction radius, and color key.
 
+### Pawn animation sets
+
+Pawns can now own named frame-animation clips. Open a Pawn and use **Animation
+sets → Edit…** to add, edit, or remove clips. Each clip defines:
+
+- an imported PNG sprite sheet under `assets/characters/`;
+- a uniform column/row grid;
+- optional directional row names (for example `n,e,s,w`);
+- the frame indices to play;
+- playback FPS;
+- whether the clip loops.
+
+The conventional names `idle`, `walk`, and `run` have automatic exploration
+behavior. Standing selects `idle`; movement selects `walk`; sprinting selects
+`run` when available and otherwise falls back to `walk`. Missing clips gracefully
+fall back to the existing directional/static sprite behavior, so older pawns do
+not require migration.
+
+Other names are completely project-defined (`wave`, `cast`, `hurt`, `sleep`,
+`read_book`, and so on) and can be launched by story actions.
+
 The pawn editor imports source images by **copying** them into the project:
 world art goes under `assets/characters/` and portraits under
 `assets/portraits/`. A single PNG is sufficient for a static pawn; compatible
