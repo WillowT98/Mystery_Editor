@@ -69,7 +69,7 @@ class ExplorationSceneEditor:
         self.mode = "terrain"  # terrain | elevation | objects | select | audio
         self.terrain_brush = "grass"
         self.elevation_brush = 0
-        self.asset_brush = next((a.id for a in catalog.by_category("scenery", "interactable", "actor")), "")
+        self.asset_brush = next((a.id for a in catalog.by_category("scenery", "interactable", "dungeon", "actor")), "")
         self.snap = 16
         self.zoom = 1.0
         self.camera_x = 0.0
