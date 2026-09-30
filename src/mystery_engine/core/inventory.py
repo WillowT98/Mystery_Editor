@@ -18,6 +18,7 @@ class ItemDefinition:
     impact_sfx_cue: str | None = None
     projectile_key: str | None = None
     projectile_arc_px: float = 0.0
+    sprite_key: str | None = None
 
 
 @dataclass
