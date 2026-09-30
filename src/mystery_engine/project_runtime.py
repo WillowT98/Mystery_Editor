@@ -11,6 +11,7 @@ from mystery_engine.core import (
     DungeonGroundItemState,
     DungeonResult,
     DungeonState,
+    GridPos,
     PersistentGameState,
     PersistentWorldState,
     SceneActorState,
