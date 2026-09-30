@@ -22,7 +22,7 @@ def test_example_project_builds_party_from_data():
     assert [c.name for c in state.party] == ["Fox", "Mara"]
     assert state.party[0].leader
     assert not state.party[1].leader
-    assert state.wallet.carried == 100
+    assert state.wallet.carried == 0
 
 
 def test_example_items_and_attacks_are_data_defined():
@@ -112,30 +112,68 @@ def test_example_exploration_loads_through_generic_runtime():
         change_exploration_scene=lambda *_: None,
         run_story=lambda *_: None,
         enter_dungeon=lambda *_: None,
+        open_item_storage=lambda: None,
+        open_money_storage=lambda: None,
     )
     world = definition.create_exploration(fake_game)
 
+    assert world.id == "village_well"
     assert world.terrain is not None
     assert world.scenery
-    assert world.terrain.terrain_at(12, 11) == "path"
     assert world.terrain.terrain_at(0, 0) == "void"
-    assert world.terrain.terrain_at(1, 1) == "upper_grass"
-    assert world.terrain.elevation_at(1, 1) == 1
-    assert world.terrain.elevation_at(2, 2) == 0
+    assert world.terrain.terrain_at(1, 1) == "grass"
 
-    waystone = next(i for i in world.interactables if i.id == "waystone")
-    assert waystone.collision is not None
-    assert waystone.collision_radius == 0.0
+    fox = world.actor("fox")
+    mara = world.actor("mara")
+    assert fox.enabled is False
+    assert mara.enabled is True
 
-    dungeon_gate = next(i for i in world.interactables if i.id == "dungeon_gate")
-    assert dungeon_gate.collision is not None
-    assert (
-        dungeon_gate.collision.x,
-        dungeon_gate.collision.y,
-        dungeon_gate.collision.w,
-        dungeon_gate.collision.h,
-    ) == (-88, -136, 176, 58)
+    well = next(i for i in world.interactables if i.id == "old_well")
+    assert well.collision is not None
+    assert any(trigger.id == "opening_offer" and trigger.story == "witch_offer" for trigger in world.triggers)
 
-    fences = [s for s in world.scenery if s.sprite_key == "fence"]
-    assert fences
-    assert all(not fence.draw_behind_actors for fence in fences)
+
+def test_playable_witch_story_content_is_wired():
+    from mystery_engine.story import StoryGraph, load_exploration_scene
+
+    definition = _definition()
+    registry = definition.project_registry
+
+    expected_scenes = {"village_well", "hidden_valley", "hearthlight_cottage"}
+    assert expected_scenes.issubset(registry.scene_paths())
+
+    expected_stories = {
+        "witch_offer",
+        "valley_arrival",
+        "cottage_night",
+        "valley_after_cottage",
+        "cottage_homecoming",
+        "mara_companion",
+        "well_afterward",
+        "valley_waystone",
+        "hearth_inspect",
+    }
+    assert expected_stories.issubset(registry.story_paths())
+
+    for story_id in expected_stories:
+        graph = StoryGraph.load(registry.story_paths()[story_id])
+        assert graph.entries
+
+    village = load_exploration_scene(registry.scene_paths()["village_well"])
+    valley = load_exploration_scene(registry.scene_paths()["hidden_valley"])
+    cottage = load_exploration_scene(registry.scene_paths()["hearthlight_cottage"])
+
+    assert any(t.story == "witch_offer" and t.kind == "on_scene_enter" for t in village.triggers)
+    ruins = next(obj for obj in valley.objects if obj.id == "ruins_gate")
+    assert ruins.target_dungeon == "test_dungeon"
+    assert ruins.enabled is False
+
+    assert any(obj.asset == "item_storage" for obj in cottage.objects)
+    assert any(obj.asset == "money_storage" for obj in cottage.objects)
+    assert any(t.story == "cottage_homecoming" for t in cottage.triggers)
+
+
+def test_playable_story_uses_distinct_fox_and_mara_dialogue_tones():
+    registry = ProjectRegistry.load(GAME_ROOT)
+    assert registry.pawn("fox").voice_cue == "dialogue.tone_2"
+    assert registry.pawn("mara").voice_cue == "dialogue.tone_4"
