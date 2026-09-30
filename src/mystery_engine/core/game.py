@@ -116,6 +116,7 @@ class MysteryGame:
             run_action=self.story_actions,
             load_graph=self._load_story_graph,
             resolve_pawn=getattr(self.definition, "resolve_story_pawn", None),
+            evaluate_gameplay_condition=self.evaluate_gameplay_condition,
             on_finish=self._story_finished,
             rng=self.rng,
         ))
@@ -190,6 +191,81 @@ class MysteryGame:
             self._render()
 
         pygame.quit()
+
+    def evaluate_gameplay_condition(self, condition: dict) -> bool | None:
+        """Resolve engine-owned gameplay condition kinds for story graphs."""
+        kind = str(condition.get("kind", "")).lower()
+        value = condition.get("value", 1)
+
+        def quantity_in(inventory, item_id: str) -> int:
+            stack = next((stack for stack in inventory.stacks if stack.item.id == item_id), None)
+            return stack.quantity if stack is not None else 0
+
+        if kind in {"has_item", "item_count"}:
+            item_id = str(condition.get("item", condition.get("name", "")))
+            location = str(condition.get("location", "bag")).lower()
+            actual = 0
+            if location in {"bag", "carried", "either", "any"}:
+                actual += quantity_in(self.state.bag, item_id)
+            if location in {"storage", "either", "any"}:
+                actual += quantity_in(self.state.storage, item_id)
+            expected = int(value if value is not None else 1)
+            op = str(condition.get("op", ">=")).lower()
+            return self._compare_story_value(actual, expected, op)
+
+        if kind in {"has_money", "money"}:
+            location = str(condition.get("location", "carried")).lower()
+            if location == "stored":
+                actual = self.state.wallet.stored
+            elif location in {"total", "any"}:
+                actual = self.state.wallet.carried + self.state.wallet.stored
+            else:
+                actual = self.state.wallet.carried
+            expected = int(value if value is not None else 0)
+            return self._compare_story_value(actual, expected, str(condition.get("op", ">=")).lower())
+
+        if kind in {"party_contains", "has_party_member"}:
+            character_id = str(condition.get("character", condition.get("name", "")))
+            return any(member.id == character_id for member in self.state.party)
+
+        if kind in {"party_hp", "hp"}:
+            character_id = str(condition.get("character", condition.get("name", "")))
+            member = next((member for member in self.state.party if member.id == character_id), None)
+            if member is None:
+                return False
+            mode = str(condition.get("mode", "current")).lower()
+            if mode == "percent":
+                actual = (member.stats.current_hp / member.stats.max_hp * 100.0) if member.stats.max_hp else 0.0
+            elif mode == "missing":
+                actual = member.stats.max_hp - member.stats.current_hp
+            else:
+                actual = member.stats.current_hp
+            return self._compare_story_value(actual, float(value), str(condition.get("op", ">=")).lower())
+
+        if kind in {"skill_charges", "has_skill_charges"}:
+            character_id = str(condition.get("character", condition.get("name", "")))
+            skill_id = str(condition.get("skill", ""))
+            member = next((member for member in self.state.party if member.id == character_id), None)
+            skill = member.skill(skill_id) if member is not None else None
+            if skill is None:
+                return False
+            actual = skill.charges if skill.charges is not None else 10**9
+            return self._compare_story_value(actual, int(value), str(condition.get("op", ">=")).lower())
+
+        return None
+
+    @staticmethod
+    def _compare_story_value(actual, expected, op: str) -> bool:
+        try:
+            if op in {"=", "==", "is"}: return actual == expected
+            if op in {"!=", "is_not"}: return actual != expected
+            if op == ">": return actual > expected
+            if op == ">=": return actual >= expected
+            if op == "<": return actual < expected
+            if op == "<=": return actual <= expected
+        except (TypeError, ValueError):
+            return False
+        return False
 
     # ---------- public hooks for game content ----------
 
