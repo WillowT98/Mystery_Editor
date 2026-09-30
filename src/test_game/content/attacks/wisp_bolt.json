@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "id": "wisp_bolt",
+  "name": "Needle Bolt",
+  "description": "Fire a piercing needle down a straight line.",
+  "target": "enemy",
+  "range": 10,
+  "power": 2,
+  "heal": 0,
+  "damage_type": "piercing",
+  "max_charges": null,
+  "accuracy": 1,
+  "range_pattern": "line",
+  "sfx_cue": "magic.bolt_launch",
+  "impact_sfx_cue": "magic.bolt_impact",
+  "projectile_key": "needle"
+}
