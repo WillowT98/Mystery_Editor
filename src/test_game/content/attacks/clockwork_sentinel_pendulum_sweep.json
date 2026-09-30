@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "id": "clockwork_sentinel_pendulum_sweep",
+  "name": "Pendulum Sweep",
+  "description": "Sweep a heavy arm up to two cells away.",
+  "target": "enemy",
+  "range": 2,
+  "power": 5,
+  "heal": 0,
+  "damage_type": "physical",
+  "max_charges": 6,
+  "accuracy": 1,
+  "range_pattern": "two_tiles",
+  "sfx_cue": "combat.heavy_hit"
+}
