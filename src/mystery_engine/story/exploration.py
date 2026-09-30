@@ -169,6 +169,7 @@ class ExplorationActor:
     animation_loop_override: bool | None = None
     animation_return_to_idle: bool = True
     animation_completion_count: int = 0
+    _animation_completed: bool = False
     _animation_last_position: tuple[float, float] | None = None
 
     def animation_clip(self, name: str | None = None) -> dict[str, object] | None:
@@ -188,6 +189,7 @@ class ExplorationActor:
         self.animation_override = True
         self.animation_loop_override = loop
         self.animation_return_to_idle = return_to_idle
+        self._animation_completed = False
         return True
 
     def reset_animation(self) -> None:
@@ -196,6 +198,7 @@ class ExplorationActor:
         self.animation_return_to_idle = True
         self.animation_name = "idle"
         self.animation_elapsed = 0.0
+        self._animation_completed = False
 
     def update_animation(self, dt: float, *, sprinting: bool = False) -> None:
         current = (float(self.position.x), float(self.position.y))
@@ -207,7 +210,7 @@ class ExplorationActor:
         )
 
         if not self.animation_override:
-            desired = "run" if sprinting and "run" in self.animations else "walk" if moving and "walk" in self.animations else "idle"
+            desired = "run" if sprinting and moving and "run" in self.animations else "walk" if moving and "walk" in self.animations else "idle"
             if desired not in self.animations:
                 desired = "walk" if moving and "walk" in self.animations else "idle"
             if desired != self.animation_name:
@@ -222,7 +225,8 @@ class ExplorationActor:
         fps = max(0.01, float(clip.get("fps", 8.0)))
         duration = len(frames) / fps
         loop = bool(clip.get("loop", True)) if self.animation_loop_override is None else self.animation_loop_override
-        if self.animation_override and not loop and self.animation_elapsed >= duration:
+        if self.animation_override and not loop and self.animation_elapsed >= duration and not self._animation_completed:
+            self._animation_completed = True
             self.animation_completion_count += 1
             if self.animation_return_to_idle:
                 self.reset_animation()
