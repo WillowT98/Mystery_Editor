@@ -457,7 +457,7 @@ class Renderer:
             self.canvas.blit(initial, initial.get_rect(center=portrait.center))
         speaker = self.font_large.render(line.speaker, True, self.accent)
         self.canvas.blit(speaker, (portrait.right + 30, rect.y + 30))
-        self._draw_wrapped(line.text, self.font, self.text, portrait.right + 30, rect.y + 82, rect.right - portrait.right - 65, 40)
+        self._draw_wrapped(dialogue.visible_text, self.font, self.text, portrait.right + 30, rect.y + 82, rect.right - portrait.right - 65, 40)
         advance = self.font_small.render("Space", True, self.muted)
         self.canvas.blit(advance, (rect.right - advance.get_width() - 22, rect.bottom - advance.get_height() - 14))
 
