@@ -669,11 +669,33 @@ def edit_terrain_dialog(registry: ProjectRegistry, terrain_id: str | None = None
         refresh_images()
 
     tk.Button(outer, text="Import terrain image(s)…", command=import_images).pack(anchor="w", pady=(5, 3))
+
+    def import_cliffs() -> None:
+        ident = id_var.get().strip() or slugify(name_var.get(), "terrain")
+        chosen = filedialog.askdirectory(
+            parent=root,
+            title="Choose folder containing cliff masks 000.png…255.png or cliff_000.png…",
+        )
+        if not chosen:
+            return
+        try:
+            count = registry.import_terrain_cliffs(ident, Path(chosen))
+        except Exception as exc:
+            messagebox.showerror("Could not import cliff masks", str(exc), parent=root)
+            return
+        messagebox.showinfo(
+            "Cliff masks imported",
+            f"Copied {count} cliff masks for {ident}. Missing masks fall back to the engine cliff art.",
+            parent=root,
+        )
+
+    tk.Button(outer, text="Import elevation/cliff masks…", command=import_cliffs).pack(anchor="w", pady=(2, 3))
     tk.Label(
         outer,
         text=(
             "Single uses one tile everywhere. Variants randomly chooses among imported tiles. "
             "Autotile uses 8-neighbor masks; import a folder containing masks 000–255. "
+            "Optional cliff masks use the same numbering and override the default elevation art. "
             "All source files are copied into the project."
         ),
         justify="left", wraplength=700, fg="#555555",
