@@ -280,7 +280,7 @@ class ProjectGameDefinition:
         if story_id:
             game.run_story(story_id)
         else:
-            game.add_message(result.value.replace("_", " ").title())
+            game.add_message(result.name.replace("_", " ").title())
 
 
 def build_project_game(project_root: Path):
