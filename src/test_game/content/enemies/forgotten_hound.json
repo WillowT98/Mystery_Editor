@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "id": "forgotten_hound",
+  "name": "Forgotten Hound",
+  "stats": {
+    "max_hp": 24,
+    "attack": 6,
+    "defense": 3
+  },
+  "sprite_key": "forgotten_hound",
+  "attacks": [
+    "forgotten_hound_pounce",
+    "forgotten_hound_shadow_rend"
+  ],
+  "resistances": {
+    "shadow": 0.7
+  }
+}
