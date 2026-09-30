@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "id": "background",
+  "name": "Background Only",
+  "mode": "single",
+  "sprite_keys": [],
+  "blocked": false,
+  "fallback_color": "#000000",
+  "transparent": true
+}
