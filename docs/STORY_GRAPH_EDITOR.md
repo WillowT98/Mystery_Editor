@@ -1,5 +1,7 @@
 # Story Graph / Cutscene Editor
 
+For ordinary room dialogue, the preferred workflow is now **Scenes → open room → 6 Story** in the unified project editor. That view keeps the room, placed pawns, and dialogue together. The graph editor remains the advanced view for branching, conditions, choreography, parallel actions, and other structural work.
+
 Mystery Engine story graphs are data-driven conversations and in-scene cutscenes. They are designed to cover the same broad class of authored scenes as a Mystery Dungeon-style acting script without exposing hundreds of engine opcodes directly.
 
 Launch the sample graph with:
@@ -20,7 +22,7 @@ The graph canvas supports draggable nodes, visible connections, panning, structu
 
 Core node types:
 
-- **Dialogue** — one or more lines with speaker, portrait override, and expression.
+- **Dialogue** — one or more lines with a stable pawn reference (or legacy/custom speaker), portrait override, and expression.
 - **Choice** — player-facing choices with optional conditions.
 - **Condition** — branch on flags or variables.
 - **Random** — weighted conditional branches.
@@ -117,3 +119,18 @@ Because graph files are ordinary readable JSON, they also remain straightforward
 ## Current sample
 
 `src/test_game/stories/mara_meadow.json` replaces the previous Python branching in Mara's meadow interaction. It branches on the existing completion/failure flags and plays the appropriate dialogue through the same graph runtime used by editor-created stories.
+
+
+## Room and pawn binding
+
+A graph may declare a player-facing `name` and a `scene` ID. When project
+context is available, selecting a dialogue node uses the structured dialogue
+editor instead of raw JSON and offers pawns from that room.
+
+Dialogue pawn references are stable project IDs. The runtime resolves the
+current pawn display name and portrait when the line is played. Free-form
+`speaker` remains valid for narration and backwards compatibility.
+
+Scene objects may store `target_story`. This is the generic no-code interaction
+link used by the room editor: interacting with that pawn starts the referenced
+graph.
