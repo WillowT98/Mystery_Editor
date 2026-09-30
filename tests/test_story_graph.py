@@ -203,3 +203,50 @@ def test_background_action_keeps_updating_after_graph_end():
     assert len(runner.background) == 1
     runner.update(0.20)
     assert runner.background == []
+
+
+def test_story_graph_round_trips_name_and_scene_binding(tmp_path):
+    graph = StoryGraph.from_dict({
+        "id": "room_story",
+        "name": "Room Story",
+        "scene": "library",
+        "entries": {"default": "end"},
+        "nodes": {"end": {"type": "end"}},
+    })
+    path = tmp_path / "room_story.json"
+    graph.save(path)
+    loaded = StoryGraph.load(path)
+    assert loaded.name == "Room Story"
+    assert loaded.scene_id == "library"
+
+
+def test_dialogue_can_resolve_stable_pawn_id_to_name_and_portrait():
+    story = StoryState()
+    dialogue = DialogueController()
+    ctx = StoryRuntimeContext(
+        story=story,
+        dialogue=dialogue,
+        choose=lambda *_: None,
+        run_action=lambda *_: ImmediateAction(),
+        resolve_pawn=lambda pawn_id: ("Willow", "willow_portrait") if pawn_id == "willow" else (_ for _ in ()).throw(KeyError(pawn_id)),
+    )
+    graph = StoryGraph.from_dict({
+        "id": "pawn_dialogue",
+        "entries": {"default": "talk"},
+        "nodes": {
+            "talk": {
+                "type": "dialogue",
+                "lines": [{"pawn": "willow", "text": "Hello."}],
+                "next": "end",
+            },
+            "end": {"type": "end"},
+        },
+    })
+    runner = StoryGraphRunner(ctx)
+    runner.start(graph)
+    runner.update(0.016)
+    line = dialogue.current
+    assert line is not None
+    assert line.speaker == "Willow"
+    assert line.portrait_key == "willow_portrait"
+    assert line.text == "Hello."
