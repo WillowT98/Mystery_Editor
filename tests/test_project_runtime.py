@@ -11,7 +11,7 @@ from mystery_engine.project import (
 )
 from mystery_engine.core import Direction, DungeonResult, SaveManager, StoryState
 from mystery_engine.project_runtime import ProjectGameDefinition, SYSTEM_WORLD_ASSETS, build_project_game
-from mystery_engine.story import ExplorationSceneData, SceneObjectData, save_exploration_scene
+from mystery_engine.story import ExplorationSceneData, SceneObjectData, SceneTriggerData, save_exploration_scene
 
 
 def test_generic_project_runtime_builds_state_and_scene(tmp_path):
@@ -525,3 +525,146 @@ def test_dungeon_save_restores_rng_checkpoint(tmp_path):
     assert game.load_snapshot(save_path) is True
     actual_next = [game.rng.random() for _ in range(5)]
     assert actual_next == expected_next
+
+
+def _build_trigger_test_game(tmp_path, triggers):
+    registry = ProjectRegistry.create_project(tmp_path / "game", "Trigger Game")
+    registry.save_pawn(PawnDefinitionData(
+        id="hero_pawn",
+        name="Hero",
+        sprite_key="hero",
+        portrait_key=None,
+    ))
+    registry.save_character(PlayableCharacterDefinitionData(
+        id="hero",
+        pawn_id="hero_pawn",
+        max_hp=30,
+        attack=5,
+        defense=3,
+    ))
+    scene = ExplorationSceneData.blank("start", 10, 8)
+    scene.triggers.extend(triggers)
+    save_exploration_scene(scene, registry.scene_dir / "start.json")
+    registry.save_game_settings(GameSettingsData(
+        title="Trigger Game",
+        starting_scene="start",
+        starting_party=("hero",),
+        leader="hero",
+    ))
+    game = build_project_game(registry.game_root)
+    game.exploration = game.definition.create_exploration(game)
+    return game
+
+
+def test_scene_enter_trigger_fires_once_and_persists_via_story_flag(tmp_path):
+    game = _build_trigger_test_game(tmp_path, [
+        SceneTriggerData("arrival", "on_scene_enter", "intro", once=True),
+    ])
+    fired = []
+    game.run_story = lambda story, entry="default": fired.append((story, entry))
+
+    game._process_scene_enter_triggers()
+    game._process_scene_enter_triggers()
+
+    assert fired == [("intro", "default")]
+    assert game.state.story.flag("__trigger_once__:start:arrival") is True
+
+    # A new visit should still not replay a persistent once trigger.
+    game._scene_entry_fired.clear()
+    game._process_scene_enter_triggers()
+    assert fired == [("intro", "default")]
+
+
+def test_repeatable_scene_enter_trigger_fires_once_per_visit(tmp_path):
+    game = _build_trigger_test_game(tmp_path, [
+        SceneTriggerData("arrival", "on_scene_enter", "intro", once=False),
+    ])
+    fired = []
+    game.run_story = lambda story, entry="default": fired.append((story, entry))
+
+    game._process_scene_enter_triggers()
+    game._process_scene_enter_triggers()
+    assert fired == [("intro", "default")]
+
+    game._scene_entry_fired.clear()
+    game._process_scene_enter_triggers()
+    assert fired == [("intro", "default"), ("intro", "default")]
+
+
+def test_scene_trigger_condition_is_checked_on_entry(tmp_path):
+    game = _build_trigger_test_game(tmp_path, [
+        SceneTriggerData(
+            "conditional",
+            "on_scene_enter",
+            "intro",
+            once=False,
+            condition={"kind": "flag", "name": "ready", "op": "==", "value": True},
+        ),
+    ])
+    fired = []
+    game.run_story = lambda story, entry="default": fired.append((story, entry))
+
+    game._process_scene_enter_triggers()
+    game.state.story.set_flag("ready", True)
+    game._process_scene_enter_triggers()
+    assert fired == []
+
+    game._scene_entry_fired.clear()
+    game._process_scene_enter_triggers()
+    assert fired == [("intro", "default")]
+
+
+def test_region_trigger_fires_on_outside_to_inside_edge(tmp_path):
+    game = _build_trigger_test_game(tmp_path, [
+        SceneTriggerData(
+            "threshold",
+            "on_region_enter",
+            "threshold_story",
+            once=False,
+            x=200,
+            y=200,
+            w=100,
+            h=100,
+        ),
+    ])
+    fired = []
+    game.run_story = lambda story, entry="default": fired.append((story, entry))
+    leader = game.exploration.actor("hero")
+
+    leader.position.x, leader.position.y = 100, 100
+    game._process_region_triggers()
+    leader.position.x, leader.position.y = 225, 225
+    game._process_region_triggers()
+    game._process_region_triggers()
+    assert fired == [("threshold_story", "default")]
+
+    leader.position.x, leader.position.y = 100, 100
+    game._process_region_triggers()
+    leader.position.x, leader.position.y = 250, 250
+    game._process_region_triggers()
+    assert fired == [("threshold_story", "default"), ("threshold_story", "default")]
+
+
+def test_once_region_trigger_does_not_refire_after_reentry(tmp_path):
+    game = _build_trigger_test_game(tmp_path, [
+        SceneTriggerData(
+            "threshold",
+            "on_region_enter",
+            "threshold_story",
+            once=True,
+            x=200,
+            y=200,
+            w=100,
+            h=100,
+        ),
+    ])
+    fired = []
+    game.run_story = lambda story, entry="default": fired.append((story, entry))
+    leader = game.exploration.actor("hero")
+
+    for pos in ((100, 100), (225, 225), (100, 100), (225, 225)):
+        leader.position.x, leader.position.y = pos
+        game._process_region_triggers()
+
+    assert fired == [("threshold_story", "default")]
+    assert game.state.story.flag("__trigger_once__:start:threshold") is True
