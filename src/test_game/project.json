@@ -10,7 +10,9 @@
     "scenes": "scenes",
     "assets": "assets",
     "pawns": "content/pawns",
-    "stories": "stories"
+    "stories": "stories",
+    "items": "content/items",
+    "characters": "content/characters"
   },
   "damage_types": [
     "physical",
@@ -20,5 +22,55 @@
     "shadow",
     "spirit",
     "plant"
-  ]
+  ],
+  "game": {
+    "title": "Fox & Mara — Mystery Engine Test",
+    "version": "0.1.0",
+    "default_dungeon": "test_dungeon",
+    "inventory": {
+      "bag_capacity": 12,
+      "storage_capacity": 40,
+      "carried_money": 100,
+      "stored_money": 0
+    },
+    "defeat": {
+      "money_loss_fraction": 0.5,
+      "item_loss_chance": 0.3
+    },
+    "start": {
+      "scene": "test_clearing",
+      "marker": null,
+      "party": [
+        "fox",
+        "mara"
+      ],
+      "leader": "fox",
+      "items": {
+        "field_salve": 4,
+        "throwing_stone": 3,
+        "waystone_shard": 1
+      },
+      "storage": {},
+      "flags": {
+        "completed_test_dungeon": false,
+        "failed_test_dungeon": false,
+        "entered_test_dungeon": false
+      },
+      "variables": {}
+    },
+    "dungeon_result_stories": {},
+    "sfx_event_cues": {
+      "menu_open": "ui.menu_open",
+      "menu_close": "ui.menu_close",
+      "cursor_move": "ui.cursor_move",
+      "confirm": "ui.confirm",
+      "cancel": "ui.cancel",
+      "error": "ui.error",
+      "text_advance": "ui.text_advance",
+      "item_get": "ui.item_get",
+      "save": "ui.save",
+      "basic_hit": "combat.light_hit",
+      "defeat": "combat.defeat"
+    }
+  }
 }
