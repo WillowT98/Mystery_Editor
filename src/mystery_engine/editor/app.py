@@ -66,10 +66,12 @@ class ExplorationSceneEditor:
         self.project_registry = project_registry
         self.window_size = window_size
 
-        self.mode = "terrain"  # terrain | elevation | objects | select | audio
+        self.mode = "terrain"  # terrain | elevation | objects | select | audio | story
         self.terrain_brush = "grass"
         self.elevation_brush = 0
         self.asset_brush = next((a.id for a in catalog.by_category("scenery", "interactable", "dungeon", "actor")), "")
+        self.story_pawn_brush = next(iter(project_registry.pawn_labels), "") if project_registry else ""
+        self.story_id: str | None = None
         self.snap = 16
         self.zoom = 1.0
         self.camera_x = 0.0
@@ -284,6 +286,11 @@ class ExplorationSceneEditor:
         if surface is None:
             relative = f"characters/{sprite_key}_{suffix}.png"
             fallback = self._native_surface(relative)
+            if fallback is not None:
+                surface = fallback if fallback.get_size() == size else pygame.transform.scale(fallback, size)
+
+        if surface is None:
+            fallback = self._native_surface(f"characters/{sprite_key}.png")
             if fallback is not None:
                 surface = fallback if fallback.get_size() == size else pygame.transform.scale(fallback, size)
 
@@ -585,6 +592,7 @@ class ExplorationSceneEditor:
         self.camera_x = 0.0
         self.camera_y = 0.0
         self._palette_scroll = 0
+        self.story_id = None
         self.dirty = False
         if select_object_id:
             self.selected_object = next((i for i, obj in enumerate(self.scene.objects) if obj.id == select_object_id), None)
@@ -990,6 +998,117 @@ class ExplorationSceneEditor:
         self.dirty = True
         self.status = "Sound reset to asset default"
 
+    # ---------- integrated story authoring ----------
+
+    def _refresh_project_catalog(self) -> None:
+        if self.project_registry is None:
+            return
+        self.project_registry.reload()
+        self.catalog = self.project_registry.world_asset_catalog(self.catalog)
+        self._actor_surface_cache.clear()
+
+    def _scene_story_ids(self) -> list[str]:
+        if self.project_registry is None:
+            return []
+        return list(self.project_registry.stories_for_scene(self.scene.id))
+
+    def _current_story(self):
+        if self.project_registry is None:
+            return None
+        story_ids = self._scene_story_ids()
+        if self.story_id not in story_ids:
+            self.story_id = story_ids[0] if story_ids else None
+        return self.project_registry.load_story(self.story_id) if self.story_id else None
+
+    def _choose_story_room(self) -> None:
+        if self.project_registry is None:
+            return
+        from .project_editor import choose_catalog_id
+        chosen = choose_catalog_id("Choose room / scene", self.project_registry.scene_labels(), self.scene.id)
+        if not chosen or chosen == self.scene.id:
+            return
+        path = self.project_registry.scene_paths()[chosen]
+        self._switch_scene(path, push_current=True)
+        self._refresh_project_catalog()
+        self.mode = "story"
+
+    def _new_story_for_room(self) -> None:
+        if self.project_registry is None:
+            return
+        name = self._ask_text("New story", "Story / scene name", f"{self.scene.id} story")
+        if not name:
+            return
+        graph, _ = self.project_registry.create_story(name, self.scene.id)
+        self.story_id = graph.id
+        self.status = f"Created story {graph.name or graph.id}"
+
+    def _new_story_pawn(self) -> None:
+        if self.project_registry is None:
+            return
+        from .project_editor import edit_pawn_dialog
+        pawn_id = edit_pawn_dialog(self.project_registry)
+        if not pawn_id:
+            return
+        self._refresh_project_catalog()
+        self.story_pawn_brush = pawn_id
+        self.asset_brush = pawn_id
+        self.status = f"Created pawn {self.project_registry.pawn_labels.get(pawn_id, pawn_id)}"
+
+    def _new_dialogue_node(self) -> None:
+        graph = self._current_story()
+        if graph is None:
+            self._new_story_for_room()
+            graph = self._current_story()
+        if graph is None:
+            return
+        base = "dialogue"
+        index = 1
+        node_id = base
+        while node_id in graph.nodes:
+            index += 1
+            node_id = f"{base}_{index}"
+        placed = [o.asset for o in self.scene.objects if self.project_registry and o.asset in self.project_registry.pawns]
+        line: dict[str, object] = {"text": "New line.", "expression": "neutral"}
+        if placed:
+            line["pawn"] = placed[0]
+        else:
+            line["speaker"] = ""
+        graph.nodes[node_id] = {"type": "dialogue", "lines": [line], "next": ""}
+        graph.set_node_position(node_id, 160 + len(graph.nodes) * 35, 180 + len(graph.nodes) * 24)
+        if not graph.entries:
+            graph.entries["default"] = node_id
+        graph.save(self.project_registry.story_path(graph.id))
+        self._edit_dialogue_node(node_id)
+
+    def _edit_dialogue_node(self, node_id: str) -> None:
+        graph = self._current_story()
+        if graph is None or self.project_registry is None:
+            return
+        from .project_editor import edit_dialogue_node_dialog
+        if edit_dialogue_node_dialog(self.project_registry, self.scene, graph, node_id):
+            graph.save(self.project_registry.story_path(graph.id))
+            self.status = f"Updated dialogue {node_id}"
+
+    def _open_story_graph(self) -> None:
+        graph = self._current_story()
+        if graph is None or self.project_registry is None:
+            return
+        from .story_graph import StoryGraphEditor
+        editor = StoryGraphEditor(
+            graph,
+            self.project_registry.story_path(graph.id),
+            project_root=self.project_root,
+            project_registry=self.project_registry,
+        )
+        editor.run()
+        pygame.init()
+        pygame.display.set_caption("Mystery Engine — Exploration Scene Editor")
+        self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
+        self.font_small = pygame.font.Font(None, 24)
+        self.font = pygame.font.Font(None, 30)
+        self.font_large = pygame.font.Font(None, 38)
+        self.status = f"Returned from story graph: {graph.name or graph.id}"
+
     # ---------- rendering ----------
 
     def draw(self) -> None:
@@ -1005,7 +1124,7 @@ class ExplorationSceneEditor:
         pygame.draw.rect(self.screen, (30, 36, 47), (0, 0, self.screen.get_width(), self.TOP_H))
         buttons = [
             ("terrain", "1 Terrain"), ("elevation", "2 Elevation"), ("objects", "3 Assets"),
-            ("select", "4 Select"), ("audio", "5 Audio"),
+            ("select", "4 Select"), ("audio", "5 Audio"), ("story", "6 Story"),
         ]
         x = 12
         for key, label in buttons:
@@ -1216,6 +1335,7 @@ class ExplorationSceneEditor:
         title = {
             "terrain": "Terrain Brush", "elevation": "Elevation Brush",
             "objects": "Asset Palette", "select": "Selection", "audio": "Scene Audio",
+            "story": "Story & Pawns",
         }[self.mode]
         self.screen.blit(self.font_large.render(title, True, (244, 241, 231)), (rect.x + 18, rect.y + 14))
         self._palette_items.clear()
