@@ -906,3 +906,29 @@ def test_gameplay_story_conditions_survive_save_load_runtime_rebuild(tmp_path):
         game.state.story,
         resolver,
     ) is True
+
+
+def test_dialogue_reveal_uses_speaker_voice_cue_and_fallback():
+    from mystery_engine.story import DialogueLine, DialogueSequence
+
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    played = []
+    game.audio.play_sfx = lambda cue, **_kwargs: (played.append(cue) or True)
+
+    game.dialogue = __import__("mystery_engine.story", fromlist=["DialogueController"]).DialogueController(chars_per_second=100)
+    game.dialogue.start(DialogueSequence([
+        DialogueLine("Fox", "Hello!", voice_cue="dialogue.fox"),
+    ]))
+    game._dialogue_blip_characters = 0
+    game._update_dialogue_reveal(0.05)
+    assert "dialogue.fox" in played
+
+    played.clear()
+    game.definition.sfx_event_cues["dialogue_blip"] = "ui.text_advance"
+    game.dialogue.start(DialogueSequence([
+        DialogueLine("Narrator", "Words without pawn cue."),
+    ]))
+    game._dialogue_blip_characters = 0
+    game._update_dialogue_reveal(0.05)
+    assert "ui.text_advance" in played
