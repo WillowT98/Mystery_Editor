@@ -12,6 +12,7 @@ from mystery_engine.project import (
     PawnDefinitionData,
     PlayableCharacterDefinitionData,
     ProjectRegistry,
+    WorldObjectDefinitionData,
 )
 from mystery_engine.story import SceneObjectData, WorldAssetCatalog
 
@@ -22,6 +23,7 @@ def _registry(tmp_path: Path) -> ProjectRegistry:
     (game_root / "content" / "enemies").mkdir(parents=True)
     (game_root / "content" / "items").mkdir(parents=True)
     (game_root / "content" / "characters").mkdir(parents=True)
+    (game_root / "content" / "objects").mkdir(parents=True)
     (game_root / "content" / "pawns").mkdir(parents=True)
     (game_root / "dungeons").mkdir()
     (game_root / "scenes").mkdir()
@@ -37,6 +39,7 @@ def _registry(tmp_path: Path) -> ProjectRegistry:
             "enemies": "content/enemies",
             "items": "content/items",
             "characters": "content/characters",
+            "objects": "content/objects",
             "pawns": "content/pawns",
             "dungeons": "dungeons",
             "scenes": "scenes",
@@ -303,3 +306,50 @@ def test_game_settings_round_trip_in_manifest(tmp_path):
     registry.save_game_settings(settings)
     loaded = ProjectRegistry.load(registry.game_root).game_settings
     assert loaded == settings
+
+
+def test_project_registry_saves_custom_world_objects(tmp_path):
+    registry = _registry(tmp_path)
+    registry.save_object(WorldObjectDefinitionData(
+        id="mushroom_lamp",
+        name="Mushroom Lamp",
+        category="interactable",
+        sprite_key="mushroom_lamp",
+        width=72,
+        height=96,
+        collider_enabled=True,
+        collision=RectObstacle(-20, -24, 40, 24),
+        draw_behind_actors=False,
+        label="Mushroom lamp",
+        sound_cues={"interact": "magic.arcane_cast"},
+    ))
+
+    loaded = registry.objects["mushroom_lamp"]
+    assert loaded.name == "Mushroom Lamp"
+    assert loaded.collider_enabled
+    assert loaded.collision == RectObstacle(-20, -24, 40, 24)
+
+    catalog = registry.world_asset_catalog(WorldAssetCatalog(assets={}))
+    definition = catalog.get("mushroom_lamp")
+    assert definition.category == "interactable"
+    assert definition.sprite_key == "mushroom_lamp"
+    assert definition.collision == RectObstacle(-20, -24, 40, 24)
+    assert definition.label == "Mushroom lamp"
+    assert definition.sound_cues["interact"] == "magic.arcane_cast"
+
+
+def test_custom_world_object_can_default_to_no_collider(tmp_path):
+    registry = _registry(tmp_path)
+    registry.save_object(WorldObjectDefinitionData(
+        id="rug",
+        name="Rug",
+        category="scenery",
+        sprite_key="rug",
+        width=120,
+        height=80,
+        collider_enabled=False,
+        collision=RectObstacle(-60, -20, 120, 20),
+    ))
+    definition = registry.world_asset_catalog(WorldAssetCatalog(assets={})).get("rug")
+    assert definition.collision is None
+    assert definition.collision_radius == 0.0
