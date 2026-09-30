@@ -8,6 +8,8 @@ from mystery_engine.core.autotile import autotile_asset
 from mystery_engine.editor.app import ExplorationSceneEditor
 from mystery_engine.editor.dungeon_builder import DungeonBuilderEditor
 from mystery_engine.editor.story_graph import StoryGraphEditor
+from mystery_engine.editor.project_editor import pawn_animation_working_copy
+from mystery_engine.project import PawnDefinitionData
 
 
 def test_scene_editor_autotile_falls_back_to_runtime_asset(monkeypatch):
@@ -132,3 +134,33 @@ def test_pawn_editor_contains_animation_set_authoring():
     assert "Pawn Animation Sets" in source
     assert "Import animation sheet" in source
     assert "Animation sets" in source
+
+
+def test_pawn_animation_working_copy_isolated_and_preserves_existing_clips():
+    pawn = PawnDefinitionData(
+        id="hero",
+        name="Hero",
+        sprite_key="hero",
+        animations={
+            "idle": {"frames": [0, 1], "fps": 4.0, "loop": True},
+            "wave": {"frames": [2, 3], "fps": 6.0, "loop": False},
+        },
+    )
+    working = pawn_animation_working_copy(pawn)
+
+    assert working == pawn.animations
+    assert working is not pawn.animations
+    assert working["idle"] is not pawn.animations["idle"]
+
+    working["idle"]["fps"] = 12.0
+    assert pawn.animations["idle"]["fps"] == 4.0
+
+
+def test_enemy_editor_does_not_prepare_pawn_animation_state():
+    source = (__import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "mystery_engine" / "editor" / "project_editor.py").read_text(encoding="utf-8")
+    enemy_start = source.index("def edit_enemy_dialog")
+    pawn_start = source.index("def edit_pawn_dialog")
+    enemy_source = source[enemy_start:pawn_start]
+
+    assert "current.animations" not in enemy_source
+    assert "working_animations" not in enemy_source
