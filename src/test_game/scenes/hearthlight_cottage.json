@@ -662,6 +662,18 @@
         "op": "==",
         "value": true
       }
+    },
+    {
+      "id": "home_after_ruins",
+      "kind": "on_scene_enter",
+      "story": "cottage_homecoming",
+      "once": true,
+      "condition": {
+        "kind": "flag",
+        "name": "completed_test_dungeon",
+        "op": "==",
+        "value": true
+      }
     }
   ],
   "music": "music/04_Hearthlight_Cottage_-_Home.ogg",
