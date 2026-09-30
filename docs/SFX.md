@@ -86,3 +86,28 @@ Purpose-built cues would improve the game substantially:
 
 The engine should keep these as semantic cue IDs so new audio files can be added
 without changing scene code.
+
+## Dialogue text voices
+
+Dialogue now reveals with a typewriter effect instead of drawing the whole line at
+once. Each Pawn can choose a semantic **Dialogue voice cue** from the project's
+`sfx_cues.json` catalog. While that pawn's text reveals, the runtime plays the
+cue every few visible characters; the cue's own variant/randomization and cooldown
+rules still apply.
+
+This lets different speakers have different nonverbal tones without recording
+spoken dialogue. For example, a project could register cues such as
+`dialogue.fox`, `dialogue.mara`, or `dialogue.wisp`, each backed by its own
+short family of blips.
+
+Resolution order is:
+
+1. a dialogue line's optional `voice_cue` override;
+2. the speaking Pawn's `voice_cue`;
+3. the project event cue `dialogue_blip`, if configured;
+4. silence.
+
+The dialogue editor exposes the per-line override, while the Pawn editor exposes
+the normal per-speaker setting. Space reveals the rest of a partially displayed
+line immediately; pressing Space again advances to the next line.
+
