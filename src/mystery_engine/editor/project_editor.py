@@ -656,8 +656,9 @@ def edit_terrain_dialog(registry: ProjectRegistry, terrain_id: str | None = None
             if mode_var.get() == "single":
                 chosen = chosen[:1]
                 sprite_keys.clear()
+            start_index = len(sprite_keys)
             for index, source in enumerate(chosen):
-                preferred = ident if mode_var.get() == "single" else f"{ident}_{len(sprite_keys)+index}"
+                preferred = ident if mode_var.get() == "single" else f"{ident}_{start_index+index}"
                 try:
                     key, _ = registry.import_asset(
                         Path(source), "terrain", preferred_id=preferred, allowed_suffixes={".png"}
