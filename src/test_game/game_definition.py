@@ -72,6 +72,9 @@ class TestGameDefinition:
         self.active_dungeon_id = dungeon_id
         self.dungeon_floor_count = self.dungeon_definition.floor_count
 
+    def resolve_story_pawn(self, pawn_id: str) -> tuple[str, str | None]:
+        return self.project_registry.resolve_story_pawn(pawn_id)
+
     def create_state(self) -> PersistentGameState:
         fox = make_fox()
         mara = make_mara()
@@ -161,7 +164,7 @@ class TestGameDefinition:
 
         return build_exploration_map(
             scene,
-            WORLD_ASSETS,
+            self.project_registry.world_asset_catalog(WORLD_ASSETS),
             interactions,
             portal_transition_factory=portal_transition,
             dungeon_transition_factory=dungeon_transition,
