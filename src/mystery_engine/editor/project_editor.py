@@ -388,6 +388,166 @@ def edit_pawn_dialog(registry: ProjectRegistry, pawn_id: str | None = None) -> s
     return result["id"]
 
 
+def edit_dialogue_node_dialog(registry: ProjectRegistry, scene, graph, node_id: str) -> bool:
+    node = graph.nodes.get(node_id)
+    if not isinstance(node, dict) or str(node.get("type", "")) != "dialogue":
+        return False
+
+    root = _root(f"Dialogue — {node_id}", "900x680")
+    working = [dict(line) for line in node.get("lines", []) if isinstance(line, dict)]
+    saved = {"ok": False}
+
+    placed_pawn_ids: list[str] = []
+    for obj in scene.objects:
+        if obj.asset in registry.pawns and obj.asset not in placed_pawn_ids:
+            placed_pawn_ids.append(obj.asset)
+    pawn_labels = {
+        pawn_id: registry.pawn_labels.get(pawn_id, pawn_id)
+        for pawn_id in placed_pawn_ids
+    }
+
+    outer = tk.Frame(root)
+    outer.pack(fill="both", expand=True, padx=14, pady=12)
+    tk.Label(
+        outer,
+        text=f"Room: {scene.id}    Story: {graph.name or graph.id}",
+        anchor="w",
+        font=("TkDefaultFont", 10, "bold"),
+    ).pack(fill="x", pady=(0, 8))
+
+    line_box = tk.Listbox(outer, height=18, exportselection=False)
+    line_box.pack(fill="both", expand=True)
+
+    def display(line: dict) -> str:
+        pawn_id = str(line.get("pawn") or "")
+        speaker = pawn_labels.get(pawn_id) or str(line.get("speaker") or pawn_id or "Narrator")
+        text = str(line.get("text") or "").replace("\n", " ")
+        return f"{speaker}: {text}"
+
+    def refresh(select: int | None = None) -> None:
+        line_box.delete(0, "end")
+        for line in working:
+            line_box.insert("end", display(line))
+        if working:
+            index = max(0, min(select if select is not None else 0, len(working)-1))
+            line_box.selection_set(index)
+            line_box.see(index)
+
+    def edit_line(index: int | None) -> None:
+        current = dict(working[index]) if index is not None else {}
+        win = tk.Toplevel(root)
+        win.title("Edit dialogue line" if index is not None else "Add dialogue line")
+        win.geometry("760x430")
+        frame = tk.Frame(win)
+        frame.pack(fill="both", expand=True, padx=14, pady=12)
+
+        tk.Label(frame, text="Speaker pawn", anchor="w").pack(fill="x")
+        displays = [f"{pawn_labels[p]}  [{p}]" for p in placed_pawn_ids]
+        by_display = {f"{pawn_labels[p]}  [{p}]": p for p in placed_pawn_ids}
+        custom_label = "Custom / narrator"
+        displays.append(custom_label)
+        pawn_var = tk.StringVar(value=custom_label)
+        current_pawn = str(current.get("pawn") or "")
+        if current_pawn in pawn_labels:
+            pawn_var.set(f"{pawn_labels[current_pawn]}  [{current_pawn}]")
+        pawn_combo = ttk.Combobox(frame, textvariable=pawn_var, values=displays, state="readonly")
+        pawn_combo.pack(fill="x", pady=(2, 8))
+
+        tk.Label(frame, text="Custom speaker name", anchor="w").pack(fill="x")
+        speaker_var = tk.StringVar(value=str(current.get("speaker") or ""))
+        tk.Entry(frame, textvariable=speaker_var).pack(fill="x", pady=(2, 8))
+
+        tk.Label(frame, text="Dialogue", anchor="w").pack(fill="x")
+        text_widget = tk.Text(frame, height=8, wrap="word")
+        text_widget.pack(fill="both", expand=True, pady=(2, 8))
+        text_widget.insert("1.0", str(current.get("text") or ""))
+
+        tk.Label(frame, text="Expression", anchor="w").pack(fill="x")
+        expression_var = tk.StringVar(value=str(current.get("expression") or "neutral"))
+        tk.Entry(frame, textvariable=expression_var).pack(fill="x", pady=(2, 8))
+
+        def accept() -> None:
+            selected_pawn = by_display.get(pawn_var.get())
+            line = {
+                "text": text_widget.get("1.0", "end").rstrip("\n"),
+                "expression": expression_var.get().strip() or "neutral",
+            }
+            if selected_pawn:
+                line["pawn"] = selected_pawn
+            else:
+                line["speaker"] = speaker_var.get().strip()
+            if current.get("portrait_key"):
+                line["portrait_key"] = current["portrait_key"]
+            if index is None:
+                working.append(line)
+                select = len(working)-1
+            else:
+                working[index] = line
+                select = index
+            refresh(select)
+            win.destroy()
+
+        buttons = tk.Frame(frame)
+        buttons.pack(fill="x")
+        tk.Button(buttons, text="Cancel", command=win.destroy).pack(side="right", padx=(8, 0))
+        tk.Button(buttons, text="OK", command=accept).pack(side="right")
+        win.transient(root)
+        win.grab_set()
+
+    def selected_index() -> int | None:
+        selected = line_box.curselection()
+        return int(selected[0]) if selected else None
+
+    controls = tk.Frame(outer)
+    controls.pack(fill="x", pady=8)
+    tk.Button(controls, text="+ Line", command=lambda: edit_line(None)).pack(side="left")
+    tk.Button(controls, text="Edit", command=lambda: edit_line(selected_index()) if selected_index() is not None else None).pack(side="left", padx=5)
+
+    def delete_line() -> None:
+        index = selected_index()
+        if index is None:
+            return
+        working.pop(index)
+        refresh(min(index, len(working)-1))
+
+    def move(delta: int) -> None:
+        index = selected_index()
+        if index is None:
+            return
+        target = index + delta
+        if not 0 <= target < len(working):
+            return
+        working[index], working[target] = working[target], working[index]
+        refresh(target)
+
+    tk.Button(controls, text="Delete", command=delete_line).pack(side="left")
+    tk.Button(controls, text="↑", command=lambda: move(-1)).pack(side="left", padx=(12, 2))
+    tk.Button(controls, text="↓", command=lambda: move(1)).pack(side="left")
+
+    next_var = tk.StringVar(value=str(node.get("next") or ""))
+    next_row = tk.Frame(outer)
+    next_row.pack(fill="x", pady=(0, 8))
+    tk.Label(next_row, text="Next node", width=12, anchor="w").pack(side="left")
+    ttk.Combobox(
+        next_row, textvariable=next_var,
+        values=[""] + list(graph.nodes), state="normal",
+    ).pack(side="left", fill="x", expand=True)
+
+    def save() -> None:
+        node["lines"] = working
+        node["next"] = next_var.get().strip()
+        saved["ok"] = True
+        root.destroy()
+
+    buttons = tk.Frame(outer)
+    buttons.pack(fill="x")
+    tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8, 0))
+    tk.Button(buttons, text="Save Dialogue", command=save).pack(side="right")
+    refresh()
+    root.mainloop()
+    return bool(saved["ok"])
+
+
 def edit_spawn_rule_dialog(registry: ProjectRegistry, rule) -> bool:
     root = _root("Dungeon Enemy Modifiers", "820x860")
     saved = {"ok": False}
