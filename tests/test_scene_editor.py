@@ -196,5 +196,33 @@ class SceneDataTests(unittest.TestCase):
             WORLD_ASSETS.get(obj.asset)
 
 
+
+    def test_collision_enabled_override_roundtrip_and_runtime(self):
+        scene = ExplorationSceneData.blank("toggle_collision", 6, 5)
+        scene.objects.append(SceneObjectData(
+            "tree_no_collision", "tree", 192, 192,
+            collision_enabled=False,
+        ))
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "scene.json"
+            save_exploration_scene(scene, path)
+            loaded = load_exploration_scene(path)
+        self.assertFalse(loaded.objects[0].collision_enabled)
+        self.assertIn("collision_enabled", loaded.objects[0].to_dict())
+        world = build_exploration_map(loaded, WORLD_ASSETS)
+        self.assertIsNone(world.scenery[0].collision)
+
+    def test_explicit_collision_enable_preserves_instance_shape(self):
+        scene = ExplorationSceneData.blank("enable_collision", 6, 5)
+        scene.objects.append(SceneObjectData(
+            "custom_prop", "tree", 192, 192,
+            collision_enabled=True,
+            collision=RectObstacle(-10, -12, 20, 12),
+        ))
+        world = build_exploration_map(scene, WORLD_ASSETS)
+        self.assertEqual(world.scenery[0].collision, RectObstacle(-10, -12, 20, 12))
+
+
+
 if __name__ == "__main__":
     unittest.main()

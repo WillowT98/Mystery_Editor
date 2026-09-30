@@ -18,7 +18,14 @@ from mystery_engine.core import (
     TargetKind,
 )
 from mystery_engine.dungeon import DungeonDefinition, SpawnRule
-from mystery_engine.story import StoryGraph, WorldAssetCatalog, WorldAssetDefinition
+from mystery_engine.story import (
+    ObstacleShape,
+    PolygonObstacle,
+    RectObstacle,
+    StoryGraph,
+    WorldAssetCatalog,
+    WorldAssetDefinition,
+)
 
 
 def slugify(value: str, fallback: str = "content") -> str:
@@ -431,6 +438,116 @@ class EnemyDefinitionData:
 
 
 @dataclass(frozen=True)
+class WorldObjectDefinitionData:
+    id: str
+    name: str
+    category: str = "scenery"
+    sprite_key: str | None = None
+    width: int = 64
+    height: int = 64
+    anchor: str = "bottom_center"
+    collider_enabled: bool = False
+    collision: ObstacleShape | None = None
+    collision_radius: float = 0.0
+    draw_behind_actors: bool = False
+    runtime_visible: bool = True
+    label: str | None = None
+    action_id: str | None = None
+    sound_cues: dict[str, str] = field(default_factory=dict)
+
+    @staticmethod
+    def _collision_from_dict(data: object) -> ObstacleShape | None:
+        if isinstance(data, list) and len(data) == 4:
+            return RectObstacle(*[float(v) for v in data])
+        if isinstance(data, dict):
+            kind = str(data.get("type", "")).lower()
+            if kind == "rect" and all(k in data for k in ("x", "y", "w", "h")):
+                return RectObstacle(float(data["x"]), float(data["y"]), float(data["w"]), float(data["h"]))
+            if kind == "polygon":
+                points = data.get("points")
+                if isinstance(points, list) and len(points) >= 3:
+                    return PolygonObstacle(tuple((float(p[0]), float(p[1])) for p in points))
+        return None
+
+    @staticmethod
+    def _collision_to_dict(shape: ObstacleShape | None) -> object | None:
+        if shape is None:
+            return None
+        if isinstance(shape, RectObstacle):
+            return [shape.x, shape.y, shape.w, shape.h]
+        if isinstance(shape, PolygonObstacle):
+            return {"type": "polygon", "points": [[x, y] for x, y in shape.points]}
+        return None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "WorldObjectDefinitionData":
+        category = str(data.get("category", "scenery")).lower()
+        if category not in {"scenery", "interactable"}:
+            category = "scenery"
+        collision = cls._collision_from_dict(data.get("collision"))
+        collider_enabled = bool(data.get("collider_enabled", collision is not None or float(data.get("collision_radius", 0.0)) > 0))
+        return cls(
+            id=str(data["id"]),
+            name=str(data.get("name") or data["id"]),
+            category=category,
+            sprite_key=(str(data["sprite_key"]) if data.get("sprite_key") else None),
+            width=max(1, int(data.get("width", data.get("size", [64, 64])[0] if isinstance(data.get("size"), list) else 64))),
+            height=max(1, int(data.get("height", data.get("size", [64, 64])[1] if isinstance(data.get("size"), list) else 64))),
+            anchor=str(data.get("anchor", "bottom_center")),
+            collider_enabled=collider_enabled,
+            collision=collision,
+            collision_radius=max(0.0, float(data.get("collision_radius", 0.0))),
+            draw_behind_actors=bool(data.get("draw_behind_actors", False)),
+            runtime_visible=bool(data.get("runtime_visible", True)),
+            label=(str(data["label"]) if data.get("label") else None),
+            action_id=(str(data["action_id"]) if data.get("action_id") else None),
+            sound_cues={str(k): str(v) for k, v in dict(data.get("sound_cues", {})).items() if v},
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "format": 1,
+            "id": self.id,
+            "name": self.name,
+            "category": self.category,
+            "sprite_key": self.sprite_key,
+            "size": [self.width, self.height],
+            "anchor": self.anchor,
+            "collider_enabled": self.collider_enabled,
+            "collision_radius": self.collision_radius,
+            "draw_behind_actors": self.draw_behind_actors,
+            "runtime_visible": self.runtime_visible,
+        }
+        collision = self._collision_to_dict(self.collision)
+        if collision is not None:
+            data["collision"] = collision
+        if self.label:
+            data["label"] = self.label
+        if self.action_id:
+            data["action_id"] = self.action_id
+        if self.sound_cues:
+            data["sound_cues"] = dict(sorted(self.sound_cues.items()))
+        return data
+
+    def to_world_asset(self) -> WorldAssetDefinition:
+        return WorldAssetDefinition(
+            id=self.id,
+            category=self.category,
+            sprite_key=self.sprite_key,
+            display_name=self.name,
+            size=(self.width, self.height),
+            anchor=self.anchor,
+            collision=self.collision if self.collider_enabled else None,
+            collision_radius=self.collision_radius if self.collider_enabled else 0.0,
+            draw_behind_actors=self.draw_behind_actors,
+            label=self.label,
+            action_id=self.action_id,
+            sound_cues=dict(self.sound_cues),
+            runtime_visible=self.runtime_visible,
+        )
+
+
+@dataclass(frozen=True)
 class PawnDefinitionData:
     id: str
     name: str
@@ -492,6 +609,7 @@ class ProjectRegistry:
         self.enemy_dir = self.game_root / str(content.get("enemies", "content/enemies"))
         self.item_dir = self.game_root / str(content.get("items", "content/items"))
         self.character_dir = self.game_root / str(content.get("characters", "content/characters"))
+        self.object_dir = self.game_root / str(content.get("objects", "content/objects"))
         self.pawn_dir = self.game_root / str(content.get("pawns", "content/pawns"))
         self.dungeon_dir = self.game_root / str(content.get("dungeons", "dungeons"))
         self.scene_dir = self.game_root / str(content.get("scenes", "scenes"))
@@ -499,7 +617,7 @@ class ProjectRegistry:
         self.asset_root = self.game_root / str(content.get("assets", "assets"))
         for directory in (
             self.attack_dir, self.enemy_dir, self.item_dir, self.character_dir,
-            self.pawn_dir, self.dungeon_dir,
+            self.object_dir, self.pawn_dir, self.dungeon_dir,
             self.scene_dir, self.story_dir, self.asset_root,
         ):
             directory.mkdir(parents=True, exist_ok=True)
@@ -521,6 +639,7 @@ class ProjectRegistry:
                 "enemies": "content/enemies",
                 "items": "content/items",
                 "characters": "content/characters",
+                "objects": "content/objects",
                 "pawns": "content/pawns",
                 "dungeons": "dungeons",
                 "scenes": "scenes",
@@ -567,6 +686,7 @@ class ProjectRegistry:
         self.items_data: dict[str, ItemDefinitionData] = {}
         self.items: dict[str, ItemDefinition] = {}
         self.characters: dict[str, PlayableCharacterDefinitionData] = {}
+        self.objects: dict[str, WorldObjectDefinitionData] = {}
         self.pawns: dict[str, PawnDefinitionData] = {}
 
         if self.attack_dir.exists():
@@ -591,6 +711,11 @@ class ProjectRegistry:
                 data = PlayableCharacterDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
                 self.characters[data.id] = data
 
+        if self.object_dir.exists():
+            for path in sorted(self.object_dir.glob("*.json")):
+                data = WorldObjectDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                self.objects[data.id] = data
+
         if self.pawn_dir.exists():
             for path in sorted(self.pawn_dir.glob("*.json")):
                 data = PawnDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
@@ -607,6 +732,17 @@ class ProjectRegistry:
     @property
     def pawn_labels(self) -> dict[str, str]:
         return {key: value.name for key, value in sorted(self.pawns.items())}
+
+    @property
+    def object_labels(self) -> dict[str, str]:
+        return {key: value.name for key, value in sorted(self.objects.items())}
+
+    def save_object(self, data: WorldObjectDefinitionData) -> Path:
+        self.object_dir.mkdir(parents=True, exist_ok=True)
+        path = self.object_dir / f"{data.id}.json"
+        path.write_text(json.dumps(data.to_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        self.reload()
+        return path
 
     @property
     def item_labels(self) -> dict[str, str]:
@@ -667,6 +803,8 @@ class ProjectRegistry:
 
     def world_asset_catalog(self, base: WorldAssetCatalog) -> WorldAssetCatalog:
         merged = dict(base.assets)
+        for object_data in self.objects.values():
+            merged[object_data.id] = object_data.to_world_asset()
         for pawn in self.pawns.values():
             existing = merged.get(pawn.id)
             if existing is not None and existing.category == "actor":

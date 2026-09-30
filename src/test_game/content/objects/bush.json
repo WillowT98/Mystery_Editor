@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "id": "bush",
+  "name": "Bush",
+  "category": "scenery",
+  "sprite_key": "bush",
+  "size": [
+    126,
+    100
+  ],
+  "anchor": "bottom_center",
+  "collider_enabled": true,
+  "collision": [
+    -38,
+    -30,
+    76,
+    30
+  ],
+  "collision_radius": 0,
+  "draw_behind_actors": true,
+  "runtime_visible": true
+}

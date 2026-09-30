@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "id": "waystone",
+  "name": "Waystone",
+  "category": "interactable",
+  "sprite_key": "waystone",
+  "size": [
+    112,
+    132
+  ],
+  "anchor": "bottom_center",
+  "collider_enabled": true,
+  "collision": [
+    -40,
+    -27,
+    80,
+    27
+  ],
+  "collision_radius": 0,
+  "draw_behind_actors": false,
+  "runtime_visible": true,
+  "label": "Waystone",
+  "action_id": "inspect_waystone"
+}

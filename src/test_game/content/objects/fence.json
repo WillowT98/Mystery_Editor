@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "id": "fence",
+  "name": "Fence",
+  "category": "scenery",
+  "sprite_key": "fence",
+  "size": [
+    206,
+    100
+  ],
+  "anchor": "bottom_center",
+  "collider_enabled": true,
+  "collision": [
+    -99,
+    -34,
+    198,
+    28
+  ],
+  "collision_radius": 0,
+  "draw_behind_actors": false,
+  "runtime_visible": true
+}

@@ -12,7 +12,8 @@
     "pawns": "content/pawns",
     "stories": "stories",
     "items": "content/items",
-    "characters": "content/characters"
+    "characters": "content/characters",
+    "objects": "content/objects"
   },
   "damage_types": [
     "physical",

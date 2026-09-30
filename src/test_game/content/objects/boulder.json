@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "id": "boulder",
+  "name": "Boulder",
+  "category": "scenery",
+  "sprite_key": "boulder",
+  "size": [
+    146,
+    120
+  ],
+  "anchor": "bottom_center",
+  "collider_enabled": true,
+  "collision": [
+    -62,
+    -72,
+    124,
+    68
+  ],
+  "collision_radius": 0,
+  "draw_behind_actors": false,
+  "runtime_visible": true
+}

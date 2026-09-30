@@ -116,14 +116,14 @@ class Renderer:
         # world pass. Physical props such as trees, fences, waystones and actors
         # all participate in the same Y-sort so approaching them from north/south
         # produces the expected occlusion.
-        for deco in sorted([s for s in world.scenery if s.draw_behind_actors], key=lambda s: s.position.y):
+        for deco in sorted([s for s in world.scenery if s.visible and s.draw_behind_actors], key=lambda s: s.position.y):
             self._draw_scenery(deco, camera_ix, camera_iy)
 
         labels: list[tuple[str, int, int]] = []
         drawables: list[tuple[float, int, str, object]] = []
         # type-order resolves equal baselines: props first, actors second.
         for scenery in world.scenery:
-            if not scenery.draw_behind_actors:
+            if scenery.visible and not scenery.draw_behind_actors:
                 drawables.append((scenery.position.y, 0, "scenery", scenery))
         for item in world.interactables:
             if item.enabled:

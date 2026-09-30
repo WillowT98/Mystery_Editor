@@ -306,6 +306,8 @@ class ExplorationSceneEditor:
         return self._native_surface(self._world_asset_path(definition))
 
     def _effective_collision(self, obj: SceneObjectData, definition: WorldAssetDefinition) -> ObstacleShape | None:
+        if obj.collision_enabled is False:
+            return None
         return obj.collision if obj.collision is not None else definition.collision
 
     @staticmethod
@@ -347,6 +349,7 @@ class ExplorationSceneEditor:
         obj, definition = pair
         if definition.category in {"actor", "portal", "marker"}:
             return None
+        obj.collision_enabled = True
         if obj.collision is None:
             base = self._effective_collision(obj, definition)
             if base is None:
@@ -493,12 +496,36 @@ class ExplorationSceneEditor:
         self._collision_selected_vertex = None
         self.status = "Rectangle collision active"
 
+    def toggle_selected_collision_enabled(self) -> None:
+        pair = self._selected_pair()
+        if pair is None or pair[1].category in {"actor", "portal", "marker"}:
+            self.status = "This asset does not use an object collider"
+            return
+        obj, definition = pair
+        before = self.history.snapshot(self.scene)
+        currently_enabled = obj.collision_enabled is not False and (
+            obj.collision is not None or definition.collision is not None or definition.collision_radius > 0
+        )
+        if currently_enabled:
+            obj.collision_enabled = False
+            self.collision_edit = False
+            self.status = "Collider disabled for this object instance"
+        else:
+            obj.collision_enabled = True
+            if obj.collision is None and definition.collision is None and definition.collision_radius <= 0:
+                obj.collision = self._default_collision_for(definition)
+            self.show_collision = True
+            self.status = "Collider enabled for this object instance"
+        self.history.remember(before)
+        self.dirty = True
+
     def reset_collision_override(self) -> None:
         pair = self._selected_pair()
-        if pair is None or pair[0].collision is None:
+        if pair is None or (pair[0].collision is None and pair[0].collision_enabled is None):
             return
         before = self.history.snapshot(self.scene)
         pair[0].collision = None
+        pair[0].collision_enabled = None
         self.history.remember(before)
         self.dirty = True
         self.collision_edit = False
@@ -998,6 +1025,18 @@ class ExplorationSceneEditor:
         self.dirty = True
         self.status = "Sound reset to asset default"
 
+    def _new_world_object(self) -> None:
+        if self.project_registry is None:
+            self.status = "Project registry is unavailable"
+            return
+        from .project_editor import edit_world_object_dialog
+        object_id = edit_world_object_dialog(self.project_registry)
+        if not object_id:
+            return
+        self._refresh_project_catalog()
+        self.asset_brush = object_id
+        self.status = f"Created object {self.project_registry.object_labels.get(object_id, object_id)}"
+
     # ---------- integrated story authoring ----------
 
     def _refresh_project_catalog(self) -> None:
@@ -1353,7 +1392,7 @@ class ExplorationSceneEditor:
                 if len(points) >= 3:
                     pygame.draw.polygon(overlay, (235, 69, 82, 76), points)
                     pygame.draw.polygon(overlay, (255, 120, 125, 220), points, width=2)
-            elif definition.collision_radius > 0:
+            elif obj.collision_enabled is not False and definition.collision_radius > 0:
                 sx, sy = self.world_to_screen(obj.x, obj.y)
                 pygame.draw.circle(overlay, (235, 69, 82, 76), (sx, sy), round(definition.collision_radius * self.zoom))
         self.screen.blit(overlay, (0, 0))
@@ -1392,6 +1431,12 @@ class ExplorationSceneEditor:
             self._draw_sidebar_help(y + 10, ["Paint heights, not cliff tiles.", "Cliffs are generated automatically.", "F: flood fill"])
 
         elif self.mode == "objects":
+            if self.project_registry is not None:
+                new_rect = pygame.Rect(rect.x + 14, y, rect.w - 28, 42)
+                self._palette_items.append(PaletteItem("__new_world_object", "New custom object", new_rect, None))
+                pygame.draw.rect(self.screen, (50, 83, 96), new_rect, border_radius=7)
+                self.screen.blit(self.font.render("+ New custom object", True, (242, 240, 232)), (new_rect.x + 12, new_rect.y + 9))
+                y += 50
             for definition in self.catalog.by_category("scenery", "interactable", "dungeon", "portal", "marker", "actor"):
                 item_rect = pygame.Rect(rect.x + 14, y, rect.w - 28, 74)
                 self._palette_items.append(PaletteItem(definition.id, definition.display_name, item_rect, definition.id))
@@ -1628,7 +1673,10 @@ class ExplorationSceneEditor:
 
                 if definition.category not in {"actor", "portal", "marker"}:
                     c = self._effective_collision(obj, definition)
-                    inherited = obj.collision is None
+                    inherited = obj.collision is None and obj.collision_enabled is None
+                    collider_on = obj.collision_enabled is not False and (
+                        obj.collision is not None or definition.collision is not None or definition.collision_radius > 0
+                    )
                     if c is None:
                         ctext = "Collision: none"
                     elif isinstance(c, RectObstacle):
@@ -1636,8 +1684,25 @@ class ExplorationSceneEditor:
                     else:
                         bounds = c.bounds()
                         ctext = f"Polygon: {len(c.points)} verts  {bounds.w:.0f}×{bounds.h:.0f}"
-                    self._draw_sidebar_help(y, [ctext, "Inherited" if inherited else "Instance override", "[B] edit current   [P] polygon   [X] box"])
-                    y += 82
+                    source_text = "Inherited" if inherited else ("Disabled override" if obj.collision_enabled is False else "Instance override")
+                    self._draw_sidebar_help(y, [
+                        f"Collider: {'ON' if collider_on else 'OFF'}",
+                        ctext,
+                        source_text,
+                        "[K] toggle   [B] edit   [P] polygon   [X] box",
+                    ])
+                    y += 108
+                    toggle_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 36)
+                    self._palette_items.append(PaletteItem("__collision_toggle", "Toggle collider", toggle_rect, None))
+                    pygame.draw.rect(self.screen, (54, 104, 73) if collider_on else (94, 61, 62), toggle_rect, border_radius=6)
+                    self.screen.blit(
+                        self.font_small.render(
+                            "Disable collider  [K]" if collider_on else "Enable collider  [K]",
+                            True, (240, 238, 229),
+                        ),
+                        (toggle_rect.x + 10, toggle_rect.y + 8),
+                    )
+                    y += 42
                     edit_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 38)
                     self._palette_items.append(PaletteItem("__collision_edit", "Edit collision", edit_rect, None))
                     pygame.draw.rect(self.screen, (118, 91, 48) if self.collision_edit else (55, 66, 82), edit_rect, border_radius=6)
@@ -1653,7 +1718,7 @@ class ExplorationSceneEditor:
                     pygame.draw.rect(self.screen, (64, 69, 79), box_rect, border_radius=6)
                     self.screen.blit(self.font_small.render("Convert to box  [X]", True, (230, 234, 240)), (box_rect.x + 10, box_rect.y + 7))
                     y += 40
-                    if obj.collision is not None:
+                    if obj.collision is not None or obj.collision_enabled is not None:
                         reset_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
                         self._palette_items.append(PaletteItem("__collision_reset", "Reset collision", reset_rect, None))
                         pygame.draw.rect(self.screen, (66, 58, 65), reset_rect, border_radius=6)
@@ -1732,6 +1797,24 @@ class ExplorationSceneEditor:
                         field_name = self._text_edit_field.capitalize()
                         self._draw_sidebar_help(y + 4, [f"{field_name}:", self._text_edit_buffer + "|"])
                         y += 62
+
+                    if self.project_registry is not None:
+                        story_name = "None"
+                        if obj.target_story:
+                            story_name = self.project_registry.story_labels().get(obj.target_story, obj.target_story)
+                        self._draw_sidebar_help(y + 4, [f"Story interaction: {story_name}"])
+                        y += 34
+                        story_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
+                        self._palette_items.append(PaletteItem("__object_story", "Choose story", story_rect, None))
+                        pygame.draw.rect(self.screen, (55, 66, 82), story_rect, border_radius=6)
+                        self.screen.blit(self.font_small.render("Choose interaction story…", True, (232, 238, 232)), (story_rect.x + 10, story_rect.y + 7))
+                        y += 40
+                        if obj.target_story:
+                            clear_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 30)
+                            self._palette_items.append(PaletteItem("__object_story_clear", "Clear story", clear_rect, None))
+                            pygame.draw.rect(self.screen, (66, 58, 65), clear_rect, border_radius=6)
+                            self.screen.blit(self.font_small.render("Clear story interaction", True, (232, 232, 225)), (clear_rect.x + 10, clear_rect.y + 5))
+                            y += 36
 
                 if definition.category in {"interactable", "portal", "actor"}:
                     cue_id = self._effective_object_sound(obj, definition)
@@ -1982,6 +2065,37 @@ class ExplorationSceneEditor:
             self.dirty = True
             self.status = f"Entrance linked to {self.project_registry.dungeon_labels().get(chosen, chosen)}"
 
+    def _change_selected_story_link(self) -> None:
+        pair = self._selected_pair()
+        if pair is None or self.project_registry is None:
+            return
+        obj, definition = pair
+        if definition.category not in {"interactable", "actor"}:
+            self.status = "Only actors and interactable objects can start stories"
+            return
+        from .project_editor import choose_catalog_id
+        chosen = choose_catalog_id(
+            "Choose interaction story",
+            self.project_registry.story_labels(),
+            obj.target_story,
+        )
+        if chosen:
+            before = self.history.snapshot(self.scene)
+            obj.target_story = chosen
+            self.history.remember(before)
+            self.dirty = True
+            self.status = f"{definition.display_name} now starts {self.project_registry.story_labels().get(chosen, chosen)}"
+
+    def _clear_selected_story_link(self) -> None:
+        pair = self._selected_pair()
+        if pair is None or not pair[0].target_story:
+            return
+        before = self.history.snapshot(self.scene)
+        pair[0].target_story = None
+        self.history.remember(before)
+        self.dirty = True
+        self.status = "Story interaction cleared"
+
     def _change_selected_dungeon_sprite(self) -> None:
         pair = self._selected_pair()
         if pair is None or pair[1].category != "dungeon" or self.project_registry is None:
@@ -2051,7 +2165,8 @@ class ExplorationSceneEditor:
         copied_collision = self._copy_collision(src.collision)
         dup = SceneObjectData(
             id=self._unique_id(src.asset), asset=src.asset, x=src.x + 16, y=src.y + 16,
-            action=src.action, label=src.label, enabled=src.enabled, collision=copied_collision,
+            action=src.action, label=src.label, enabled=src.enabled,
+            collision_enabled=src.collision_enabled, collision=copied_collision,
             target_scene=src.target_scene, target_door=src.target_door, portal_facing=src.portal_facing,
             portal_mode=src.portal_mode, sound_cues=dict(src.sound_cues),
             target_dungeon=src.target_dungeon, target_story=src.target_story, sprite_override=src.sprite_override,
@@ -2078,7 +2193,11 @@ class ExplorationSceneEditor:
             if item.rect.collidepoint(pos):
                 if self.mode == "terrain": self.terrain_brush = str(item.value)
                 elif self.mode == "elevation": self.elevation_brush = int(item.value)
-                elif self.mode == "objects": self.asset_brush = str(item.value)
+                elif self.mode == "objects":
+                    if item.key == "__new_world_object":
+                        self._new_world_object()
+                    else:
+                        self.asset_brush = str(item.value)
                 elif self.mode == "story":
                     if item.key == "__story_room": self._choose_story_room()
                     elif item.key == "__story_new_pawn": self._new_story_pawn()
@@ -2109,12 +2228,15 @@ class ExplorationSceneEditor:
                     elif item.key == "__ambience_louder": self._set_scene_ambience_volume(0.10)
                     elif item.key.startswith("__ambience_cue::"): self._set_scene_ambience(str(item.value))
                 elif self.mode == "select":
-                    if item.key == "__collision_edit": self.add_or_edit_collision()
+                    if item.key == "__collision_toggle": self.toggle_selected_collision_enabled()
+                    elif item.key == "__collision_edit": self.add_or_edit_collision()
                     elif item.key == "__collision_polygon": self.convert_selected_collision_to_polygon()
                     elif item.key == "__collision_rect": self.convert_selected_collision_to_rect()
                     elif item.key == "__collision_reset": self.reset_collision_override()
                     elif item.key == "__edit_action": self._start_text_edit("action")
                     elif item.key == "__edit_label": self._start_text_edit("label")
+                    elif item.key == "__object_story": self._change_selected_story_link()
+                    elif item.key == "__object_story_clear": self._clear_selected_story_link()
                     elif item.key == "__portal_open": self.open_linked_scene()
                     elif item.key == "__portal_mode": self.toggle_portal_mode()
                     elif item.key == "__portal_unlink": self.unlink_selected_portal()
@@ -2360,6 +2482,7 @@ class ExplorationSceneEditor:
             elif event.key == pygame.K_g: self.grid = not self.grid
             elif event.key == pygame.K_c: self.show_collision = not self.show_collision
             elif event.key == pygame.K_v: self.show_elevation = not self.show_elevation
+            elif event.key == pygame.K_k and self.mode == "select": self.toggle_selected_collision_enabled()
             elif event.key == pygame.K_b and self.mode == "select": self.add_or_edit_collision()
             elif event.key == pygame.K_p and self.mode == "select": self.convert_selected_collision_to_polygon()
             elif event.key == pygame.K_x and self.mode == "select": self.convert_selected_collision_to_rect()

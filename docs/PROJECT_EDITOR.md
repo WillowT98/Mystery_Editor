@@ -236,3 +236,55 @@ The test game's runtime now constructs its starting party, inventory, wallet,
 story flags, default dungeon, and starting room from project data. Python remains
 available for genuinely custom engine/game mechanics and legacy bespoke
 interactions, but ordinary game setup no longer requires editing it.
+
+
+## Custom world objects
+
+The **Objects** section creates reusable exploration props under
+`content/objects/*.json`. Ordinary scenery and interactable props no longer
+need a `WorldAssetDefinition(...)` added in Python.
+
+A custom object can define:
+
+- stable ID and editable display name;
+- **Scenery** or **Interactable** category;
+- an imported PNG sprite (copied into `assets/objects/`);
+- authored display width/height and anchor;
+- draw-behind-actors behavior;
+- runtime visibility;
+- default interaction label / legacy action ID / interaction SFX;
+- a default collider and collision radius.
+
+The Object editor can create a rectangular default collider numerically. Once an
+object is placed in a room, the exploration editor's existing visual collider
+tools can resize it or convert that individual placement to a polygon.
+
+### Per-instance collider toggle
+
+Collider **state** is separate from collider **shape**. In **Select** mode, a
+placed scenery/interactable object now shows an explicit **Collider ON/OFF**
+control. Click **Enable/Disable collider** or press **K**.
+
+This is a per-placement override:
+
+- inherited/default: use the reusable object's collider;
+- OFF: ignore the collider for this placement;
+- ON: explicitly enable collision (and create a sensible default box if the
+  object definition has no collider);
+- **Reset to asset default** clears both the shape override and the ON/OFF
+  override.
+
+Turning a collider off does not delete its authored geometry, so it can be
+turned back on without reconstructing the object definition.
+
+### No-code interactable objects
+
+An object created as **Interactable** can be linked to a Story from the room
+editor. The placed object stores `target_story`; interacting with it launches
+that story through the same generic runtime path used by story-linked pawns.
+The legacy Action ID field remains available for game-specific callbacks, but
+ordinary dialogue/inspection objects can now be authored without Python.
+
+The existing Tree, Boulder, Flower Bush, Bush, Fence, Signpost, and Waystone are
+also present as project object definitions, so the shipped test project exercises
+the same data-backed path used by newly created objects.
