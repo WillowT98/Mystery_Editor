@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "id": "field_salve",
+  "name": "Field Salve",
+  "description": "A small jar of salve. Restores 14 HP to the user.",
+  "heal": 14,
+  "throwable_damage": 0,
+  "droppable": true,
+  "key_item": false,
+  "sprite_key": "field_salve"
+}
