@@ -1,3 +1,6 @@
-from .game_definition import TestGameDefinition, build_game
+"""Bundled editor-authored example project.
 
-__all__ = ["TestGameDefinition", "build_game"]
+The example is intentionally data-only. It runs through
+:meth:`mystery_engine.project_runtime.build_project_game` exactly like a user-created
+project.
+"""
