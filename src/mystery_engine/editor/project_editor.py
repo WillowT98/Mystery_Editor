@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
+import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
@@ -15,6 +17,7 @@ from mystery_engine.project import (
     PawnDefinitionData,
     PlayableCharacterDefinitionData,
     ProjectRegistry,
+    TerrainDefinitionData,
     WorldObjectDefinitionData,
     slugify,
 )
@@ -567,6 +570,141 @@ def edit_game_settings_dialog(registry: ProjectRegistry) -> bool:
     tk.Button(buttons,text="Save Game Settings",command=save).pack(side="right")
     root.mainloop()
     return bool(saved["ok"])
+
+
+def edit_terrain_dialog(registry: ProjectRegistry, terrain_id: str | None = None) -> str | None:
+    current = registry.terrain.get(terrain_id) if terrain_id else None
+    root = _root("Terrain Editor", "760x620")
+    result: dict[str, str | None] = {"id": None}
+    outer = tk.Frame(root)
+    outer.pack(fill="both", expand=True, padx=16, pady=12)
+
+    id_var = tk.StringVar(value=current.id if current else "")
+    name_var = tk.StringVar(value=current.name if current else "")
+    mode_var = tk.StringVar(value=current.mode if current else "single")
+    blocked_var = tk.BooleanVar(value=current.blocked if current else False)
+    color_var = tk.StringVar(value=current.fallback_color if current else "#526f49")
+    sprite_keys = list(current.sprite_keys if current else ())
+
+    def row(label: str, var: tk.Variable) -> None:
+        frame = tk.Frame(outer); frame.pack(fill="x", pady=4)
+        tk.Label(frame, text=label, width=20, anchor="w").pack(side="left")
+        tk.Entry(frame, textvariable=var).pack(side="left", fill="x", expand=True)
+
+    row("ID", id_var)
+    row("Name", name_var)
+
+    mode_row = tk.Frame(outer); mode_row.pack(fill="x", pady=4)
+    tk.Label(mode_row, text="Render mode", width=20, anchor="w").pack(side="left")
+    ttk.Combobox(
+        mode_row, textvariable=mode_var,
+        values=["single", "variants", "autotile"], state="readonly",
+    ).pack(side="left", fill="x", expand=True)
+
+    blocked_row = tk.Frame(outer); blocked_row.pack(fill="x", pady=4)
+    tk.Label(blocked_row, text="", width=20).pack(side="left")
+    tk.Checkbutton(blocked_row, text="Blocks movement", variable=blocked_var).pack(side="left")
+
+    row("Fallback color", color_var)
+
+    tk.Label(
+        outer,
+        text="Terrain images",
+        anchor="w",
+        font=("TkDefaultFont", 10, "bold"),
+    ).pack(fill="x", pady=(14, 4))
+    image_box = tk.Listbox(outer, height=8, exportselection=False)
+    image_box.pack(fill="both", expand=True)
+
+    def refresh_images() -> None:
+        image_box.delete(0, "end")
+        if mode_var.get() == "autotile":
+            terrain_key = id_var.get().strip() or slugify(name_var.get(), "terrain")
+            folder = registry.asset_root / "terrain" / terrain_key
+            count = len(list(folder.glob("auto_*.png"))) if folder.exists() else 0
+            image_box.insert("end", f"{count} autotile masks imported to terrain/{terrain_key}/")
+        elif sprite_keys:
+            for key in sprite_keys:
+                image_box.insert("end", key)
+        else:
+            image_box.insert("end", "(no image yet; fallback color will be used)")
+
+    def import_images() -> None:
+        ident = id_var.get().strip() or slugify(name_var.get(), "terrain")
+        if mode_var.get() == "autotile":
+            chosen = filedialog.askdirectory(parent=root, title="Choose folder containing 000.png…255.png or auto_000.png…")
+            if not chosen:
+                return
+            try:
+                count = registry.import_terrain_autotiles(ident, Path(chosen))
+            except Exception as exc:
+                messagebox.showerror("Could not import autotiles", str(exc), parent=root)
+                return
+            messagebox.showinfo(
+                "Autotiles imported",
+                f"Copied {count} PNG masks. Missing masks will use the fallback color.",
+                parent=root,
+            )
+        else:
+            chosen = filedialog.askopenfilenames(
+                parent=root,
+                title="Choose terrain PNG" if mode_var.get() == "single" else "Choose terrain variants",
+                filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+            )
+            if not chosen:
+                return
+            if mode_var.get() == "single":
+                chosen = chosen[:1]
+                sprite_keys.clear()
+            for index, source in enumerate(chosen):
+                preferred = ident if mode_var.get() == "single" else f"{ident}_{len(sprite_keys)+index}"
+                try:
+                    key, _ = registry.import_asset(
+                        Path(source), "terrain", preferred_id=preferred, allowed_suffixes={".png"}
+                    )
+                except Exception as exc:
+                    messagebox.showerror("Could not import terrain", str(exc), parent=root)
+                    return
+                sprite_keys.append(key)
+        refresh_images()
+
+    tk.Button(outer, text="Import terrain image(s)…", command=import_images).pack(anchor="w", pady=(5, 3))
+    tk.Label(
+        outer,
+        text=(
+            "Single uses one tile everywhere. Variants randomly chooses among imported tiles. "
+            "Autotile uses 8-neighbor masks; import a folder containing masks 000–255. "
+            "All source files are copied into the project."
+        ),
+        justify="left", wraplength=700, fg="#555555",
+    ).pack(fill="x", pady=(3, 10))
+
+    def save() -> None:
+        try:
+            ident = id_var.get().strip() or slugify(name_var.get(), "terrain")
+            if current is not None and ident != current.id:
+                raise ValueError("Terrain IDs are stable after creation.")
+            data = TerrainDefinitionData(
+                id=ident,
+                name=name_var.get().strip() or ident,
+                mode=mode_var.get(),
+                sprite_keys=tuple(sprite_keys),
+                blocked=bool(blocked_var.get()),
+                fallback_color=color_var.get().strip() or "#526f49",
+            )
+            registry.save_terrain(data)
+        except Exception as exc:
+            messagebox.showerror("Could not save terrain", str(exc), parent=root)
+            return
+        result["id"] = data.id
+        root.destroy()
+
+    buttons = tk.Frame(outer); buttons.pack(fill="x", pady=(12, 0))
+    tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8, 0))
+    tk.Button(buttons, text="Save Terrain", command=save).pack(side="right")
+    refresh_images()
+    root.mainloop()
+    return result["id"]
 
 
 def edit_world_object_dialog(registry: ProjectRegistry, object_id: str | None = None) -> str | None:
@@ -1123,7 +1261,7 @@ class ProjectEditor:
     the same authoring process and return here when closed.
     """
 
-    SECTIONS = ("Game", "Scenes", "Stories", "Pawns", "Characters", "Objects", "Dungeons", "Enemies", "Attacks", "Items", "Assets")
+    SECTIONS = ("Game", "Scenes", "Terrain", "Stories", "Pawns", "Characters", "Objects", "Dungeons", "Enemies", "Attacks", "Items", "Assets")
 
     def __init__(self, registry: ProjectRegistry, world_assets, project_root: Path, item_labels: dict[str, str] | None = None) -> None:
         self.registry = registry
@@ -1144,6 +1282,8 @@ class ProjectEditor:
             labels = {"settings": self.registry.game_settings.title}
         elif self.section == "Scenes":
             labels = self.registry.scene_labels()
+        elif self.section == "Terrain":
+            labels = self.registry.terrain_labels
         elif self.section == "Stories":
             labels = self.registry.story_labels()
         elif self.section == "Pawns":
@@ -1207,6 +1347,9 @@ class ProjectEditor:
         elif self.section == "Pawns":
             created = edit_pawn_dialog(self.registry)
             self.status = f"Created {created}" if created else "Cancelled"
+        elif self.section == "Terrain":
+            created = edit_terrain_dialog(self.registry)
+            self.status = f"Created {created}" if created else "Cancelled"
         elif self.section == "Stories":
             scene_id = choose_catalog_id("Story room", self.registry.scene_labels())
             if scene_id:
@@ -1261,6 +1404,8 @@ class ProjectEditor:
             edit_game_settings_dialog(self.registry)
         elif self.section == "Pawns":
             edit_pawn_dialog(self.registry, item_id)
+        elif self.section == "Terrain":
+            edit_terrain_dialog(self.registry, item_id)
         elif self.section == "Stories":
             graph = self.registry.load_story(item_id)
             if graph.scene_id and graph.scene_id in self.registry.scene_paths():
