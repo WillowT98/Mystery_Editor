@@ -89,7 +89,34 @@ def edit_attack_dialog(registry: ProjectRegistry, attack_id: str | None = None) 
     row_entry("Charges (blank=∞)", "charges", "" if current is None or current.max_charges is None else current.max_charges)
     row_entry("Launch SFX cue", "sfx", current.sfx_cue or "" if current else "")
     row_entry("Impact SFX cue", "impact_sfx", current.impact_sfx_cue or "" if current else "")
-    row_entry("Projectile key", "projectile", current.projectile_key or "" if current else "")
+
+    projectile_row = tk.Frame(frame)
+    projectile_row.pack(fill="x", pady=3)
+    tk.Label(projectile_row, text="Projectile key", width=20, anchor="w").pack(side="left")
+    projectile_var = tk.StringVar(value=current.projectile_key or "" if current else "")
+    fields["projectile"] = projectile_var
+    projectile_combo = ttk.Combobox(
+        projectile_row, textvariable=projectile_var,
+        values=[""] + registry.asset_keys("projectiles", {".png"}), state="normal",
+    )
+    projectile_combo.pack(side="left", fill="x", expand=True)
+
+    def import_projectile() -> None:
+        chosen = filedialog.askopenfilename(
+            parent=root, title="Import projectile sprite sheet",
+            filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+        )
+        if not chosen:
+            return
+        try:
+            key, _ = registry.import_asset(Path(chosen), "projectiles", allowed_suffixes={".png"})
+        except Exception as exc:
+            messagebox.showerror("Could not import projectile", str(exc), parent=root)
+            return
+        projectile_var.set(key)
+        projectile_combo["values"] = [""] + registry.asset_keys("projectiles", {".png"})
+
+    tk.Button(projectile_row, text="Import…", command=import_projectile).pack(side="left", padx=(6, 0))
     row_entry("Projectile arc px", "arc", current.projectile_arc_px if current else 0)
 
     def save() -> None:
