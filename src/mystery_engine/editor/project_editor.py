@@ -358,6 +358,12 @@ def edit_item_dialog(registry: ProjectRegistry, item_id: str | None = None) -> s
 
     tk.Button(projectile_row, text="Import…", command=import_projectile).pack(side="left", padx=(6, 0))
     entry_row("Projectile arc px", "arc", current.projectile_arc_px if current else 0)
+
+    tk.Label(outer, text="Optional sprite sheet", anchor="w", font=("TkDefaultFont", 10, "bold")).pack(fill="x", pady=(10, 3))
+    entry_row("Sheet key", "sheet_key", current.sprite_sheet_key or "" if current else "")
+    entry_row("Sheet frame index", "sheet_index", current.sprite_sheet_index if current else 0)
+    entry_row("Sheet columns", "sheet_columns", current.sprite_sheet_columns if current else 1)
+
     entry_row("Use SFX cue", "sfx", current.sfx_cue or "" if current else "")
     entry_row("Impact SFX cue", "impact_sfx", current.impact_sfx_cue or "" if current else "")
 
@@ -380,6 +386,9 @@ def edit_item_dialog(registry: ProjectRegistry, item_id: str | None = None) -> s
                 projectile_key=projectile_var.get().strip() or None,
                 projectile_arc_px=float(fields["arc"].get() or 0),
                 sprite_key=sprite_var.get().strip() or None,
+                sprite_sheet_key=fields["sheet_key"].get().strip() or None,
+                sprite_sheet_index=max(0, int(fields["sheet_index"].get() or 0)),
+                sprite_sheet_columns=max(1, int(fields["sheet_columns"].get() or 1)),
             )
             registry.save_item(data)
         except Exception as exc:
