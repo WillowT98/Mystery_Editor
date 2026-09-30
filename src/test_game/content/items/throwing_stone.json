@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "id": "throwing_stone",
+  "name": "Throwing Stone",
+  "description": "A smooth, palm-sized stone. Can be thrown in a straight line for 10 physical damage.",
+  "heal": 0,
+  "throwable_damage": 10,
+  "damage_type": "physical",
+  "droppable": true,
+  "key_item": false,
+  "projectile_key": "stone",
+  "projectile_arc_px": 24,
+  "sprite_key": "throwing_stone"
+}
