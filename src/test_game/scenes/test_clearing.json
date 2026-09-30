@@ -2171,19 +2171,20 @@
     },
     {
       "id": "dungeon_gate",
-      "asset": "dungeon_gate",
+      "asset": "dungeon_entrance",
       "x": 1680,
       "y": 608,
-      "action": "enter_test_dungeon",
-      "label": "Dungeon entrance"
+      "label": "Dungeon entrance",
+      "target_dungeon": "test_dungeon",
+      "sprite_override": "dungeon_gate"
     },
     {
       "id": "waystone",
       "asset": "waystone",
       "x": 1088,
       "y": 640,
-      "action": "inspect_waystone",
-      "label": "Waystone"
+      "label": "Waystone",
+      "target_story": "waystone_inspect"
     },
     {
       "id": "scene_door",
