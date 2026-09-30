@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "id": "lost_lantern",
+  "name": "Lost Lantern",
+  "stats": {
+    "max_hp": 15,
+    "attack": 3,
+    "defense": 1
+  },
+  "sprite_key": "lost_lantern",
+  "attacks": [
+    "lost_lantern_glow_shot",
+    "lost_lantern_flare"
+  ],
+  "resistances": {
+    "physical": 0.75,
+    "lightning": 1.2
+  }
+}
