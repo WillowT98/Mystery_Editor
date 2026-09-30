@@ -1,8 +1,8 @@
 {
   "format": 1,
   "id": "test_dungeon_success",
-  "name": "Test Dungeon — Success",
-  "scene": "test_clearing",
+  "name": "Ancient Ruins — Success",
+  "scene": "hidden_valley",
   "entries": {
     "default": "mark_complete"
   },
@@ -21,22 +21,60 @@
           "value": false
         }
       ],
+      "next": "reward"
+    },
+    "reward": {
+      "type": "action",
+      "action": "give_item",
+      "params": {
+        "item": "waystone_shard",
+        "quantity": 1,
+        "location": "bag"
+      },
+      "wait": false,
       "next": "dialogue"
     },
     "dialogue": {
       "type": "dialogue",
       "lines": [
         {
-          "id": "line_001",
-          "pawn": "fox",
-          "text": "Back in one piece.",
-          "expression": "neutral"
+          "id": "ds001",
+          "speaker": "Fox",
+          "text": "The meadow air hits differently after three floors of old stone and things with teeth.",
+          "voice_cue": "dialogue.tone_2"
         },
         {
-          "id": "line_002",
+          "id": "ds002",
           "pawn": "mara",
-          "text": "And with a functioning dungeon engine, apparently.",
-          "expression": "neutral"
+          "text": "You did well."
+        },
+        {
+          "id": "ds003",
+          "speaker": "Fox",
+          "text": "\"We did well. I mostly discovered several exciting new ways to panic while moving forward.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "ds004",
+          "pawn": "mara",
+          "text": "Moving forward while frightened is generally what courage looks like from the inside."
+        },
+        {
+          "id": "ds005",
+          "speaker": "Fox",
+          "text": "I turn the warm shard over in my palm. Through the bond I can feel Mara's exhaustion under the satisfaction.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "ds006",
+          "speaker": "Fox",
+          "text": "\"Home?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "ds007",
+          "pawn": "mara",
+          "text": "Home."
         }
       ],
       "next": "end"
@@ -46,19 +84,6 @@
     }
   },
   "editor": {
-    "positions": {
-      "mark_complete": [
-        120,
-        180
-      ],
-      "dialogue": [
-        430,
-        180
-      ],
-      "end": [
-        800,
-        180
-      ]
-    }
+    "positions": {}
   }
 }
