@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "id": "cottage_shelf",
+  "name": "Cottage Shelf",
+  "category": "scenery",
+  "sprite_key": "cottage_shelf",
+  "size": [
+    156,
+    160
+  ],
+  "anchor": "bottom_center",
+  "collider_enabled": true,
+  "collision": [
+    -65,
+    -25,
+    130,
+    28
+  ],
+  "collision_radius": 0,
+  "draw_behind_actors": false,
+  "runtime_visible": true
+}

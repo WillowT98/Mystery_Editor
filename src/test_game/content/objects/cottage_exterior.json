@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "id": "cottage_exterior",
+  "name": "Hearthlight Cottage",
+  "category": "scenery",
+  "sprite_key": "cottage_exterior",
+  "size": [
+    280,
+    220
+  ],
+  "anchor": "bottom_center",
+  "collider_enabled": false,
+  "collision": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "collision_radius": 0,
+  "draw_behind_actors": true,
+  "runtime_visible": true
+}

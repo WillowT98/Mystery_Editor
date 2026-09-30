@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "id": "village_well",
+  "name": "Village Well",
+  "category": "interactable",
+  "sprite_key": "village_well",
+  "size": [
+    144,
+    116
+  ],
+  "anchor": "bottom_center",
+  "collider_enabled": true,
+  "collision": [
+    -55,
+    -30,
+    110,
+    30
+  ],
+  "collision_radius": 0,
+  "draw_behind_actors": false,
+  "runtime_visible": true,
+  "label": "Old village well"
+}
