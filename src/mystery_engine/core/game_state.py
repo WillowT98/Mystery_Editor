@@ -83,6 +83,7 @@ class SaveManager:
             "game_version": state.game_version,
             "story": {"flags": state.story.flags, "variables": state.story.variables},
             "wallet": {"carried": state.wallet.carried, "stored": state.wallet.stored},
+            "inventory_capacities": {"bag": state.bag.capacity, "storage": state.storage.capacity},
             "bag": [{"item_id": s.item.id, "quantity": s.quantity} for s in state.bag.stacks],
             "storage": [{"item_id": s.item.id, "quantity": s.quantity} for s in state.storage.stacks],
             "characters": [
