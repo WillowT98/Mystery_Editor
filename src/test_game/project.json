@@ -13,7 +13,8 @@
     "stories": "stories",
     "items": "content/items",
     "characters": "content/characters",
-    "objects": "content/objects"
+    "objects": "content/objects",
+    "terrain": "content/terrain"
   },
   "damage_types": [
     "physical",
