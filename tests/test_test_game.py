@@ -158,6 +158,7 @@ def test_playable_witch_story_content_is_wired():
     for story_id in expected_stories:
         graph = StoryGraph.load(registry.story_paths()[story_id])
         assert graph.entries
+        assert graph.validation_issues() == []
 
     village = load_exploration_scene(registry.scene_paths()["village_well"])
     valley = load_exploration_scene(registry.scene_paths()["hidden_valley"])
