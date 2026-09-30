@@ -28,6 +28,9 @@ class SceneActorState:
     facing: str = "S"
     enabled: bool = True
     sprite_key: str | None = None
+    animation_name: str | None = None
+    animation_override: bool = False
+    animation_loop: bool | None = None
 
 
 @dataclass
@@ -184,6 +187,12 @@ class SaveManager:
         }
         if actor.sprite_key is not None:
             data["sprite_key"] = actor.sprite_key
+        if actor.animation_name is not None:
+            data["animation_name"] = actor.animation_name
+        if actor.animation_override:
+            data["animation_override"] = True
+        if actor.animation_loop is not None:
+            data["animation_loop"] = actor.animation_loop
         return data
 
     @staticmethod
