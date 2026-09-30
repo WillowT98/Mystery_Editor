@@ -621,6 +621,7 @@ class PawnDefinitionData:
     portrait_key: str | None = None
     radius: float = 28.0
     color_key: str = "neutral"
+    animations: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "PawnDefinitionData":
@@ -631,6 +632,11 @@ class PawnDefinitionData:
             portrait_key=(str(data["portrait_key"]) if data.get("portrait_key") else None),
             radius=max(1.0, float(data.get("radius", 28.0))),
             color_key=str(data.get("color_key", "neutral")),
+            animations={
+                str(name): dict(payload)
+                for name, payload in dict(data.get("animations") or {}).items()
+                if isinstance(payload, dict)
+            },
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -642,6 +648,8 @@ class PawnDefinitionData:
             "radius": self.radius,
             "color_key": self.color_key,
         }
+        if self.animations:
+            data["animations"] = self.animations
         if self.portrait_key:
             data["portrait_key"] = self.portrait_key
         return data
@@ -655,6 +663,7 @@ class PawnDefinitionData:
             actor_name=self.name,
             color_key=self.color_key,
             radius=self.radius,
+            animations=self.animations,
         )
 
 
