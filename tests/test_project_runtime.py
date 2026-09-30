@@ -9,6 +9,7 @@ from mystery_engine.project import (
     ProjectRegistry,
     TerrainDefinitionData,
 )
+from mystery_engine.core import DungeonResult
 from mystery_engine.project_runtime import ProjectGameDefinition, SYSTEM_WORLD_ASSETS
 from mystery_engine.story import ExplorationSceneData, save_exploration_scene
 
@@ -71,3 +72,40 @@ def test_system_assets_include_editor_primitives():
     assert SYSTEM_WORLD_ASSETS.get("scene_door").category == "portal"
     assert SYSTEM_WORLD_ASSETS.get("dungeon_entrance").category == "dungeon"
     assert SYSTEM_WORLD_ASSETS.get("story_marker").category == "marker"
+
+
+
+def test_generic_dungeon_result_fallback_uses_enum_name(tmp_path):
+    registry = ProjectRegistry.create_project(tmp_path / "game", "Standalone Game")
+    definition = ProjectGameDefinition(registry.game_root)
+    messages: list[str] = []
+    game = SimpleNamespace(
+        add_message=messages.append,
+        run_story=lambda *_: None,
+    )
+
+    definition.on_dungeon_result(game, DungeonResult.SUCCESS)
+    definition.on_dungeon_result(game, DungeonResult.DEFEAT)
+    definition.on_dungeon_result(game, DungeonResult.ABANDONED)
+
+    assert messages == ["Success", "Defeat", "Abandoned"]
+
+
+def test_generic_dungeon_result_prefers_configured_story(tmp_path):
+    registry = ProjectRegistry.create_project(tmp_path / "game", "Standalone Game")
+    registry.save_game_settings(GameSettingsData(
+        title="Standalone Game",
+        dungeon_result_stories={"success": "victory_scene"},
+    ))
+    definition = ProjectGameDefinition(registry.game_root)
+    stories: list[str] = []
+    messages: list[str] = []
+    game = SimpleNamespace(
+        add_message=messages.append,
+        run_story=stories.append,
+    )
+
+    definition.on_dungeon_result(game, DungeonResult.SUCCESS)
+
+    assert stories == ["victory_scene"]
+    assert messages == []
