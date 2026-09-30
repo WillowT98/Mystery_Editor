@@ -6,6 +6,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import pygame
 
+from mystery_engine.story import RectObstacle
 from mystery_engine.project import (
     AttackDefinitionData,
     EnemyDefinitionData,
@@ -14,6 +15,7 @@ from mystery_engine.project import (
     PawnDefinitionData,
     PlayableCharacterDefinitionData,
     ProjectRegistry,
+    WorldObjectDefinitionData,
     slugify,
 )
 
@@ -567,6 +569,159 @@ def edit_game_settings_dialog(registry: ProjectRegistry) -> bool:
     return bool(saved["ok"])
 
 
+def edit_world_object_dialog(registry: ProjectRegistry, object_id: str | None = None) -> str | None:
+    current = registry.objects.get(object_id) if object_id else None
+    root = _root("World Object Editor", "820x820")
+    result: dict[str, str | None] = {"id": None}
+    outer = tk.Frame(root)
+    outer.pack(fill="both", expand=True, padx=16, pady=12)
+    fields: dict[str, tk.StringVar] = {}
+
+    def entry_row(label: str, key: str, value: object = "") -> None:
+        row = tk.Frame(outer); row.pack(fill="x", pady=3)
+        tk.Label(row, text=label, width=22, anchor="w").pack(side="left")
+        var = tk.StringVar(value=str(value)); fields[key] = var
+        tk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+
+    entry_row("ID", "id", current.id if current else "")
+    entry_row("Display name", "name", current.name if current else "")
+
+    cat_row = tk.Frame(outer); cat_row.pack(fill="x", pady=3)
+    tk.Label(cat_row, text="Category", width=22, anchor="w").pack(side="left")
+    category_var = tk.StringVar(value=current.category if current else "scenery")
+    ttk.Combobox(cat_row, textvariable=category_var, values=["scenery", "interactable"], state="readonly").pack(side="left", fill="x", expand=True)
+
+    sprite_row = tk.Frame(outer); sprite_row.pack(fill="x", pady=3)
+    tk.Label(sprite_row, text="Sprite", width=22, anchor="w").pack(side="left")
+    sprite_var = tk.StringVar(value=current.sprite_key or "" if current else "")
+    sprite_combo = ttk.Combobox(
+        sprite_row, textvariable=sprite_var,
+        values=[""] + registry.asset_keys("objects", {".png"}), state="normal",
+    )
+    sprite_combo.pack(side="left", fill="x", expand=True)
+
+    def import_sprite() -> None:
+        chosen = filedialog.askopenfilename(
+            parent=root, title="Import object sprite",
+            filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+        )
+        if not chosen:
+            return
+        try:
+            key, destination = registry.import_asset(Path(chosen), "objects", allowed_suffixes={".png"})
+            # Use actual image dimensions as a useful authoring default when pygame can read it.
+            try:
+                surf = pygame.image.load(str(destination))
+                fields["width"].set(str(surf.get_width()))
+                fields["height"].set(str(surf.get_height()))
+            except pygame.error:
+                pass
+        except Exception as exc:
+            messagebox.showerror("Could not import object sprite", str(exc), parent=root)
+            return
+        sprite_var.set(key)
+        sprite_combo["values"] = [""] + registry.asset_keys("objects", {".png"})
+
+    tk.Button(sprite_row, text="Import…", command=import_sprite).pack(side="left", padx=(6, 0))
+
+    entry_row("Display width", "width", current.width if current else 64)
+    entry_row("Display height", "height", current.height if current else 64)
+
+    anchor_row = tk.Frame(outer); anchor_row.pack(fill="x", pady=3)
+    tk.Label(anchor_row, text="Anchor", width=22, anchor="w").pack(side="left")
+    anchor_var = tk.StringVar(value=current.anchor if current else "bottom_center")
+    ttk.Combobox(anchor_row, textvariable=anchor_var, values=["bottom_center", "center"], state="readonly").pack(side="left", fill="x", expand=True)
+
+    draw_behind = tk.BooleanVar(value=current.draw_behind_actors if current else False)
+    runtime_visible = tk.BooleanVar(value=current.runtime_visible if current else True)
+    check_row = tk.Frame(outer); check_row.pack(fill="x", pady=5)
+    tk.Checkbutton(check_row, text="Draw behind actors", variable=draw_behind).pack(side="left")
+    tk.Checkbutton(check_row, text="Visible at runtime", variable=runtime_visible).pack(side="left", padx=(18, 0))
+
+    tk.Label(outer, text="Default collider", anchor="w", font=("TkDefaultFont", 10, "bold")).pack(fill="x", pady=(12, 4))
+    collider_enabled = tk.BooleanVar(value=current.collider_enabled if current else False)
+    tk.Checkbutton(
+        outer,
+        text="Collider enabled by default (individual placed objects can toggle this on/off)",
+        variable=collider_enabled,
+    ).pack(anchor="w")
+
+    rect = current.collision if current and isinstance(current.collision, RectObstacle) else None
+    collider_frame = tk.Frame(outer); collider_frame.pack(fill="x", pady=4)
+    collider_fields: dict[str, tk.StringVar] = {}
+    defaults = {
+        "x": rect.x if rect else -20,
+        "y": rect.y if rect else -20,
+        "w": rect.w if rect else 40,
+        "h": rect.h if rect else 20,
+    }
+    for key, label in (("x", "X"), ("y", "Y"), ("w", "Width"), ("h", "Height")):
+        tk.Label(collider_frame, text=label).pack(side="left", padx=(0, 4))
+        var = tk.StringVar(value=str(defaults[key])); collider_fields[key] = var
+        tk.Entry(collider_frame, textvariable=var, width=9).pack(side="left", padx=(0, 12))
+
+    entry_row("Collision radius", "radius", current.collision_radius if current else 0)
+    tk.Label(
+        outer,
+        text="The scene editor can visually resize the rectangle or convert individual placements to polygon colliders.",
+        justify="left", wraplength=760, fg="#555555",
+    ).pack(fill="x", pady=(0, 8))
+
+    tk.Label(outer, text="Interaction defaults", anchor="w", font=("TkDefaultFont", 10, "bold")).pack(fill="x", pady=(8, 4))
+    entry_row("Interaction label", "label", current.label or "" if current else "")
+    entry_row("Legacy action ID", "action", current.action_id or "" if current else "")
+    entry_row("Interact SFX cue", "sfx", current.sound_cues.get("interact", "") if current else "")
+    tk.Label(
+        outer,
+        text="For no-code interactions, place the object in a room and assign a Story to that instance. Action ID remains for legacy/custom code hooks.",
+        justify="left", wraplength=760, fg="#555555",
+    ).pack(fill="x", pady=(2, 8))
+
+    def save() -> None:
+        try:
+            ident = fields["id"].get().strip() or slugify(fields["name"].get(), "object")
+            if current is not None and ident != current.id:
+                raise ValueError("Object IDs are stable after creation.")
+            collision = None
+            if collider_enabled.get():
+                collision = RectObstacle(
+                    float(collider_fields["x"].get()),
+                    float(collider_fields["y"].get()),
+                    max(1.0, float(collider_fields["w"].get())),
+                    max(1.0, float(collider_fields["h"].get())),
+                )
+            sound = fields["sfx"].get().strip()
+            data = WorldObjectDefinitionData(
+                id=ident,
+                name=fields["name"].get().strip() or ident,
+                category=category_var.get(),
+                sprite_key=sprite_var.get().strip() or None,
+                width=max(1, int(fields["width"].get())),
+                height=max(1, int(fields["height"].get())),
+                anchor=anchor_var.get(),
+                collider_enabled=bool(collider_enabled.get()),
+                collision=collision,
+                collision_radius=max(0.0, float(fields["radius"].get() or 0)),
+                draw_behind_actors=bool(draw_behind.get()),
+                runtime_visible=bool(runtime_visible.get()),
+                label=fields["label"].get().strip() or None,
+                action_id=fields["action"].get().strip() or None,
+                sound_cues=({"interact": sound} if sound else {}),
+            )
+            registry.save_object(data)
+        except Exception as exc:
+            messagebox.showerror("Could not save object", str(exc), parent=root)
+            return
+        result["id"] = data.id
+        root.destroy()
+
+    buttons = tk.Frame(outer); buttons.pack(fill="x", pady=(14, 0))
+    tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8, 0))
+    tk.Button(buttons, text="Save Object", command=save).pack(side="right")
+    root.mainloop()
+    return result["id"]
+
+
 def edit_pawn_dialog(registry: ProjectRegistry, pawn_id: str | None = None) -> str | None:
     current = registry.pawns.get(pawn_id) if pawn_id else None
     root = _root("Pawn Editor", "760x520")
@@ -968,7 +1123,7 @@ class ProjectEditor:
     the same authoring process and return here when closed.
     """
 
-    SECTIONS = ("Game", "Scenes", "Stories", "Pawns", "Characters", "Dungeons", "Enemies", "Attacks", "Items", "Assets")
+    SECTIONS = ("Game", "Scenes", "Stories", "Pawns", "Characters", "Objects", "Dungeons", "Enemies", "Attacks", "Items", "Assets")
 
     def __init__(self, registry: ProjectRegistry, world_assets, project_root: Path, item_labels: dict[str, str] | None = None) -> None:
         self.registry = registry
@@ -995,6 +1150,8 @@ class ProjectEditor:
             labels = self.registry.pawn_labels
         elif self.section == "Characters":
             labels = self.registry.character_labels
+        elif self.section == "Objects":
+            labels = self.registry.object_labels
         elif self.section == "Dungeons":
             labels = self.registry.dungeon_labels()
         elif self.section == "Enemies":
@@ -1066,6 +1223,9 @@ class ProjectEditor:
         elif self.section == "Characters":
             created = edit_character_dialog(self.registry)
             self.status = f"Created {created}" if created else "Cancelled"
+        elif self.section == "Objects":
+            created = edit_world_object_dialog(self.registry)
+            self.status = f"Created {created}" if created else "Cancelled"
         elif self.section == "Items":
             created = edit_item_dialog(self.registry)
             self.status = f"Created {created}" if created else "Cancelled"
@@ -1133,6 +1293,8 @@ class ProjectEditor:
             edit_attack_dialog(self.registry, item_id)
         elif self.section == "Characters":
             edit_character_dialog(self.registry, item_id)
+        elif self.section == "Objects":
+            edit_world_object_dialog(self.registry, item_id)
         elif self.section == "Items":
             edit_item_dialog(self.registry, item_id)
         elif self.section == "Dungeons":
