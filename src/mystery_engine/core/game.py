@@ -157,6 +157,18 @@ class MysteryGame:
             if self.exploration is not None and self.exploration.camera_shake_time > 0:
                 self.exploration.camera_shake_time = max(0.0, self.exploration.camera_shake_time - dt)
             self.story_runner.update(dt)
+            if self.exploration is not None:
+                sprinting_ids = set()
+                if (
+                    self.mode is GameMode.EXPLORATION
+                    and not self.story_runner.active
+                    and not self.dialogue.active
+                    and not self.menu.active
+                    and frame.sprint
+                    and frame.move.length() > 0
+                ):
+                    sprinting_ids.add(self.state.leader.id)
+                self.exploration.update_actor_animations(dt, sprinting_ids=sprinting_ids)
             self._update_projectiles(dt)
 
             if self.dialogue.active:
