@@ -1,0 +1,82 @@
+{
+  "format": 1,
+  "id": "valley_arrival",
+  "name": "The Hidden Valley",
+  "scene": "hidden_valley",
+  "entries": {
+    "default": "arrival"
+  },
+  "nodes": {
+    "arrival": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "v001",
+          "speaker": "Fox",
+          "text": "The road ended where no road should have ended. One moment there had been trees; the next there was a valley cupped between impossible hills, blue lights drifting above the grass like patient stars.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v002",
+          "pawn": "mara",
+          "text": "Home."
+        },
+        {
+          "id": "v003",
+          "speaker": "Fox",
+          "text": "\"You live here?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v004",
+          "pawn": "mara",
+          "text": "Usually. The House has opinions about the distinction."
+        },
+        {
+          "id": "v005",
+          "speaker": "Fox",
+          "text": "I could feel where she was without looking. Not direction exactly. More like the certainty of knowing where my own hand was.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v006",
+          "speaker": "Fox",
+          "text": "\"That's the bond?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v007",
+          "pawn": "mara",
+          "text": "Part of it. The rest can wait until you aren't swaying."
+        }
+      ],
+      "next": "exhausted"
+    },
+    "exhausted": {
+      "type": "effect",
+      "effects": [
+        {
+          "type": "set_flag",
+          "name": "arrived_at_cottage",
+          "value": true
+        }
+      ],
+      "next": "message"
+    },
+    "message": {
+      "type": "action",
+      "action": "message",
+      "params": {
+        "text": "Explore the valley, then enter the cottage to rest."
+      },
+      "wait": false,
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {}
+  }
+}
