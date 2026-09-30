@@ -210,6 +210,9 @@ class ExplorationMap:
     music_volume: float = 1.0
     ambience_cue: str | None = None
     ambience_volume: float = 1.0
+    terrain_styles: dict[str, dict[str, object]] = field(default_factory=dict)
+    background_key: str | None = None
+    background_mode: str = "stretch"
     # Transient cinematic camera state. These are runtime-only and are not
     # serialized into exploration scene JSON.
     camera_override: Vec2 | None = None
