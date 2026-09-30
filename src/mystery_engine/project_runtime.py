@@ -256,9 +256,12 @@ class ProjectGameDefinition:
                     game.run_story(placed.target_story)
             return transition
 
+        def unavailable_storage(kind: str):
+            return lambda: game.add_message(f"{kind} storage is unavailable in this runtime.")
+
         system_interactions = {
-            "storage.items": game.open_item_storage,
-            "storage.money": game.open_money_storage,
+            "storage.items": getattr(game, "open_item_storage", unavailable_storage("Item")),
+            "storage.money": getattr(game, "open_money_storage", unavailable_storage("Money")),
         }
         world = build_exploration_map(
             scene,
