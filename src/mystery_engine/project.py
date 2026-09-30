@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import json
 from pathlib import Path
 import re
@@ -358,7 +358,18 @@ class ProjectRegistry:
     def world_asset_catalog(self, base: WorldAssetCatalog) -> WorldAssetCatalog:
         merged = dict(base.assets)
         for pawn in self.pawns.values():
-            merged[pawn.id] = pawn.to_world_asset()
+            existing = merged.get(pawn.id)
+            if existing is not None and existing.category == "actor":
+                merged[pawn.id] = replace(
+                    existing,
+                    sprite_key=pawn.sprite_key,
+                    display_name=pawn.name,
+                    actor_name=pawn.name,
+                    color_key=pawn.color_key,
+                    radius=pawn.radius,
+                )
+            else:
+                merged[pawn.id] = pawn.to_world_asset()
         return WorldAssetCatalog(assets=merged)
 
     def save_attack(self, data: AttackDefinitionData) -> Path:
