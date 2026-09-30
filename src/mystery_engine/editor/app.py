@@ -11,7 +11,7 @@ from typing import Iterable
 import pygame
 
 from mystery_engine.presentation.sfx import SoundCueCatalog
-from mystery_engine.core.autotile import autotile_asset, elevation_cliff_assets, oriented_neighbor_mask
+from mystery_engine.core.autotile import autotile_asset, elevation_cliff_assets, elevation_higher_mask, oriented_neighbor_mask
 from mystery_engine.story import (
     ExplorationSceneData,
     ObstacleShape,
@@ -1352,6 +1352,12 @@ class ExplorationSceneEditor:
                 if self.scene.terrain[ty][tx] == "void":
                     continue
                 sx, sy = self.world_to_screen(tx * tile, ty * tile)
+                kind = self.scene.terrain[ty][tx]
+                mask = elevation_higher_mask(proxy, tx, ty)
+                custom = self._scaled_surface(f"terrain/{kind}/cliff_{mask:03d}.png", (draw_size, draw_size)) if mask else None
+                if custom:
+                    self.screen.blit(custom, (sx, sy))
+                    continue
                 for key in elevation_cliff_assets(proxy, tx, ty):
                     surf = self._scaled_surface(key, (draw_size, draw_size))
                     if surf:
