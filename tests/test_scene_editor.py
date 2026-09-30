@@ -12,6 +12,7 @@ from mystery_engine.story import (
     PolygonObstacle,
     RectObstacle,
     SceneObjectData,
+    SceneTriggerData,
     build_exploration_map,
     load_exploration_scene,
     save_exploration_scene,
@@ -247,6 +248,43 @@ class SceneDataTests(unittest.TestCase):
         world = build_exploration_map(scene, WORLD_ASSETS)
         self.assertEqual(world.scenery[0].collision, RectObstacle(-10, -12, 20, 12))
 
+
+
+    def test_scene_trigger_roundtrip(self):
+        scene = ExplorationSceneData.blank("triggers", 8, 6)
+        scene.triggers.extend([
+            SceneTriggerData(
+                id="arrival",
+                kind="on_scene_enter",
+                story="intro",
+                entry="alternate",
+                once=True,
+                condition={"kind": "flag", "name": "ready", "op": "==", "value": True},
+            ),
+            SceneTriggerData(
+                id="threshold",
+                kind="on_region_enter",
+                story="threshold_story",
+                once=False,
+                x=128,
+                y=192,
+                w=160,
+                h=96,
+            ),
+        ])
+        payload = scene.to_dict()
+        restored = ExplorationSceneData.from_dict(payload)
+
+        self.assertEqual(len(restored.triggers), 2)
+        self.assertEqual(restored.triggers[0].kind, "on_scene_enter")
+        self.assertEqual(restored.triggers[0].entry, "alternate")
+        self.assertEqual(restored.triggers[0].condition["name"], "ready")
+        self.assertEqual(restored.triggers[1].kind, "on_region_enter")
+        self.assertFalse(restored.triggers[1].once)
+        self.assertEqual(
+            (restored.triggers[1].x, restored.triggers[1].y, restored.triggers[1].w, restored.triggers[1].h),
+            (128.0, 192.0, 160.0, 96.0),
+        )
 
 
 if __name__ == "__main__":
