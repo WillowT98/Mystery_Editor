@@ -251,13 +251,14 @@ class ProjectGameDefinition:
                 if party and not any(member.leader for member in party):
                     party[0].leader = True
 
-            bag = Inventory(capacity=settings.bag_capacity)
+            capacities = dict(payload.get("inventory_capacities") or {})
+            bag = Inventory(capacity=max(1, int(capacities.get("bag", settings.bag_capacity))))
             for row in payload.get("bag", []):
                 item_id = str(row.get("item_id", ""))
                 if item_id in self.project_registry.items:
                     bag.add(self.project_registry.item(item_id), max(0, int(row.get("quantity", 0))))
 
-            storage = Inventory(capacity=settings.storage_capacity)
+            storage = Inventory(capacity=max(1, int(capacities.get("storage", settings.storage_capacity))))
             for row in payload.get("storage", []):
                 item_id = str(row.get("item_id", ""))
                 if item_id in self.project_registry.items:
