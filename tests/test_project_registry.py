@@ -14,7 +14,7 @@ from mystery_engine.project import (
     ProjectRegistry,
     WorldObjectDefinitionData,
 )
-from mystery_engine.story import SceneObjectData, WorldAssetCatalog
+from mystery_engine.story import RectObstacle, SceneObjectData, WorldAssetCatalog
 
 
 def _registry(tmp_path: Path) -> ProjectRegistry:
