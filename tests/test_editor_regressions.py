@@ -73,3 +73,33 @@ def test_storage_sprite_import_is_exposed_in_scene_editor():
     assert "Import storage sprite" in source
     assert "Change storage sprite" in source
     assert "_change_selected_storage_sprite" in source
+
+
+def test_story_editor_structured_action_registry_covers_common_choreography():
+    actions = StoryGraphEditor.STRUCTURED_ACTIONS
+    expected = {
+        "move_actor", "face_actor", "teleport_actor", "set_actor_state", "set_object_state",
+        "camera_pan", "camera_follow", "camera_reset", "camera_shake",
+        "screen_fade", "screen_flash", "banner", "play_music", "stop_music",
+        "play_sfx", "play_ambience", "stop_ambience", "change_scene",
+        "enter_dungeon", "message",
+    }
+    assert expected <= set(actions)
+
+
+def test_story_editor_structured_value_coercion():
+    coerce = StoryGraphEditor._coerce_structured_value
+    assert coerce("2.5", "float") == 2.5
+    assert coerce("3", "int") == 3
+    assert coerce("", "optional_float") is None
+    assert coerce("true", "bool") is True
+    assert coerce("false", "value") is False
+    assert coerce('{"a": 1}', "value") == {"a": 1}
+    assert coerce("plain text", "value") == "plain text"
+
+
+def test_story_editor_keeps_json_escape_hatch_for_structured_nodes():
+    source = (__import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "mystery_engine" / "editor" / "story_graph.py").read_text(encoding="utf-8")
+    assert "Edit Action" in source
+    assert "Edit Effects" in source
+    assert "Advanced JSON…" in source

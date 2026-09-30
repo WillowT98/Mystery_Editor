@@ -31,7 +31,11 @@ Core node types:
 - **Call** — run another graph/entry and return.
 - **End / Return** — finish the graph with an optional result.
 
-Select a node and use **Edit JSON** for its detailed payload. The JSON inspector is intentionally flexible while the node vocabulary is still evolving.
+For ordinary dialogue, choreography actions, and story-state effects, selecting a node now opens a structured editor instead of raw JSON. The structured action editor provides labeled controls for actor/target selection, movement, camera, screen, audio, scene-transition, dungeon-entry, and message parameters, plus the node's wait behavior and next edge. Effect nodes expose editable effect rows for flags and variables.
+
+Known project context is used where possible: actor/target IDs come from the bound room, scene destinations come from the project scene registry, music comes from project assets, and sound-cue fields list registered SFX cues.
+
+**Advanced JSON…** remains available for structured nodes, and unknown/custom action types continue to use the JSON editor directly. This keeps the editor extensible without making routine cutscene authoring depend on JSON.
 
 ## Story state and conditions
 
@@ -82,6 +86,22 @@ Engine-native action IDs currently include:
 Movement is collision-aware and can fall back to teleporting after a timeout so a cutscene cannot be permanently blocked by an awkward actor position.
 
 Action nodes have a `wait` field. When false, the action continues in the background while the graph advances. Background actions continue updating even after the root graph reaches an End node.
+
+
+### Structured choreography editing
+
+The structured action editor currently covers:
+
+- actor movement, facing, teleportation/placement, and actor visibility/sprite state;
+- enabling/disabling scene interactables;
+- camera pan/to, follow, reset, and shake;
+- screen fade/flash and banners/title cards;
+- play/stop music, SFX, and ambience;
+- scene changes and arrival markers;
+- dungeon entry;
+- ordinary runtime messages.
+
+The action selector can also switch a node between supported built-in actions without replacing the node or rewiring its graph connections. Quick-add templates in the sidebar include the common variants (such as Object state, Camera follow/reset, Stop music, Stop ambience, and Message).
 
 ## Parallel choreography
 
