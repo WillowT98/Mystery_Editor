@@ -21,6 +21,10 @@ def test_generic_project_runtime_builds_state_and_scene(tmp_path):
         name="Hero",
         sprite_key="hero",
         portrait_key=None,
+        animations={
+            "idle": {"columns": 1, "rows": 1, "frames": [0], "fps": 4.0, "loop": True},
+            "sleep": {"columns": 2, "rows": 1, "frames": [0, 1], "fps": 2.0, "loop": True},
+        },
     ))
     registry.save_character(PlayableCharacterDefinitionData(
         id="hero",
@@ -215,12 +219,20 @@ def test_save_roundtrip_restores_world_location_and_scene_state(tmp_path):
         name="Hero",
         sprite_key="hero",
         portrait_key=None,
+        animations={
+            "idle": {"columns": 1, "rows": 1, "frames": [0], "fps": 4.0, "loop": True},
+            "sleep": {"columns": 2, "rows": 1, "frames": [0, 1], "fps": 2.0, "loop": True},
+        },
     ))
     registry.save_pawn(PawnDefinitionData(
         id="npc",
         name="NPC",
         sprite_key="npc",
         portrait_key=None,
+        animations={
+            "idle": {"columns": 1, "rows": 1, "frames": [0], "fps": 4.0, "loop": True},
+            "sleep": {"columns": 2, "rows": 1, "frames": [0, 1], "fps": 2.0, "loop": True},
+        },
     ))
     registry.save_character(PlayableCharacterDefinitionData(
         id="hero",
@@ -251,6 +263,7 @@ def test_save_roundtrip_restores_world_location_and_scene_state(tmp_path):
     hero.position.x = 333.5
     hero.position.y = 444.25
     hero.facing = Direction.E
+    assert hero.play_animation("sleep", loop=True, return_to_idle=False)
 
     npc = game.exploration.actor("npc_instance")
     npc.position.x = 512
@@ -258,6 +271,7 @@ def test_save_roundtrip_restores_world_location_and_scene_state(tmp_path):
     npc.facing = Direction.W
     npc.enabled = False
     npc.sprite_key = "npc_changed"
+    assert npc.play_animation("sleep", loop=True, return_to_idle=False)
 
     storage = next(item for item in game.exploration.interactables if item.id == "storage_box")
     storage.enabled = False
@@ -272,6 +286,8 @@ def test_save_roundtrip_restores_world_location_and_scene_state(tmp_path):
     assert loaded_state.storage.capacity == 13
     assert loaded_state.world.party_positions["hero"].x == 333.5
     assert loaded_state.world.party_positions["hero"].facing == "E"
+    assert loaded_state.world.party_positions["hero"].animation_name == "sleep"
+    assert loaded_state.world.party_positions["hero"].animation_override is True
 
     fake_game = SimpleNamespace(
         state=loaded_state,
@@ -289,10 +305,14 @@ def test_save_roundtrip_restores_world_location_and_scene_state(tmp_path):
 
     assert (restored_hero.position.x, restored_hero.position.y) == (333.5, 444.25)
     assert restored_hero.facing is Direction.E
+    assert restored_hero.animation_name == "sleep"
+    assert restored_hero.animation_override is True
     assert (restored_npc.position.x, restored_npc.position.y) == (512, 288)
     assert restored_npc.facing is Direction.W
     assert restored_npc.enabled is False
     assert restored_npc.sprite_key == "npc_changed"
+    assert restored_npc.animation_name == "sleep"
+    assert restored_npc.animation_override is True
     assert restored_storage.enabled is False
 
 
@@ -863,3 +883,26 @@ def test_story_play_animation_waits_for_one_shot_completion(tmp_path):
     actor.update_animation(0.6)
     assert handle.update(0.0) is True
     assert actor.animation_name == "idle"
+
+
+def test_gameplay_story_conditions_survive_save_load_runtime_rebuild(tmp_path):
+    from mystery_engine.story import evaluate_condition
+
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    game.exploration = game.definition.create_exploration(game)
+    game._play_event_sfx = lambda *_args, **_kwargs: None
+    game._sync_exploration_music = lambda: None
+    game.story_actions("give_item", {"item": "field_salve", "quantity": 1, "location": "bag"})
+
+    save_path = tmp_path / "condition-save.json"
+    assert game.save_snapshot(save_path) == save_path
+    assert game.load_snapshot(save_path) is True
+
+    resolver = game.story_runner.context.evaluate_gameplay_condition
+    assert callable(resolver)
+    assert evaluate_condition(
+        {"kind": "has_item", "item": "field_salve", "location": "bag", "value": 1},
+        game.state.story,
+        resolver,
+    ) is True

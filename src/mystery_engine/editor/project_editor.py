@@ -31,6 +31,19 @@ def _root(title: str, geometry: str = "720x760") -> tk.Tk:
     return root
 
 
+def pawn_animation_working_copy(pawn: PawnDefinitionData | None) -> dict[str, dict]:
+    """Return an editable deep-enough copy of a pawn's clip mappings.
+
+    Keeping this outside the Tk dialog makes the editor's model preparation
+    directly testable and prevents animation-only state from leaking into
+    unrelated resource editors.
+    """
+    return {
+        str(name): dict(payload)
+        for name, payload in (pawn.animations.items() if pawn is not None else [])
+    }
+
+
 def choose_catalog_id(title: str, labels: dict[str, str], initial: str | None = None) -> str | None:
     if not labels:
         return None
@@ -179,10 +192,6 @@ def edit_enemy_dialog(registry: ProjectRegistry, enemy_id: str | None = None) ->
     outer = tk.Frame(root)
     outer.pack(fill="both", expand=True, padx=16, pady=12)
     fields: dict[str, tk.StringVar] = {}
-    working_animations = {
-        str(name): dict(payload)
-        for name, payload in (current.animations.items() if current else [])
-    }
 
     def entry_row(label: str, key: str, value: object = "") -> None:
         r = tk.Frame(outer)
@@ -906,6 +915,7 @@ def edit_pawn_dialog(registry: ProjectRegistry, pawn_id: str | None = None) -> s
     outer = tk.Frame(root)
     outer.pack(fill="both", expand=True, padx=16, pady=12)
     fields: dict[str, tk.StringVar] = {}
+    working_animations = pawn_animation_working_copy(current)
 
     def entry_row(label: str, key: str, value: object = "") -> None:
         row = tk.Frame(outer)

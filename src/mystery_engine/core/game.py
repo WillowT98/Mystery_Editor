@@ -789,6 +789,7 @@ class MysteryGame:
             run_action=self.story_actions,
             load_graph=self._load_story_graph,
             resolve_pawn=getattr(self.definition, "resolve_story_pawn", None),
+            evaluate_gameplay_condition=self.evaluate_gameplay_condition,
             on_finish=self._story_finished,
             rng=self.rng,
         ))
