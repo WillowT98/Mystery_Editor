@@ -1396,6 +1396,13 @@
       "target_story": "valley_waystone"
     },
     {
+      "id": "cottage_exterior",
+      "asset": "cottage_exterior",
+      "x": 1210,
+      "y": 605,
+      "label": "Hearthlight Cottage"
+    },
+    {
       "id": "cottage_door",
       "asset": "scene_door",
       "x": 1210,
