@@ -265,11 +265,8 @@ class StoryGraphEditor:
         if field_type in {"actor", "target", "object"} and scene is not None:
             ids = [obj.id for obj in scene.objects]
             if field_type == "actor":
-                ids = [
-                    obj.id for obj in scene.objects
-                    if self.project_registry is None
-                    or self.project_registry.world_asset_catalog({}).get(obj.asset).category == "actor"
-                ]
+                pawn_ids = set(getattr(self.project_registry, "pawn_labels", {}))
+                ids = [obj.id for obj in scene.objects if obj.asset in pawn_ids]
             return ids
         if field_type == "scene" and self.project_registry is not None:
             return sorted(self.project_registry.scene_paths())
@@ -412,7 +409,6 @@ class StoryGraphEditor:
 
         buttons = ttk.Frame(outer)
         buttons.grid(row=4, column=0, columnspan=2, sticky="e", pady=(12, 0))
-        ttk.Button(buttons, text="Advanced JSON…", command=lambda: self._structured_open_json(win, node)).pack(side="left", padx=4)
         ttk.Button(buttons, text="Cancel", command=win.destroy).pack(side="right", padx=4)
         ttk.Button(buttons, text="Save", command=save).pack(side="right", padx=4)
         win.transient(root)
@@ -420,17 +416,6 @@ class StoryGraphEditor:
         root.wait_window(win)
         root.destroy()
         return result
-
-    def _structured_open_json(self, parent, node: dict) -> None:
-        parent.grab_release()
-        edited = self._edit_json("Advanced action JSON", dict(node))
-        if edited is not None and self.selected is not None:
-            self.graph.nodes[self.selected] = edited
-            self.dirty = True
-            self.status = f"Updated {self.selected} via advanced JSON"
-            parent.destroy()
-        else:
-            parent.grab_set()
 
     def _edit_effect_structured(self, node: dict) -> dict | None:
         import tkinter as tk
@@ -895,6 +880,12 @@ class StoryGraphEditor:
             for label, action in [(edit_label, "edit"), ("Rename", "rename"), ("Set default entry", "entry"), ("Connect…", "connect"), ("Delete", "delete")]:
                 self._button(pygame.Rect(r.x + 16, y, r.w - 32, 34), label, action)
                 y += 40
+            if (
+                (selected_kind == "action" and action_id in self.STRUCTURED_ACTIONS)
+                or selected_kind == "effect"
+            ):
+                self._button(pygame.Rect(r.x + 16, y, r.w - 32, 30), "Advanced JSON…", "advanced_json")
+                y += 36
 
         y += 12
         self.screen.blit(self.font.render("Action nodes", True, (242, 240, 231)), (r.x + 16, y)); y += 34
@@ -984,6 +975,15 @@ class StoryGraphEditor:
             self.playtest()
         elif action == "edit":
             self.edit_selected()
+        elif action == "advanced_json" and self.selected:
+            current = dict(self.graph.nodes[self.selected])
+            edited = self._edit_json(f"Advanced JSON: {self.selected}", current)
+            if edited is not None:
+                if "type" not in edited:
+                    edited["type"] = current.get("type", "action")
+                self.graph.nodes[self.selected] = edited
+                self.dirty = True
+                self.status = f"Updated {self.selected} via advanced JSON"
         elif action == "rename":
             self.rename_selected()
         elif action == "entry":
