@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "well_afterward",
+  "name": "The Old Well",
+  "scene": "village_well",
+  "entries": {
+    "default": "talk"
+  },
+  "nodes": {
+    "talk": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "wa001",
+          "speaker": "Woman",
+          "text": "The water is dark enough to reflect the sky. Nothing in it explains why I am still here.",
+          "voice_cue": "dialogue.tone_2"
+        }
+      ],
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {}
+  }
+}

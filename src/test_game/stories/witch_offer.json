@@ -1,0 +1,444 @@
+{
+  "format": 1,
+  "id": "witch_offer",
+  "name": "The Bargain at the Well",
+  "scene": "village_well",
+  "entries": {
+    "default": "fade_in"
+  },
+  "nodes": {
+    "fade_in": {
+      "type": "action",
+      "action": "screen_fade",
+      "params": {
+        "color": "black",
+        "duration": 0.35,
+        "alpha": 0,
+        "hold": false
+      },
+      "wait": true,
+      "next": "opening"
+    },
+    "opening": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w001",
+          "speaker": "Woman",
+          "text": "The stranger in the broad purple hat had been watching me from the other side of the old well for long enough that pretending not to notice her had become ridiculous.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w002",
+          "pawn": "mara",
+          "text": "You keep looking at the road as if you expect it to offer you a better idea.",
+          "expression": "neutral"
+        },
+        {
+          "id": "w003",
+          "speaker": "Woman",
+          "text": "I looked back at her. \"Do you have one?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w004",
+          "pawn": "mara",
+          "text": "Possibly. How attached are you to being ordinary?"
+        }
+      ],
+      "next": "offer_choice"
+    },
+    "offer_choice": {
+      "type": "choice",
+      "title": "Mara waits.",
+      "choices": [
+        {
+          "text": "\"That depends what you're offering.\"",
+          "target": "explain_familiar"
+        },
+        {
+          "text": "\"Not very, lately.\"",
+          "target": "explain_familiar_soft"
+        }
+      ]
+    },
+    "explain_familiar": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w005",
+          "pawn": "mara",
+          "text": "A familiar's bond. Not a pet. Not a servant. A partner tied into my magic strongly enough that either of us could feel when the other was in danger."
+        },
+        {
+          "id": "w006",
+          "speaker": "Woman",
+          "text": "\"And what do you get out of it?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w007",
+          "pawn": "mara",
+          "text": "Help. Company. Someone capable of telling me when I am about to do something clever and catastrophically stupid."
+        }
+      ],
+      "next": "terms_one"
+    },
+    "explain_familiar_soft": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w008",
+          "pawn": "mara",
+          "text": "Then perhaps we have something to discuss. A familiar's bond. Partnership, not ownership."
+        },
+        {
+          "id": "w009",
+          "speaker": "Woman",
+          "text": "\"You say that very quickly.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w010",
+          "pawn": "mara",
+          "text": "Because I have met witches."
+        }
+      ],
+      "next": "terms_one"
+    },
+    "terms_one": {
+      "type": "choice",
+      "title": "The first terms",
+      "choices": [
+        {
+          "text": "\"Start with what you can make me do.\"",
+          "target": "authority_terms"
+        },
+        {
+          "text": "\"Start with what you owe me.\"",
+          "target": "safety_terms"
+        }
+      ]
+    },
+    "authority_terms": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w011",
+          "pawn": "mara",
+          "text": "Very little by default. I may ask for your help on journeys, or with the House, and no more than half your daylight hours unless safety requires otherwise."
+        },
+        {
+          "id": "w012",
+          "pawn": "mara",
+          "text": "You are not to be treated as a slave or a pet. You may leave the House. You may refuse guests. You get a private room, the library, and—if you want it—access to mine at night."
+        },
+        {
+          "id": "w013",
+          "speaker": "Woman",
+          "text": "\"And if I decide you're becoming dangerous?\"",
+          "voice_cue": "dialogue.tone_2"
+        }
+      ],
+      "next": "safeguards"
+    },
+    "safety_terms": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w014",
+          "pawn": "mara",
+          "text": "I owe you teaching, access to my library, and protection from harm by my action or inaction. You keep freedom over your own body and whatever shape it takes."
+        },
+        {
+          "id": "w015",
+          "speaker": "Woman",
+          "text": "\"Whatever shape it takes?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w016",
+          "pawn": "mara",
+          "text": "The bond should increase the size of both our magic. I do not know exactly how it will express itself in you."
+        }
+      ],
+      "next": "safeguards"
+    },
+    "safeguards": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w017",
+          "pawn": "mara",
+          "text": "You must be capable of stopping me if power makes me reckless or manipulative. The contract requires it."
+        },
+        {
+          "id": "w018",
+          "pawn": "mara",
+          "text": "And, unpleasantly, the reverse. If you become power-hungry or dangerous, I may compel you to stop. Only for that purpose."
+        },
+        {
+          "id": "w019",
+          "speaker": "Woman",
+          "text": "\"So we put a knife in each other's hands and call that trust?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w020",
+          "pawn": "mara",
+          "text": "No. We acknowledge that trust without safeguards is just optimism."
+        }
+      ],
+      "next": "truth_terms"
+    },
+    "truth_terms": {
+      "type": "choice",
+      "title": "One final clause",
+      "choices": [
+        {
+          "text": "Accept the truth clause.",
+          "target": "truth_accept"
+        },
+        {
+          "text": "Ask what it costs.",
+          "target": "truth_question"
+        }
+      ]
+    },
+    "truth_accept": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w021",
+          "pawn": "mara",
+          "text": "No lies between us. No second magical bond that conflicts with this one. Mutual awareness of where the other is."
+        },
+        {
+          "id": "w022",
+          "speaker": "Woman",
+          "text": "\"I can live with that.\"",
+          "voice_cue": "dialogue.tone_2"
+        }
+      ],
+      "next": "signing"
+    },
+    "truth_question": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w023",
+          "speaker": "Woman",
+          "text": "\"No lies sounds broader than no betrayal.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w024",
+          "pawn": "mara",
+          "text": "It is. You may refuse to answer. You may say something is private. But if you answer me, it must be true. The same rule binds me."
+        },
+        {
+          "id": "w025",
+          "speaker": "Woman",
+          "text": "\"Fine. That I can agree to.\"",
+          "voice_cue": "dialogue.tone_2"
+        }
+      ],
+      "next": "signing"
+    },
+    "signing": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w026",
+          "pawn": "mara",
+          "text": "Then the contract needs blood, consent, and the name that is yours."
+        },
+        {
+          "id": "w027",
+          "speaker": "Woman",
+          "text": "The nib scratched across the parchment: Marabeth Vale. The name looked like somebody else's coat hanging from my shoulders.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w028",
+          "speaker": "Woman",
+          "text": "\"Don't call me that.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w029",
+          "pawn": "mara",
+          "text": "I wasn't planning to. What should I call you?"
+        }
+      ],
+      "next": "name_choice"
+    },
+    "name_choice": {
+      "type": "choice",
+      "title": "Choose a name",
+      "choices": [
+        {
+          "text": "\"Fox. For now, I think.\"",
+          "target": "name_fox"
+        },
+        {
+          "text": "\"I don't know. Pick something I can veto.\"",
+          "target": "name_offer"
+        }
+      ]
+    },
+    "name_offer": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w030",
+          "pawn": "mara",
+          "text": "Fox."
+        },
+        {
+          "id": "w031",
+          "speaker": "Woman",
+          "text": "I waited for the name to feel ridiculous. It didn't.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w032",
+          "speaker": "Woman",
+          "text": "\"Fox. For now.\"",
+          "voice_cue": "dialogue.tone_2"
+        }
+      ],
+      "next": "bind"
+    },
+    "name_fox": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w033",
+          "speaker": "Woman",
+          "text": "\"Fox. For now, I think.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w034",
+          "pawn": "mara",
+          "text": "Fox, then."
+        }
+      ],
+      "next": "bind"
+    },
+    "bind": {
+      "type": "effect",
+      "effects": [
+        {
+          "type": "set_flag",
+          "name": "familiar_bound",
+          "value": true
+        },
+        {
+          "type": "set_flag",
+          "name": "fox_named",
+          "value": true
+        }
+      ],
+      "next": "bind_sfx"
+    },
+    "bind_sfx": {
+      "type": "action",
+      "action": "play_sfx",
+      "params": {
+        "cue": "magic.transformation",
+        "gain": 0.85
+      },
+      "wait": false,
+      "next": "flash"
+    },
+    "flash": {
+      "type": "action",
+      "action": "screen_flash",
+      "params": {
+        "color": "white",
+        "duration": 0.7,
+        "alpha": 0.9,
+        "hold": false
+      },
+      "wait": true,
+      "next": "reveal_fox"
+    },
+    "reveal_fox": {
+      "type": "action",
+      "action": "set_actor_state",
+      "params": {
+        "actor": "fox",
+        "enabled": true
+      },
+      "wait": false,
+      "next": "transformation"
+    },
+    "transformation": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "w035",
+          "speaker": "Fox",
+          "text": "The mark under my collarbone burned cold: three small crescents nested together. Then the rest of me stopped agreeing on what shape it was supposed to be.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w036",
+          "speaker": "Fox",
+          "text": "For one breath I was too small, all heartbeat and whiskers. Then I was on four red-furred paws. Then upright again, ears too high, balance wrong, a tail lashing behind me because apparently I had one now.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w037",
+          "pawn": "mara",
+          "text": "Fox?"
+        },
+        {
+          "id": "w038",
+          "speaker": "Fox",
+          "text": "\"I think I'm all right. I think.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "w039",
+          "pawn": "mara",
+          "text": "Sit down before you discover another animal by falling over as it."
+        }
+      ],
+      "next": "after_shape"
+    },
+    "after_shape": {
+      "type": "effect",
+      "effects": [
+        {
+          "type": "set_variable",
+          "name": "fox_form",
+          "value": "fox_woman"
+        },
+        {
+          "type": "set_flag",
+          "name": "transformed",
+          "value": true
+        }
+      ],
+      "next": "transition"
+    },
+    "transition": {
+      "type": "action",
+      "action": "change_scene",
+      "params": {
+        "scene": "hidden_valley.json"
+      },
+      "wait": false,
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {}
+  }
+}

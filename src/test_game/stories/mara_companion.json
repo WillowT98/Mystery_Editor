@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "id": "mara_companion",
+  "name": "Talk to Mara",
+  "entries": {
+    "default": "state"
+  },
+  "nodes": {
+    "state": {
+      "type": "condition",
+      "condition": {
+        "kind": "flag",
+        "name": "ready_for_ruins",
+        "op": "==",
+        "value": true
+      },
+      "true": "ready",
+      "false": "bound"
+    },
+    "ready": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "m001",
+          "pawn": "mara",
+          "text": "No hurry. The ruins have been old for a very long time; they can manage a few more minutes."
+        },
+        {
+          "id": "m002",
+          "speaker": "Fox",
+          "text": "\"That's almost comforting.\"",
+          "voice_cue": "dialogue.tone_2"
+        }
+      ],
+      "next": "end"
+    },
+    "bound": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "m003",
+          "pawn": "mara",
+          "text": "You can ask me to stop if this becomes too much."
+        },
+        {
+          "id": "m004",
+          "speaker": "Fox",
+          "text": "\"I know. That's why it isn't.\"",
+          "voice_cue": "dialogue.tone_2"
+        }
+      ],
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {}
+  }
+}

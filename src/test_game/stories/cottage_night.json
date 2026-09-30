@@ -1,0 +1,244 @@
+{
+  "format": 1,
+  "id": "cottage_night",
+  "name": "Hearthlight Cottage — First Night",
+  "scene": "hearthlight_cottage",
+  "entries": {
+    "default": "night"
+  },
+  "nodes": {
+    "night": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "c001",
+          "speaker": "Fox",
+          "text": "The cottage was warm before Mara touched the door. Firelight moved over shelves, bundles of herbs, bottles in the windows—and the floorboards creaked as if the place itself had noticed me.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c002",
+          "pawn": "mara",
+          "text": "The House is curious. Ignore it if it starts showing off."
+        },
+        {
+          "id": "c003",
+          "speaker": "Fox",
+          "text": "\"Houses can show off?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c004",
+          "pawn": "mara",
+          "text": "This one can."
+        },
+        {
+          "id": "c005",
+          "speaker": "Fox",
+          "text": "By then I was too tired to decide whether that was alarming. Mara put tea in my hands, pointed me toward a room that was apparently mine, and did not ask me to be brave about any of it.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c006",
+          "speaker": "Fox",
+          "text": "\"If I wake up human again, do I still get breakfast?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c007",
+          "pawn": "mara",
+          "text": "Yes."
+        },
+        {
+          "id": "c008",
+          "speaker": "Fox",
+          "text": "\"Good. That's the clause I forgot to negotiate.\"",
+          "voice_cue": "dialogue.tone_2"
+        }
+      ],
+      "next": "fade"
+    },
+    "fade": {
+      "type": "action",
+      "action": "screen_fade",
+      "params": {
+        "color": "black",
+        "duration": 0.6,
+        "alpha": 1,
+        "hold": false
+      },
+      "wait": true,
+      "next": "morning_title"
+    },
+    "morning_title": {
+      "type": "action",
+      "action": "title_card",
+      "params": {
+        "text": "The next morning",
+        "duration": 1.5
+      },
+      "wait": true,
+      "next": "breakfast"
+    },
+    "breakfast": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "c009",
+          "speaker": "Fox",
+          "text": "Breakfast was oatmeal, fruit, and the unsettling realization that I had slept almost twelve hours.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c010",
+          "pawn": "mara",
+          "text": "Better?"
+        },
+        {
+          "id": "c011",
+          "speaker": "Fox",
+          "text": "\"Less likely to become a mouse by accident. Probably.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c012",
+          "pawn": "mara",
+          "text": "A useful benchmark."
+        },
+        {
+          "id": "c013",
+          "speaker": "Fox",
+          "text": "\"You said you'd teach me. Start with rules. Concrete ones.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c014",
+          "pawn": "mara",
+          "text": "Magic follows attention, meaning, and cost. Symbols help because they hold attention still. Names matter because they hold meaning still. Cost is what prevents desire from becoming omnipotence."
+        },
+        {
+          "id": "c015",
+          "speaker": "Fox",
+          "text": "\"And shapeshifting?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c016",
+          "pawn": "mara",
+          "text": "Yours seems to treat your body as a suggestion. The mark remains. So does the bond. Everything else, apparently, is negotiable."
+        }
+      ],
+      "next": "house_rules"
+    },
+    "house_rules": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "c017",
+          "pawn": "mara",
+          "text": "About the House: the library is yours to use. Your room is private. You may come into mine at night if you need me. You do not need permission to leave unless there is an immediate safety reason."
+        },
+        {
+          "id": "c018",
+          "pawn": "mara",
+          "text": "If a guest threatens you, defend yourself. If I become dangerous, stop me. If you become dangerous, I stop you. Neither of us gets to hide behind the contract."
+        },
+        {
+          "id": "c019",
+          "speaker": "Fox",
+          "text": "\"And the chores?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c020",
+          "pawn": "mara",
+          "text": "Half your daylight hours at most. Usually less. I need a familiar, not unpaid staff."
+        },
+        {
+          "id": "c021",
+          "speaker": "Fox",
+          "text": "\"I want one amendment.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c022",
+          "pawn": "mara",
+          "text": "Already?"
+        },
+        {
+          "id": "c023",
+          "speaker": "Fox",
+          "text": "\"Stewardship. If I'm responsible for the House when you're gone, then I get authority to make ordinary decisions for it. I won't be caretaker without being trusted to caretake.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c024",
+          "pawn": "mara",
+          "text": "Agreed."
+        }
+      ],
+      "next": "amend"
+    },
+    "amend": {
+      "type": "effect",
+      "effects": [
+        {
+          "type": "set_flag",
+          "name": "stewardship_amendment",
+          "value": true
+        },
+        {
+          "type": "set_flag",
+          "name": "ready_for_ruins",
+          "value": true
+        }
+      ],
+      "next": "gift"
+    },
+    "gift": {
+      "type": "action",
+      "action": "give_item",
+      "params": {
+        "item": "field_salve",
+        "quantity": 2,
+        "location": "storage"
+      },
+      "wait": false,
+      "next": "ready"
+    },
+    "ready": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "c025",
+          "pawn": "mara",
+          "text": "There are old ruins east of the meadow. We don't have to go today."
+        },
+        {
+          "id": "c026",
+          "speaker": "Fox",
+          "text": "I looked down at hands that could apparently become paws whenever they pleased, then at the woman who had written safeguards against herself into our contract.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c027",
+          "speaker": "Fox",
+          "text": "\"Maybe not immediately. But I want to know what I can do.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "c028",
+          "pawn": "mara",
+          "text": "Then we'll go when you're ready."
+        }
+      ],
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {}
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "id": "valley_after_cottage",
+  "name": "The Ruins Open",
+  "scene": "hidden_valley",
+  "entries": {
+    "default": "unlock"
+  },
+  "nodes": {
+    "unlock": {
+      "type": "action",
+      "action": "set_object_state",
+      "params": {
+        "object": "ruins_gate",
+        "enabled": true
+      },
+      "wait": false,
+      "next": "dialogue"
+    },
+    "dialogue": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "va001",
+          "pawn": "mara",
+          "text": "The Ancient Ruins are open to us now. Three floors before the waystone chamber."
+        },
+        {
+          "id": "va002",
+          "speaker": "Fox",
+          "text": "\"You say that like three floors is reassuring.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "va003",
+          "pawn": "mara",
+          "text": "It was intended to be."
+        }
+      ],
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {}
+  }
+}

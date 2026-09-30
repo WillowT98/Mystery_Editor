@@ -1,0 +1,115 @@
+{
+  "format": 1,
+  "id": "valley_arrival",
+  "name": "The Hidden Valley",
+  "scene": "hidden_valley",
+  "entries": {
+    "default": "arrival"
+  },
+  "nodes": {
+    "arrival": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "v001",
+          "speaker": "Fox",
+          "text": "The road ended where no road should have ended. One moment there had been trees; the next there was a valley cupped between impossible hills, blue lights drifting above the grass like patient stars.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v002",
+          "pawn": "mara",
+          "text": "Home."
+        },
+        {
+          "id": "v003",
+          "speaker": "Fox",
+          "text": "\"You live here?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v004",
+          "pawn": "mara",
+          "text": "Usually. The House has opinions about the distinction."
+        },
+        {
+          "id": "v005",
+          "speaker": "Fox",
+          "text": "I could feel where she was without looking. Not direction exactly. More like the certainty of knowing where my own hand was.",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v006",
+          "speaker": "Fox",
+          "text": "\"That's the bond?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v007",
+          "pawn": "mara",
+          "text": "Part of it. The rest can wait until you aren't swaying."
+        },
+        {
+          "id": "v008",
+          "speaker": "Fox",
+          "text": "\"Mara... if I wake up tomorrow and realize I can't do this, what happens?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v009",
+          "pawn": "mara",
+          "text": "Then we deal with that truth. I will not turn the bond into a cage because changing it is inconvenient."
+        },
+        {
+          "id": "v010",
+          "pawn": "mara",
+          "text": "And I owe you an apology. I knew the bond might change you. I did not know it would seize your shape that hard, that quickly. I should have said more clearly how much I did not know."
+        },
+        {
+          "id": "v011",
+          "speaker": "Fox",
+          "text": "\"Don't decide what I can handle for me. Tell me when you don't know. Let me choose with the uncertainty included.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v012",
+          "pawn": "mara",
+          "text": "I promise."
+        },
+        {
+          "id": "v013",
+          "speaker": "Fox",
+          "text": "The promise settles somewhere beside the new awareness of her, not comfortable exactly, but solid enough to lean on.",
+          "voice_cue": "dialogue.tone_2"
+        }
+      ],
+      "next": "exhausted"
+    },
+    "exhausted": {
+      "type": "effect",
+      "effects": [
+        {
+          "type": "set_flag",
+          "name": "arrived_at_cottage",
+          "value": true
+        }
+      ],
+      "next": "message"
+    },
+    "message": {
+      "type": "action",
+      "action": "message",
+      "params": {
+        "text": "Explore the valley, then enter the cottage to rest."
+      },
+      "wait": false,
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {}
+  }
+}
