@@ -371,6 +371,7 @@ class MysteryGame:
             actor.facing = facing
 
         self.exploration = new_world
+        self.state.world.current_scene = new_world.id
         self.mode = GameMode.EXPLORATION
         self.menu.close()
         self._sync_exploration_music()
