@@ -773,7 +773,7 @@ class MysteryGame:
         self.state.bag.remove(item.id)
         raw = item.throwable_damage
         dealt = target.stats.damage(max(1, round(raw * target.resistance_to(item.damage_type))))
-        self.add_message(f"Fox throws {item.name}; {target.name} takes {dealt} damage.")
+        self.add_message(f"{self.state.leader.name} throws {item.name}; {target.name} takes {dealt} damage.")
         self.menu.close()
         outcome = self.dungeon.turns.execute_player_action(WaitAction(self.state.leader))
         for cue in outcome.sound_cues:
@@ -872,8 +872,8 @@ class MysteryGame:
 
     def _show_journal(self) -> None:
         self.menu.close()
-        complete = self.state.story.flag("completed_test_dungeon")
-        text = "The test expedition is complete." if complete else "Mara is waiting near the dungeon entrance."
+        provider = getattr(self.definition, "journal_text", None)
+        text = str(provider(self) if callable(provider) else "No journal entries.")
         self.say([DialogueLine("Journal", text)])
 
     def _show_controls(self) -> None:
