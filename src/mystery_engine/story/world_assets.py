@@ -98,6 +98,10 @@ class SceneObjectData:
     action: str | None = None
     label: str | None = None
     enabled: bool = True
+    # None inherits the asset default; False disables collision for this placed
+    # instance; True explicitly enables it. This is separate from the collision
+    # shape so level designers can toggle a collider without losing its geometry.
+    collision_enabled: bool | None = None
     # Optional per-instance collision shape, local to the object's anchor.
     # When omitted, the asset catalog's default collision is inherited.
     collision: ObstacleShape | None = None
@@ -133,6 +137,7 @@ class SceneObjectData:
             action=data.get("action"),
             label=data.get("label"),
             enabled=bool(data.get("enabled", True)),
+            collision_enabled=(bool(data["collision_enabled"]) if "collision_enabled" in data else None),
             collision=_parse_collision(data.get("collision")),
             target_scene=data.get("target_scene"),
             target_door=data.get("target_door"),
@@ -152,6 +157,8 @@ class SceneObjectData:
             data["label"] = self.label
         if not self.enabled:
             data["enabled"] = False
+        if self.collision_enabled is not None:
+            data["collision_enabled"] = self.collision_enabled
         if self.collision is not None:
             data["collision"] = _serialize_collision(self.collision)
         if self.target_scene:
@@ -285,6 +292,8 @@ def build_exploration_map(
         if placed.target_story and story_transition_factory is not None:
             interaction = story_transition_factory(placed)
         collision = placed.collision if placed.collision is not None else definition.collision
+        if placed.collision_enabled is False:
+            collision = None
 
         if definition.category == "scenery":
             scenery.append(
@@ -333,7 +342,7 @@ def build_exploration_map(
                     label=placed.label or definition.label or definition.display_name,
                     icon_key=placed.sprite_override or definition.sprite_key,
                     enabled=placed.enabled,
-                    collision_radius=definition.collision_radius,
+                    collision_radius=(0.0 if placed.collision_enabled is False else definition.collision_radius),
                     collision=collision,
                     anchor=definition.anchor,
                     visible=definition.runtime_visible,
