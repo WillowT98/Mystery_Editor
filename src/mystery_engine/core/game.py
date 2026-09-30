@@ -40,6 +40,7 @@ from mystery_engine.story import (
     StoryGraph,
     StoryGraphRunner,
     StoryRuntimeContext,
+    evaluate_condition,
 )
 from mystery_engine.ui import MenuController, MenuEntry
 
@@ -106,6 +107,7 @@ class MysteryGame:
         self.projectile_queue: list[ProjectileAnimation] = []
         self.active_projectile: ProjectileAnimation | None = None
         self._pending_dungeon_result: DungeonResult | None = None
+        self._trigger_region_inside: dict[tuple[str, str], bool] = {}
         self.story_runner = StoryGraphRunner(StoryRuntimeContext(
             story=self.state.story,
             dialogue=self.dialogue,
@@ -126,6 +128,8 @@ class MysteryGame:
         self.renderer = Renderer(self.config, getattr(self.definition, "asset_root", None))
         self.exploration = self.definition.create_exploration(self)
         self._sync_exploration_music()
+        self._process_scene_enter_triggers()
+        self._process_region_triggers()
         if os.environ.get("MYSTERY_DUNGEON_PLAYTEST"):
             self.enter_dungeon(start_floor=max(1, int(os.environ.get("MYSTERY_DUNGEON_START_FLOOR", "1"))))
         elif os.environ.get("MYSTERY_STORY_PLAYTEST"):
@@ -305,6 +309,59 @@ class MysteryGame:
         if callable(hook):
             hook(self, result)
 
+    @staticmethod
+    def _trigger_flag(scene_id: str, trigger_id: str) -> str:
+        return f"__trigger_once__:{scene_id}:{trigger_id}"
+
+    def _trigger_available(self, trigger) -> bool:
+        world = self.exploration
+        if world is None or not trigger.enabled or not trigger.story:
+            return False
+        if trigger.once and self.state.story.flag(self._trigger_flag(world.id, trigger.id)):
+            return False
+        return evaluate_condition(trigger.condition, self.state.story)
+
+    def _fire_trigger(self, trigger) -> bool:
+        world = self.exploration
+        if world is None or self.story_runner.active or self.dialogue.active or self.menu.active:
+            return False
+        if not self._trigger_available(trigger):
+            return False
+        if trigger.once:
+            self.state.story.set_flag(self._trigger_flag(world.id, trigger.id), True)
+        self.run_story(trigger.story, trigger.entry)
+        return True
+
+    def _process_scene_enter_triggers(self) -> None:
+        world = self.exploration
+        if world is None:
+            return
+        self._trigger_region_inside = {
+            key: value for key, value in self._trigger_region_inside.items() if key[0] != world.id
+        }
+        for trigger in world.triggers:
+            if trigger.kind == "on_scene_enter" and self._fire_trigger(trigger):
+                break
+
+    def _process_region_triggers(self) -> None:
+        world = self.exploration
+        if world is None:
+            return
+        try:
+            leader = world.actor(self.state.leader.id)
+        except KeyError:
+            return
+
+        for trigger in world.triggers:
+            if trigger.kind != "on_region_enter" or trigger.region is None:
+                continue
+            key = (world.id, trigger.id)
+            inside = trigger.region.contains_point(leader.position.x, leader.position.y)
+            was_inside = self._trigger_region_inside.get(key, False)
+            self._trigger_region_inside[key] = inside
+            if inside and not was_inside and self._fire_trigger(trigger):
+                break
+
     def change_exploration_scene(self, scene_path: Path, target_door_id: str | None = None) -> None:
         """Load another exploration scene while preserving the active party.
 
@@ -379,6 +436,8 @@ class MysteryGame:
         self.menu.close()
         self._sync_exploration_music()
         self.add_message(f"Entered {new_world.id}.")
+        self._process_scene_enter_triggers()
+        self._process_region_triggers()
 
     def enter_dungeon(self, start_floor: int = 1) -> None:
         if self.dialogue.active:
@@ -630,6 +689,8 @@ class MysteryGame:
         else:
             self.mode = GameMode.EXPLORATION
             self._sync_exploration_music()
+            self._process_scene_enter_triggers()
+            self._process_region_triggers()
         self.add_message(f"Loaded save from {path}.")
         return True
 
@@ -645,6 +706,7 @@ class MysteryGame:
             direction = Direction.from_axes(round(frame.move.x), round(frame.move.y))
             if direction:
                 player.facing = direction
+            self._process_region_triggers()
         if frame.interact:
             interaction = self.exploration.nearest_interaction_detail(player, self.config.interaction_range)
             if interaction:
