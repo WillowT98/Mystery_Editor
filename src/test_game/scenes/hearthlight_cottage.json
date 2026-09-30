@@ -625,7 +625,7 @@
     },
     {
       "id": "hearth",
-      "asset": "waystone",
+      "asset": "cottage_hearth",
       "x": 1120,
       "y": 590,
       "label": "Hearth",
@@ -633,19 +633,19 @@
     },
     {
       "id": "table",
-      "asset": "boulder",
+      "asset": "cottage_table",
       "x": 700,
       "y": 650
     },
     {
       "id": "shelf_1",
-      "asset": "fence",
+      "asset": "cottage_shelf",
       "x": 1040,
       "y": 250
     },
     {
       "id": "shelf_2",
-      "asset": "fence",
+      "asset": "cottage_shelf",
       "x": 1180,
       "y": 250
     }
