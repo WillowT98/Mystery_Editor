@@ -4,7 +4,18 @@ from pathlib import Path
 import os
 from typing import TYPE_CHECKING
 
-from mystery_engine.core import DungeonResult, PersistentGameState, StoryState, Wallet
+from mystery_engine.core import (
+    AITactic,
+    Direction,
+    DungeonResult,
+    PersistentGameState,
+    PersistentWorldState,
+    SceneActorState,
+    SceneObjectState,
+    SceneState,
+    StoryState,
+    Wallet,
+)
 from mystery_engine.core.inventory import Inventory
 from mystery_engine.project import ProjectRegistry
 from mystery_engine.core import Vec2
@@ -198,23 +209,145 @@ class ProjectGameDefinition:
             story=StoryState(flags=dict(settings.starting_flags), variables=dict(settings.starting_variables)),
         )
 
+    def load_state(self, payload: dict) -> PersistentGameState:
+        """Reconstruct project-backed runtime objects from stable IDs in a save."""
+        if str(payload.get("game_id", "")) != self.game_id:
+            raise ValueError(f"Save belongs to {payload.get('game_id')!r}, not {self.game_id!r}.")
+
+        settings = self.project_registry.game_settings
+        character_rows = list(payload.get("characters") or [])
+        if not character_rows:
+            # Legacy/incomplete saves fall back to the configured starting party.
+            state = self.create_state()
+        else:
+            party = []
+            for index, row in enumerate(character_rows):
+                character_id = str(row.get("id", ""))
+                if character_id not in self.project_registry.characters:
+                    raise ValueError(f"Save references unknown character: {character_id}")
+                leader = bool(row.get("leader", False))
+                character = self.project_registry.make_character(character_id, leader=leader)
+                character.stats.current_hp = max(0, min(character.stats.max_hp, int(row.get("hp", character.stats.max_hp))))
+                character.resources = {
+                    str(k): int(v) for k, v in dict(row.get("resources") or character.resources).items()
+                }
+                tactic = row.get("ai_tactic")
+                if tactic:
+                    try:
+                        character.ai_tactic = AITactic(str(tactic))
+                    except ValueError:
+                        pass
+                saved_charges = dict(row.get("skill_charges") or {})
+                for skill in character.skills:
+                    if skill.definition.id in saved_charges:
+                        value = saved_charges[skill.definition.id]
+                        skill.charges = None if value is None else max(0, int(value))
+                party.append(character)
+
+            if not any(member.leader for member in party):
+                leader_id = settings.leader or (party[0].id if party else "")
+                for member in party:
+                    member.leader = member.id == leader_id
+                if party and not any(member.leader for member in party):
+                    party[0].leader = True
+
+            bag = Inventory(capacity=settings.bag_capacity)
+            for row in payload.get("bag", []):
+                item_id = str(row.get("item_id", ""))
+                if item_id in self.project_registry.items:
+                    bag.add(self.project_registry.item(item_id), max(0, int(row.get("quantity", 0))))
+
+            storage = Inventory(capacity=settings.storage_capacity)
+            for row in payload.get("storage", []):
+                item_id = str(row.get("item_id", ""))
+                if item_id in self.project_registry.items:
+                    storage.add(self.project_registry.item(item_id), max(0, int(row.get("quantity", 0))))
+
+            wallet_data = dict(payload.get("wallet") or {})
+            story_data = dict(payload.get("story") or {})
+            state = PersistentGameState(
+                game_id=self.game_id,
+                game_version=str(payload.get("game_version") or self.game_version),
+                party=party,
+                bag=bag,
+                storage=storage,
+                wallet=Wallet(
+                    carried=max(0, int(wallet_data.get("carried", 0))),
+                    stored=max(0, int(wallet_data.get("stored", 0))),
+                ),
+                story=StoryState(
+                    flags={str(k): bool(v) for k, v in dict(story_data.get("flags") or {}).items()},
+                    variables=dict(story_data.get("variables") or {}),
+                ),
+            )
+
+        world_data = dict(payload.get("world") or {})
+        state.world = PersistentWorldState(
+            current_scene=(str(world_data["current_scene"]) if world_data.get("current_scene") else None),
+            party_positions={
+                str(actor_id): self._load_scene_actor_state(actor_data)
+                for actor_id, actor_data in dict(world_data.get("party_positions") or {}).items()
+            },
+            scenes={
+                str(scene_id): SceneState(
+                    actors={
+                        str(actor_id): self._load_scene_actor_state(actor_data)
+                        for actor_id, actor_data in dict(scene_data.get("actors") or {}).items()
+                    },
+                    objects={
+                        str(object_id): SceneObjectState(enabled=bool(object_data.get("enabled", True)))
+                        for object_id, object_data in dict(scene_data.get("objects") or {}).items()
+                    },
+                )
+                for scene_id, scene_data in dict(world_data.get("scenes") or {}).items()
+            },
+        )
+        return state
+
+    @staticmethod
+    def _load_scene_actor_state(data: dict) -> SceneActorState:
+        return SceneActorState(
+            x=float(data.get("x", 0.0)),
+            y=float(data.get("y", 0.0)),
+            facing=str(data.get("facing", "S")).upper(),
+            enabled=bool(data.get("enabled", True)),
+            sprite_key=(str(data["sprite_key"]) if data.get("sprite_key") is not None else None),
+        )
+
     def create_exploration(self, game: "MysteryGame") -> ExplorationMap:
         override = os.environ.get("MYSTERY_SCENE_PATH")
         settings = self.project_registry.game_settings
+        scenes = self.project_registry.scene_paths()
+        saved_scene = game.state.world.current_scene
         if override:
             path = Path(override)
+        elif saved_scene and saved_scene in scenes:
+            path = scenes[saved_scene]
         elif settings.starting_scene:
             try:
-                path = self.project_registry.scene_paths()[settings.starting_scene]
+                path = scenes[settings.starting_scene]
             except KeyError as exc:
                 raise RuntimeError(f"Unknown starting scene: {settings.starting_scene}") from exc
         else:
-            scenes = self.project_registry.scene_paths()
             if not scenes:
                 raise RuntimeError("Create a scene and choose it as the starting scene before running.")
             path = next(iter(scenes.values()))
+
         world = self.create_exploration_scene(game, path)
-        if settings.starting_marker:
+        restored_party = False
+        if saved_scene == world.id and game.state.world.party_positions:
+            for actor_id, saved in game.state.world.party_positions.items():
+                actor = next((candidate for candidate in world.actors if candidate.id == actor_id), None)
+                if actor is None:
+                    continue
+                actor.position.x, actor.position.y = saved.x, saved.y
+                actor.facing = getattr(Direction, saved.facing, Direction.S)
+                actor.enabled = saved.enabled
+                if saved.sprite_key is not None:
+                    actor.sprite_key = saved.sprite_key
+                restored_party = True
+
+        if not restored_party and settings.starting_marker:
             try:
                 target = world.target_position(settings.starting_marker)
                 actor = world.actor(game.state.leader.id)
@@ -282,6 +415,25 @@ class ProjectGameDefinition:
                 radius=28.0,
                 sprite_key=member.metadata.get("sprite_key", member.id),
             ))
+
+        saved_scene_state = game.state.world.scenes.get(world.id)
+        if saved_scene_state is not None:
+            party_ids = {member.id for member in game.state.party}
+            for actor_id, saved in saved_scene_state.actors.items():
+                if actor_id in party_ids:
+                    continue
+                actor = next((candidate for candidate in world.actors if candidate.id == actor_id), None)
+                if actor is None:
+                    continue
+                actor.position.x, actor.position.y = saved.x, saved.y
+                actor.facing = getattr(Direction, saved.facing, Direction.S)
+                actor.enabled = saved.enabled
+                if saved.sprite_key is not None:
+                    actor.sprite_key = saved.sprite_key
+            for object_id, saved in saved_scene_state.objects.items():
+                item = next((candidate for candidate in world.interactables if candidate.id == object_id), None)
+                if item is not None:
+                    item.enabled = saved.enabled
         return world
 
     def create_dungeon_floor(self, game: "MysteryGame", floor_number: int):
