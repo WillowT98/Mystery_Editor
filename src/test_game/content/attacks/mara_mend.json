@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "id": "mara_mend",
+  "name": "Mend",
+  "description": "Restore 11 HP to all allies in the room.",
+  "target": "ally",
+  "range": 4,
+  "power": 0,
+  "heal": 11,
+  "max_charges": 6,
+  "accuracy": 1,
+  "range_pattern": "room",
+  "sfx_cue": "magic.heal"
+}
