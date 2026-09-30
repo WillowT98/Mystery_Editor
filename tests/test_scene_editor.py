@@ -196,9 +196,6 @@ class SceneDataTests(unittest.TestCase):
             WORLD_ASSETS.get(obj.asset)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
     def test_collision_enabled_override_roundtrip_and_runtime(self):
         scene = ExplorationSceneData.blank("toggle_collision", 6, 5)
@@ -224,3 +221,8 @@ if __name__ == "__main__":
         ))
         world = build_exploration_map(scene, WORLD_ASSETS)
         self.assertEqual(world.scenery[0].collision, RectObstacle(-10, -12, 20, 12))
+
+
+
+if __name__ == "__main__":
+    unittest.main()
