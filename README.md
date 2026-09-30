@@ -445,7 +445,14 @@ The cleanup does not change runtime rendering or collision behavior. The full te
 
 ## Unified project editor
 
-The preferred authoring workflow is now the project-level editor:
+The editor can now create, open, and run self-contained projects from its **File**
+menu. Ordinary projects do not need their own Python package. Custom exploration
+terrain, painted/tiled scene backgrounds, reusable objects, stories, pawns,
+characters, items, attacks, enemies, and dungeons are all project data. The
+**Export** File-menu entry is intentionally reserved for the later cross-platform
+packaging pass.
+
+The preferred authoring workflow is the project-level editor:
 
 ```bash
 python run_project_editor.py
