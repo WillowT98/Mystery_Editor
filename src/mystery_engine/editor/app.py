@@ -1339,6 +1339,8 @@ class ExplorationSceneEditor:
                 else:
                     color = None
                     if self.project_registry is not None and kind in self.project_registry.terrain:
+                        if self.project_registry.terrain[kind].transparent:
+                            continue
                         try:
                             color = pygame.Color(self.project_registry.terrain[kind].fallback_color)
                         except ValueError:
