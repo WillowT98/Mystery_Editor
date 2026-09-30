@@ -399,7 +399,11 @@ class MysteryGame:
             return False
         if trigger.once and self.state.story.flag(self._trigger_flag(world.id, trigger.id)):
             return False
-        return evaluate_condition(trigger.condition, self.state.story)
+        return evaluate_condition(
+            trigger.condition,
+            self.state.story,
+            self.evaluate_gameplay_condition,
+        )
 
     def _fire_trigger(self, trigger) -> bool:
         world = self.exploration
