@@ -250,3 +250,54 @@ def test_dialogue_can_resolve_stable_pawn_id_to_name_and_portrait():
     assert line.speaker == "Willow"
     assert line.portrait_key == "willow_portrait"
     assert line.text == "Hello."
+
+
+def test_dialogue_controller_reveals_text_progressively_and_can_finish_line():
+    dialogue = DialogueController(chars_per_second=10)
+    from mystery_engine.story import DialogueLine, DialogueSequence
+    dialogue.start(DialogueSequence([
+        DialogueLine("Fox", "Hello there.", voice_cue="dialogue.fox"),
+    ]))
+
+    assert dialogue.visible_text == ""
+    revealed = dialogue.update(0.35)
+    assert revealed == "Hel"
+    assert dialogue.visible_text == "Hel"
+    assert not dialogue.fully_revealed
+
+    dialogue.reveal_all()
+    assert dialogue.visible_text == "Hello there."
+    assert dialogue.fully_revealed
+
+
+def test_dialogue_resolves_voice_cue_from_pawn_and_allows_line_override():
+    story = StoryState()
+    dialogue = DialogueController()
+    ctx = StoryRuntimeContext(
+        story=story,
+        dialogue=dialogue,
+        choose=lambda *_: None,
+        run_action=lambda *_: ImmediateAction(),
+        resolve_pawn=lambda pawn_id: ("Fox", "fox_portrait"),
+        resolve_pawn_voice=lambda pawn_id: "dialogue.fox",
+    )
+    graph = StoryGraph.from_dict({
+        "id": "voices",
+        "entries": {"default": "talk"},
+        "nodes": {
+            "talk": {
+                "type": "dialogue",
+                "lines": [
+                    {"pawn": "fox", "text": "Default voice."},
+                    {"pawn": "fox", "text": "Whisper.", "voice_cue": "dialogue.whisper"},
+                ],
+            },
+        },
+    })
+    runner = StoryGraphRunner(ctx)
+    runner.start(graph)
+    runner.update(0.016)
+
+    assert dialogue.sequence is not None
+    assert dialogue.sequence.lines[0].voice_cue == "dialogue.fox"
+    assert dialogue.sequence.lines[1].voice_cue == "dialogue.whisper"
