@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "hearth_inspect",
+  "name": "The Hearth",
+  "scene": "hearthlight_cottage",
+  "entries": {
+    "default": "talk"
+  },
+  "nodes": {
+    "talk": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "h001",
+          "speaker": "Fox",
+          "text": "The fire has burned down to coals without ever quite going out. The House seems pleased when I add another piece of wood.",
+          "voice_cue": "dialogue.tone_2"
+        }
+      ],
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {}
+  }
+}
