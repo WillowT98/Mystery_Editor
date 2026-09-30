@@ -8,7 +8,7 @@ from mystery_engine.core.autotile import autotile_asset
 from mystery_engine.editor.app import ExplorationSceneEditor
 from mystery_engine.editor.dungeon_builder import DungeonBuilderEditor
 from mystery_engine.editor.story_graph import StoryGraphEditor
-from mystery_engine.editor.project_editor import pawn_animation_working_copy
+from mystery_engine.editor.project_editor import pawn_animation_working_copy, project_sfx_cue_ids
 from mystery_engine.project import PawnDefinitionData
 
 
@@ -164,3 +164,10 @@ def test_enemy_editor_does_not_prepare_pawn_animation_state():
 
     assert "current.animations" not in enemy_source
     assert "working_animations" not in enemy_source
+
+
+def test_pawn_editor_exposes_dialogue_voice_cue_controls():
+    source = (__import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "mystery_engine" / "editor" / "project_editor.py").read_text(encoding="utf-8")
+    assert "Dialogue voice cue" in source
+    assert "Voice cue override (optional)" in source
+    assert "project_sfx_cue_ids" in source
