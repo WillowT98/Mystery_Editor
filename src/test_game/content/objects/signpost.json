@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "id": "signpost",
+  "name": "Signpost",
+  "category": "scenery",
+  "sprite_key": "signpost",
+  "size": [
+    106,
+    110
+  ],
+  "anchor": "bottom_center",
+  "collider_enabled": true,
+  "collision": [
+    -22,
+    -42,
+    44,
+    42
+  ],
+  "collision_radius": 0,
+  "draw_behind_actors": false,
+  "runtime_visible": true
+}
