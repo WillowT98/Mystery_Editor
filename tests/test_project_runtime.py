@@ -219,6 +219,10 @@ def test_save_roundtrip_restores_world_location_and_scene_state(tmp_path):
         name="Hero",
         sprite_key="hero",
         portrait_key=None,
+        animations={
+            "idle": {"columns": 1, "rows": 1, "frames": [0], "fps": 4.0, "loop": True},
+            "sleep": {"columns": 2, "rows": 1, "frames": [0, 1], "fps": 2.0, "loop": True},
+        },
     ))
     registry.save_pawn(PawnDefinitionData(
         id="npc",
