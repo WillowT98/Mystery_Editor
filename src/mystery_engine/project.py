@@ -18,6 +18,7 @@ from mystery_engine.core import (
     TargetKind,
 )
 from mystery_engine.dungeon import DungeonDefinition, SpawnRule
+from mystery_engine.localization import LocalizationEntry, ProjectLocalization
 from mystery_engine.story import (
     ObstacleShape,
     PolygonObstacle,
@@ -667,13 +668,15 @@ class ProjectRegistry:
         self.dungeon_dir = self.game_root / str(content.get("dungeons", "dungeons"))
         self.scene_dir = self.game_root / str(content.get("scenes", "scenes"))
         self.story_dir = self.game_root / str(content.get("stories", "stories"))
+        self.locale_dir = self.game_root / str(content.get("locales", "locales"))
         self.asset_root = self.game_root / str(content.get("assets", "assets"))
         for directory in (
             self.attack_dir, self.enemy_dir, self.item_dir, self.character_dir,
             self.object_dir, self.terrain_dir, self.pawn_dir, self.dungeon_dir,
-            self.scene_dir, self.story_dir, self.asset_root,
+            self.scene_dir, self.story_dir, self.locale_dir, self.asset_root,
         ):
             directory.mkdir(parents=True, exist_ok=True)
+        self.localization = self._build_localization()
         self.reload()
 
     @classmethod
@@ -696,9 +699,16 @@ class ProjectRegistry:
                 "dungeons": "dungeons",
                 "scenes": "scenes",
                 "stories": "stories",
+                "locales": "locales",
                 "assets": "assets",
             },
             "damage_types": ["physical"],
+            "localization": {
+                "source_locale": "en-US",
+                "default_locale": "en-US",
+                "supported_locales": ["en-US"],
+                "locale_names": {"en-US": "English (US)"},
+            },
             "game": {
                 "title": name.strip() or project_id,
                 "version": "0.1.0",
@@ -739,10 +749,95 @@ class ProjectRegistry:
                 "dungeons": "dungeons",
                 "scenes": "scenes",
                 "stories": "stories",
+                "locales": "locales",
                 "assets": "assets",
             },
             "damage_types": ["physical"],
+            "localization": {
+                "source_locale": "en-US",
+                "default_locale": "en-US",
+                "supported_locales": ["en-US"],
+                "locale_names": {"en-US": "English (US)"},
+            },
         }
+
+    def _build_localization(self) -> ProjectLocalization:
+        config = dict(self.manifest.get("localization") or {})
+        source = str(config.get("source_locale") or "en-US")
+        default = str(config.get("default_locale") or source)
+        supported = [str(v) for v in config.get("supported_locales", [source])]
+        names = {str(k): str(v) for k, v in dict(config.get("locale_names", {})).items()}
+        return ProjectLocalization(
+            self.locale_dir,
+            source_locale=source,
+            default_locale=default,
+            supported_locales=supported,
+            locale_names=names,
+        )
+
+    def save_localization_config(self) -> None:
+        self.manifest["localization"] = {
+            "source_locale": self.localization.source_locale,
+            "default_locale": self.localization.default_locale,
+            "supported_locales": list(self.localization.supported_locales),
+            "locale_names": dict(sorted(self.localization.locale_names.items())),
+        }
+        self.manifest_path.write_text(
+            json.dumps(self.manifest, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        self.manifest = self._load_manifest()
+
+    def set_source_locale(self, locale: str, label: str | None = None) -> None:
+        locale = locale.strip()
+        if not locale:
+            raise ValueError("Source locale cannot be blank.")
+        if locale == self.localization.source_locale:
+            if label:
+                self.localization.locale_names[locale] = label.strip()
+                self.save_localization_config()
+            return
+        if self.localization.has_translations():
+            raise ValueError(
+                "Change the source locale before adding translations, or clear target translations first."
+            )
+        old_source = self.localization.source_locale
+        if locale not in self.localization.supported_locales:
+            self.localization.supported_locales.insert(0, locale)
+        if old_source not in self.localization.supported_locales:
+            self.localization.supported_locales.append(old_source)
+        self.localization.source_locale = locale
+        if label and label.strip():
+            self.localization.locale_names[locale] = label.strip()
+        if self.localization.default_locale == old_source:
+            self.localization.default_locale = locale
+        self.localization.active_locale = locale
+        if old_source != locale and not self.localization.locale_path(old_source).exists():
+            self.localization.save_locale(old_source, {})
+        self.save_localization_config()
+        self.reload()
+
+    def add_locale(self, locale: str, label: str | None = None) -> None:
+        self.localization.add_locale(locale, label)
+        self.save_localization_config()
+
+    def remove_locale(self, locale: str) -> None:
+        self.localization.remove_locale(locale)
+        self.save_localization_config()
+
+    def set_default_locale(self, locale: str) -> None:
+        if locale not in self.localization.supported_locales:
+            raise ValueError(f"Unsupported locale: {locale}")
+        self.localization.default_locale = locale
+        self.save_localization_config()
+
+    def set_active_locale(self, locale: str | None) -> str:
+        selected = self.localization.set_active_locale(locale)
+        self.reload()
+        return selected
+
+    def text(self, key: str, source: str, variables: dict[str, Any] | None = None) -> str:
+        return self.localization.translate(key, source, variables=variables)
 
     @property
     def project_id(self) -> str:
@@ -789,7 +884,13 @@ class ProjectRegistry:
             for path in sorted(self.attack_dir.glob("*.json")):
                 data = AttackDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
                 self.attacks_data[data.id] = data
-                self.attacks[data.id] = data.to_skill_definition()
+                definition = data.to_skill_definition()
+                definition = replace(
+                    definition,
+                    name=self.text(f"attack.{data.id}.name", data.name),
+                    description=self.text(f"attack.{data.id}.description", data.description),
+                )
+                self.attacks[data.id] = definition
 
         if self.enemy_dir.exists():
             for path in sorted(self.enemy_dir.glob("*.json")):
@@ -800,7 +901,13 @@ class ProjectRegistry:
             for path in sorted(self.item_dir.glob("*.json")):
                 data = ItemDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
                 self.items_data[data.id] = data
-                self.items[data.id] = data.to_item_definition()
+                definition = data.to_item_definition()
+                definition = replace(
+                    definition,
+                    name=self.text(f"item.{data.id}.name", data.name),
+                    description=self.text(f"item.{data.id}.description", data.description),
+                )
+                self.items[data.id] = definition
 
         if self.character_dir.exists():
             for path in sorted(self.character_dir.glob("*.json")):
@@ -897,7 +1004,9 @@ class ProjectRegistry:
         except KeyError as exc:
             raise KeyError(f"Unknown playable character: {character_id}") from exc
         pawn = self.pawn(definition.pawn_id)
-        return definition.make_character(pawn, self.attacks, leader=leader)
+        character = definition.make_character(pawn, self.attacks, leader=leader)
+        character.name = self.text(f"pawn.{pawn.id}.name", pawn.name)
+        return character
 
     def save_pawn(self, data: PawnDefinitionData) -> Path:
         self.pawn_dir.mkdir(parents=True, exist_ok=True)
@@ -914,25 +1023,38 @@ class ProjectRegistry:
 
     def resolve_story_pawn(self, pawn_id: str) -> tuple[str, str | None]:
         pawn = self.pawn(pawn_id)
-        return pawn.name, pawn.portrait_key or pawn.sprite_key
+        return self.text(f"pawn.{pawn.id}.name", pawn.name), pawn.portrait_key or pawn.sprite_key
 
     def world_asset_catalog(self, base: WorldAssetCatalog) -> WorldAssetCatalog:
         merged = dict(base.assets)
         for object_data in self.objects.values():
-            merged[object_data.id] = object_data.to_world_asset()
+            definition = object_data.to_world_asset()
+            merged[object_data.id] = replace(
+                definition,
+                display_name=self.text(f"object.{object_data.id}.name", object_data.name),
+                label=(
+                    self.text(f"object.{object_data.id}.label", object_data.label)
+                    if object_data.label else None
+                ),
+            )
         for pawn in self.pawns.values():
             existing = merged.get(pawn.id)
             if existing is not None and existing.category == "actor":
                 merged[pawn.id] = replace(
                     existing,
                     sprite_key=pawn.sprite_key,
-                    display_name=pawn.name,
-                    actor_name=pawn.name,
+                    display_name=self.text(f"pawn.{pawn.id}.name", pawn.name),
+                    actor_name=self.text(f"pawn.{pawn.id}.name", pawn.name),
                     color_key=pawn.color_key,
                     radius=pawn.radius,
                 )
             else:
-                merged[pawn.id] = pawn.to_world_asset()
+                definition = pawn.to_world_asset()
+                merged[pawn.id] = replace(
+                    definition,
+                    display_name=self.text(f"pawn.{pawn.id}.name", pawn.name),
+                    actor_name=self.text(f"pawn.{pawn.id}.name", pawn.name),
+                )
         return WorldAssetCatalog(assets=merged)
 
     def save_attack(self, data: AttackDefinitionData) -> Path:
@@ -960,7 +1082,9 @@ class ProjectRegistry:
             enemy = self.enemies[enemy_id]
         except KeyError as exc:
             raise KeyError(f"Unknown enemy: {enemy_id}") from exc
-        return enemy.make_character(identifier, self.attacks)
+        character = enemy.make_character(identifier, self.attacks)
+        character.name = self.text(f"enemy.{enemy.id}.name", enemy.name)
+        return character
 
     def apply_spawn_modifiers(self, character: Character, rule: SpawnRule) -> Character:
         character.name = rule.name_override or character.name
@@ -1000,7 +1124,8 @@ class ProjectRegistry:
         for dungeon_id, path in self.dungeon_paths().items():
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-                labels[dungeon_id] = str(data.get("name") or dungeon_id)
+                source_name = str(data.get("name") or dungeon_id)
+                labels[dungeon_id] = self.text(f"dungeon.{dungeon_id}.name", source_name)
             except (OSError, json.JSONDecodeError):
                 labels[dungeon_id] = dungeon_id
         return labels
@@ -1008,7 +1133,9 @@ class ProjectRegistry:
     def load_dungeon(self, dungeon_id: str) -> DungeonDefinition:
         paths = self.dungeon_paths()
         try:
-            return DungeonDefinition.load(paths[dungeon_id])
+            dungeon = DungeonDefinition.load(paths[dungeon_id])
+            dungeon.name = self.text(f"dungeon.{dungeon.id}.name", dungeon.name)
+            return dungeon
         except KeyError as exc:
             raise KeyError(f"Unknown dungeon: {dungeon_id}") from exc
 
@@ -1057,7 +1184,8 @@ class ProjectRegistry:
         for story_id, path in self.story_paths().items():
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-                labels[story_id] = str(data.get("name") or story_id).replace("_", " ")
+                source_name = str(data.get("name") or story_id).replace("_", " ")
+                labels[story_id] = self.text(f"story.{story_id}.name", source_name)
             except (OSError, json.JSONDecodeError):
                 labels[story_id] = story_id
         return labels
@@ -1099,6 +1227,187 @@ class ProjectRegistry:
         path = self.story_dir / f"{story_id}.json"
         graph.save(path)
         return graph, path
+
+    @staticmethod
+    def _entry(entries: list[LocalizationEntry], key: str, source: object, context: str) -> None:
+        text = str(source or "")
+        if text:
+            entries.append(LocalizationEntry(key, text, context))
+
+    def ensure_story_string_ids(self) -> int:
+        changed_count = 0
+        for story_id, path in self.story_paths().items():
+            graph = StoryGraph.load(path)
+            changed = False
+            for node_id, node in graph.nodes.items():
+                if str(node.get("type", "")).lower() == "dialogue":
+                    used: set[str] = set()
+                    for index, line in enumerate(node.get("lines", []) or [], start=1):
+                        if not isinstance(line, dict):
+                            continue
+                        line_id = str(line.get("id") or "")
+                        if not line_id or line_id in used:
+                            base = f"line_{index:03d}"
+                            line_id = base
+                            suffix = 2
+                            while line_id in used:
+                                line_id = f"{base}_{suffix}"
+                                suffix += 1
+                            line["id"] = line_id
+                            changed = True
+                        used.add(line_id)
+                elif str(node.get("type", "")).lower() == "choice":
+                    used: set[str] = set()
+                    for index, choice in enumerate(node.get("choices", []) or [], start=1):
+                        if not isinstance(choice, dict):
+                            continue
+                        choice_id = str(choice.get("id") or "")
+                        if not choice_id or choice_id in used:
+                            base = f"choice_{index:03d}"
+                            choice_id = base
+                            suffix = 2
+                            while choice_id in used:
+                                choice_id = f"{base}_{suffix}"
+                                suffix += 1
+                            choice["id"] = choice_id
+                            changed = True
+                        used.add(choice_id)
+            if changed:
+                graph.save(path)
+                changed_count += 1
+        return changed_count
+
+    def localization_entries(self) -> list[LocalizationEntry]:
+        self.ensure_story_string_ids()
+        entries: list[LocalizationEntry] = []
+        settings = self.game_settings
+        self._entry(entries, "game.title", settings.title, "Game title")
+
+        for data in self.attacks_data.values():
+            self._entry(entries, f"attack.{data.id}.name", data.name, f"Attack name · {data.id}")
+            self._entry(entries, f"attack.{data.id}.description", data.description, f"Attack description · {data.id}")
+        for data in self.items_data.values():
+            self._entry(entries, f"item.{data.id}.name", data.name, f"Item name · {data.id}")
+            self._entry(entries, f"item.{data.id}.description", data.description, f"Item description · {data.id}")
+        for data in self.enemies.values():
+            self._entry(entries, f"enemy.{data.id}.name", data.name, f"Enemy name · {data.id}")
+        for data in self.pawns.values():
+            self._entry(entries, f"pawn.{data.id}.name", data.name, f"Pawn / character name · {data.id}")
+        for data in self.objects.values():
+            self._entry(entries, f"object.{data.id}.name", data.name, f"World object name · {data.id}")
+            self._entry(entries, f"object.{data.id}.label", data.label, f"Interaction label · {data.id}")
+        for data in self.terrain.values():
+            self._entry(entries, f"terrain.{data.id}.name", data.name, f"Terrain name · {data.id}")
+
+        for dungeon_id, path in self.dungeon_paths().items():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            self._entry(entries, f"dungeon.{dungeon_id}.name", payload.get("name") or dungeon_id, f"Dungeon name · {dungeon_id}")
+
+        for scene_id, path in self.scene_paths().items():
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            self._entry(entries, f"scene.{scene_id}.name", payload.get("name"), f"Scene name · {scene_id}")
+            for obj in payload.get("objects", []):
+                if not isinstance(obj, dict) or not obj.get("label"):
+                    continue
+                object_id = str(obj.get("id") or "object")
+                self._entry(
+                    entries,
+                    f"scene.{scene_id}.object.{object_id}.label",
+                    obj.get("label"),
+                    f"Placed object label · scene {scene_id} · {object_id}",
+                )
+
+        for story_id, path in self.story_paths().items():
+            graph = StoryGraph.load(path)
+            self._entry(entries, f"story.{story_id}.name", graph.name or story_id, f"Story name · {story_id}")
+            for node_id, node in graph.nodes.items():
+                node_type = str(node.get("type", "")).lower()
+                if node_type == "dialogue":
+                    lines = [line for line in (node.get("lines", []) or []) if isinstance(line, dict)]
+                    for index, line in enumerate(lines, start=1):
+                        line_id = str(line.get("id") or f"line_{index:03d}")
+                        base = f"story.{story_id}.{node_id}.{line_id}"
+                        speaker = str(line.get("pawn") or line.get("speaker") or "Narrator")
+                        previous = str(lines[index - 2].get("text", "")).replace("\n", " ") if index > 1 else ""
+                        following = str(lines[index].get("text", "")).replace("\n", " ") if index < len(lines) else ""
+                        context_parts = [
+                            f"Dialogue · story {story_id} · node {node_id} · line {index}",
+                            f"Speaker: {speaker}",
+                        ]
+                        if previous:
+                            context_parts.append(f"Previous: {previous[:120]}")
+                        if following:
+                            context_parts.append(f"Next: {following[:120]}")
+                        self._entry(
+                            entries,
+                            f"{base}.text",
+                            line.get("text"),
+                            " · ".join(context_parts),
+                        )
+                        if line.get("speaker") and not line.get("pawn"):
+                            self._entry(
+                                entries,
+                                f"{base}.speaker",
+                                line.get("speaker"),
+                                f"Custom speaker · story {story_id} · node {node_id} · line {index}",
+                            )
+                elif node_type == "choice":
+                    self._entry(
+                        entries,
+                        f"story.{story_id}.{node_id}.title",
+                        node.get("title"),
+                        f"Choice title · story {story_id} · node {node_id}",
+                    )
+                    for index, choice in enumerate(node.get("choices", []) or [], start=1):
+                        if not isinstance(choice, dict):
+                            continue
+                        choice_id = str(choice.get("id") or f"choice_{index:03d}")
+                        base = f"story.{story_id}.{node_id}.{choice_id}"
+                        self._entry(entries, f"{base}.text", choice.get("text"), f"Choice · story {story_id} · node {node_id} · option {index}")
+                        self._entry(entries, f"{base}.detail", choice.get("detail"), f"Choice detail · story {story_id} · node {node_id} · option {index}")
+
+        deduped: dict[str, LocalizationEntry] = {}
+        for entry in entries:
+            deduped[entry.key] = entry
+        return [deduped[key] for key in sorted(deduped)]
+
+    def localize_scene(self, scene):
+        from mystery_engine.story import ExplorationSceneData
+        localized = ExplorationSceneData.from_dict(scene.to_dict())
+        for obj in localized.objects:
+            if obj.label:
+                obj.label = self.text(
+                    f"scene.{localized.id}.object.{obj.id}.label",
+                    obj.label,
+                )
+        return localized
+
+    def localize_story(self, graph: StoryGraph) -> StoryGraph:
+        localized = StoryGraph.from_dict(graph.to_dict(), source_path=graph.source_path)
+        localized.name = self.text(f"story.{graph.id}.name", graph.name or graph.id)
+        for node_id, node in localized.nodes.items():
+            node_type = str(node.get("type", "")).lower()
+            if node_type == "dialogue":
+                for index, line in enumerate(node.get("lines", []) or [], start=1):
+                    if not isinstance(line, dict):
+                        continue
+                    line_id = str(line.get("id") or f"line_{index:03d}")
+                    base = f"story.{graph.id}.{node_id}.{line_id}"
+                    line["text"] = self.text(f"{base}.text", str(line.get("text", "")))
+                    if line.get("speaker") and not line.get("pawn"):
+                        line["speaker"] = self.text(f"{base}.speaker", str(line.get("speaker", "")))
+            elif node_type == "choice":
+                if node.get("title"):
+                    node["title"] = self.text(f"story.{graph.id}.{node_id}.title", str(node["title"]))
+                for index, choice in enumerate(node.get("choices", []) or [], start=1):
+                    if not isinstance(choice, dict):
+                        continue
+                    choice_id = str(choice.get("id") or f"choice_{index:03d}")
+                    base = f"story.{graph.id}.{node_id}.{choice_id}"
+                    choice["text"] = self.text(f"{base}.text", str(choice.get("text", "")))
+                    if choice.get("detail"):
+                        choice["detail"] = self.text(f"{base}.detail", str(choice["detail"]))
+        return localized
 
     def import_terrain_cliffs(self, terrain_id: str, source_dir: Path) -> int:
         source_dir = Path(source_dir).resolve()

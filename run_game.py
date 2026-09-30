@@ -17,7 +17,14 @@ def main() -> None:
         type=Path,
         help="Project folder containing project.json. Omit for the legacy test game.",
     )
+    parser.add_argument(
+        "--locale",
+        help="Game locale to use, e.g. en-US, fr-FR, or ja-JP.",
+    )
     args = parser.parse_args()
+    if args.locale:
+        import os
+        os.environ["MYSTERY_LOCALE"] = args.locale
 
     if args.project is not None:
         from mystery_engine.project_runtime import build_project_game

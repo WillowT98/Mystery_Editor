@@ -76,7 +76,7 @@ class StoryGraph:
             nodes={
                 "start": {
                     "type": "dialogue",
-                    "lines": [{"speaker": "Mara", "text": "New dialogue.", "expression": "neutral"}],
+                    "lines": [{"id": "line_001", "speaker": "Mara", "text": "New dialogue.", "expression": "neutral"}],
                     "next": "end",
                 },
                 "end": {"type": "end"},
@@ -337,6 +337,18 @@ class StoryGraphRunner:
             if self.context.on_finish:
                 self.context.on_finish(self.result)
 
+    def _format_text(self, value: object) -> str:
+        text = str(value or "")
+        class SafeDict(dict):
+            def __missing__(self, key):
+                return "{" + str(key) + "}"
+        variables = SafeDict(self.context.story.variables)
+        variables.update({key: value for key, value in self.context.story.flags.items()})
+        try:
+            return text.format_map(variables)
+        except (ValueError, KeyError):
+            return text
+
     def _advance_cursor(self, cursor: _Cursor, dt: float, *, root: bool) -> None:
         if cursor.done or self.graph is None:
             return
@@ -370,7 +382,7 @@ class StoryGraphRunner:
                                     speaker = pawn_id
                         lines.append(DialogueLine(
                             speaker=speaker,
-                            text=str(line.get("text", "")),
+                            text=self._format_text(line.get("text", "")),
                             portrait_key=portrait,
                             expression=str(line.get("expression", "neutral")),
                         ))
@@ -399,10 +411,10 @@ class StoryGraphRunner:
                         if not allowed and mode == "hidden":
                             continue
                         options.append(ChoiceOption(
-                            str(raw.get("text", "...")),
+                            self._format_text(raw.get("text", "...")),
                             str(raw["target"]),
                             enabled=allowed,
-                            detail=str(raw.get("detail", "")),
+                            detail=self._format_text(raw.get("detail", "")),
                         ))
                     if not options:
                         self._goto(cursor, node.get("next"))
@@ -413,7 +425,7 @@ class StoryGraphRunner:
                         c.state["pending"] = False
 
                     cursor.state["pending"] = True
-                    self.context.choose(str(node.get("title", "Choose")), options, choose)
+                    self.context.choose(self._format_text(node.get("title", "Choose")), options, choose)
                 return
 
             if node_type == "condition":

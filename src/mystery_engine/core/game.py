@@ -270,7 +270,9 @@ class MysteryGame:
             path = path.with_suffix(".json")
         if not path.is_absolute():
             path = self._story_root() / path
-        return StoryGraph.load(path)
+        graph = StoryGraph.load(path)
+        localizer = getattr(self.definition, "localize_story", None)
+        return localizer(graph) if callable(localizer) else graph
 
     def run_story(self, graph: str | Path | StoryGraph, entry: str = "default") -> None:
         story = graph if isinstance(graph, StoryGraph) else self._load_story_graph(str(graph))
@@ -523,10 +525,19 @@ class MysteryGame:
         entries = [
             MenuEntry("Resume", action=self.menu.close),
             MenuEntry("Audio", children=self._audio_menu_entries, detail=f"Music {round(self.audio.master_volume * 100)}%"),
+        ]
+        locales = getattr(self.definition, "available_locales", None)
+        if callable(locales) and len(locales()) > 1:
+            entries.append(MenuEntry(
+                "Language",
+                children=self._language_menu_entries,
+                detail=str(getattr(self.definition, "active_locale_label", lambda: "")()),
+            ))
+        entries.extend([
             MenuEntry("Controls", action=self._show_controls),
             MenuEntry("Save snapshot", action=lambda: self._save_from_menu()),
             MenuEntry("Quit", action=self._quit_from_menu),
-        ]
+        ])
         self.menu.open("System", entries)
 
     def _exploration_menu_entries(self) -> list[MenuEntry]:
@@ -553,6 +564,25 @@ class MysteryGame:
                 MenuEntry("Give up", action=lambda: self._give_up_from_menu()),
             ]),
         ]
+
+    def _language_menu_entries(self) -> list[MenuEntry]:
+        provider = getattr(self.definition, "available_locales", None)
+        setter = getattr(self.definition, "set_locale", None)
+        if not callable(provider) or not callable(setter):
+            return []
+        current = str(getattr(self.definition, "active_locale", lambda: "")())
+        entries: list[MenuEntry] = []
+        for locale, label in provider():
+            def select(value=locale):
+                setter(self, value)
+                self.menu.close()
+                self.add_message(f"Language: {getattr(self.definition, 'active_locale_label', lambda: value)()}")
+            entries.append(MenuEntry(
+                label,
+                action=select,
+                detail="Current" if locale == current else "",
+            ))
+        return entries
 
     def _audio_menu_entries(self) -> list[MenuEntry]:
         return [

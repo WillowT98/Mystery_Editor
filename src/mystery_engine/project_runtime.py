@@ -61,10 +61,12 @@ class ProjectGameDefinition:
 
     def __init__(self, project_root: Path) -> None:
         self.project_registry = ProjectRegistry.load(project_root)
+        requested_locale = os.environ.get("MYSTERY_LOCALE") or self.project_registry.localization.default_locale
+        self.project_registry.set_active_locale(requested_locale)
         settings = self.project_registry.game_settings
         self.game_id = self.project_registry.project_id
         self.game_version = settings.version
-        self.title = settings.title
+        self.title = self.project_registry.text("game.title", settings.title)
         self.asset_root = self.project_registry.asset_root
         self.sfx_catalog_path = self.asset_root / "sfx_cues.json"
         self.story_root = self.project_registry.story_dir
@@ -93,6 +95,61 @@ class ProjectGameDefinition:
 
     def resolve_story_pawn(self, pawn_id: str) -> tuple[str, str | None]:
         return self.project_registry.resolve_story_pawn(pawn_id)
+
+    def localize_story(self, graph):
+        return self.project_registry.localize_story(graph)
+
+    def available_locales(self) -> list[tuple[str, str]]:
+        loc = self.project_registry.localization
+        return [(code, loc.locale_label(code)) for code in loc.supported_locales]
+
+    def active_locale(self) -> str:
+        return self.project_registry.localization.active_locale
+
+    def active_locale_label(self) -> str:
+        loc = self.project_registry.localization
+        return loc.locale_label(loc.active_locale)
+
+    def set_locale(self, game: "MysteryGame", locale: str) -> None:
+        self.project_registry.set_active_locale(locale)
+        settings = self.project_registry.game_settings
+        self.title = self.project_registry.text("game.title", settings.title)
+
+        # Refresh already-created runtime content so switching language does not
+        # require restarting the game.
+        for member in game.state.party:
+            definition = self.project_registry.characters.get(member.id)
+            if definition is not None:
+                pawn = self.project_registry.pawns.get(definition.pawn_id)
+                if pawn is not None:
+                    member.name = self.project_registry.text(f"pawn.{pawn.id}.name", pawn.name)
+            for skill in member.skills:
+                attack = self.project_registry.attacks.get(skill.definition.id)
+                if attack is not None:
+                    skill.definition = attack
+
+        for inventory in (game.state.bag, game.state.storage):
+            for stack in inventory.stacks:
+                if stack.item.id in self.project_registry.items:
+                    stack.item = self.project_registry.items[stack.item.id]
+
+        if self.dungeon_definition is not None and self.active_dungeon_id:
+            self.dungeon_definition = self.project_registry.load_dungeon(self.active_dungeon_id)
+            self.dungeon_floor_count = self.dungeon_definition.floor_count
+
+        if game.exploration is not None:
+            for actor in game.exploration.actors:
+                pawn = self.project_registry.pawns.get(actor.id)
+                if pawn is not None:
+                    actor.name = self.project_registry.text(f"pawn.{pawn.id}.name", pawn.name)
+            for interactable in game.exploration.interactables:
+                # Instance-specific labels are translated when scenes load; use
+                # reusable object labels as a live-refresh fallback.
+                object_data = self.project_registry.objects.get(interactable.id)
+                if object_data is not None and object_data.label:
+                    interactable.label = self.project_registry.text(
+                        f"object.{object_data.id}.label", object_data.label
+                    )
 
     def create_state(self) -> PersistentGameState:
         settings = self.project_registry.game_settings
@@ -148,7 +205,7 @@ class ProjectGameDefinition:
 
     def create_exploration_scene(self, game: "MysteryGame", scene_path: Path) -> ExplorationMap:
         scene_path = Path(scene_path).resolve()
-        scene = load_exploration_scene(scene_path)
+        scene = self.project_registry.localize_scene(load_exploration_scene(scene_path))
 
         def portal_transition(placed):
             def transition() -> None:

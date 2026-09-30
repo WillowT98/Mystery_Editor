@@ -1077,7 +1077,17 @@ def edit_dialogue_node_dialog(registry: ProjectRegistry, scene, graph, node_id: 
 
         def accept() -> None:
             selected_pawn = by_display.get(pawn_var.get())
+            if current.get("id"):
+                line_id = str(current["id"])
+            else:
+                used = {str(value.get("id")) for value in working if isinstance(value, dict) and value.get("id")}
+                number = 1
+                line_id = f"line_{number:03d}"
+                while line_id in used:
+                    number += 1
+                    line_id = f"line_{number:03d}"
             line = {
+                "id": line_id,
                 "text": text_widget.get("1.0", "end").rstrip("\n"),
                 "expression": expression_var.get().strip() or "neutral",
             }
@@ -1155,6 +1165,323 @@ def edit_dialogue_node_dialog(registry: ProjectRegistry, scene, graph, node_id: 
     refresh()
     root.mainloop()
     return bool(saved["ok"])
+
+
+def add_locale_dialog(registry: ProjectRegistry) -> str | None:
+    root = _root("Add Language", "560x250")
+    result: dict[str, str | None] = {"locale": None}
+    outer = tk.Frame(root)
+    outer.pack(fill="both", expand=True, padx=16, pady=14)
+
+    tk.Label(
+        outer,
+        text="Add a game translation",
+        anchor="w",
+        font=("TkDefaultFont", 11, "bold"),
+    ).pack(fill="x", pady=(0, 10))
+
+    locale_var = tk.StringVar()
+    label_var = tk.StringVar()
+
+    for label, var, hint in (
+        ("Locale code", locale_var, "Examples: fr-FR, ja-JP, de-DE, es-419"),
+        ("Display name", label_var, "Example: Français"),
+    ):
+        row = tk.Frame(outer)
+        row.pack(fill="x", pady=4)
+        tk.Label(row, text=label, width=16, anchor="w").pack(side="left")
+        tk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+        tk.Label(outer, text=hint, anchor="w", fg="#666666").pack(fill="x", padx=(112, 0))
+
+    def accept() -> None:
+        locale = locale_var.get().strip()
+        if not locale:
+            messagebox.showerror("Missing locale", "Enter a locale code such as fr-FR or ja-JP.", parent=root)
+            return
+        try:
+            registry.add_locale(locale, label_var.get().strip() or locale)
+        except Exception as exc:
+            messagebox.showerror("Could not add language", str(exc), parent=root)
+            return
+        result["locale"] = locale
+        root.destroy()
+
+    buttons = tk.Frame(outer)
+    buttons.pack(fill="x", pady=(18, 0))
+    tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8, 0))
+    tk.Button(buttons, text="Add Language", command=accept).pack(side="right")
+    root.mainloop()
+    return result["locale"]
+
+
+def edit_localization_workspace(registry: ProjectRegistry, locale: str) -> None:
+    entries = registry.localization_entries()
+    loc = registry.localization
+    root = _root(f"Localization — {loc.locale_label(locale)}", "1180x820")
+    root.minsize(900, 650)
+
+    outer = tk.Frame(root)
+    outer.pack(fill="both", expand=True, padx=12, pady=10)
+
+    translated, stale, total = loc.coverage(entries, locale)
+    source_locale = locale == loc.source_locale
+    summary_var = tk.StringVar()
+    filter_var = tk.StringVar()
+    current_key: dict[str, str | None] = {"key": None}
+
+    def update_summary() -> None:
+        t, s, n = loc.coverage(entries, locale)
+        if source_locale:
+            summary_var.set(f"{loc.locale_label(locale)} · source language · {n} strings")
+        else:
+            pct = 100 if n == 0 else round((t / n) * 100)
+            summary_var.set(
+                f"{loc.locale_label(locale)} · {t}/{n} current ({pct}%) · "
+                f"{s} stale · {max(0, n-t-s)} missing"
+            )
+
+    header = tk.Frame(outer)
+    header.pack(fill="x", pady=(0, 8))
+    tk.Label(header, textvariable=summary_var, anchor="w", font=("TkDefaultFont", 11, "bold")).pack(side="left", fill="x", expand=True)
+
+    if source_locale:
+        def change_source() -> None:
+            new_code = simpledialog.askstring(
+                "Source Language",
+                "Locale code for the language your project content is written in:",
+                initialvalue=loc.source_locale,
+                parent=root,
+            )
+            if not new_code or new_code.strip() == loc.source_locale:
+                return
+            new_code = new_code.strip()
+            label = simpledialog.askstring(
+                "Source Language",
+                "Display name for this language:",
+                initialvalue=new_code,
+                parent=root,
+            )
+            if not messagebox.askyesno(
+                "Change Source Language",
+                "This changes the language metadata only; it does not translate your existing source text.\n\n"
+                "Source language can only be changed before target translations exist. Continue?",
+                parent=root,
+            ):
+                return
+            try:
+                registry.set_source_locale(new_code, label or new_code)
+            except Exception as exc:
+                messagebox.showerror("Could not change source language", str(exc), parent=root)
+                return
+            root.destroy()
+
+        tk.Button(header, text="Change Source Language…", command=change_source).pack(side="right", padx=(8, 0))
+
+    if not source_locale:
+        def remove_language() -> None:
+            if not messagebox.askyesno(
+                "Remove Language",
+                f"Remove {loc.locale_label(locale)} from this project's supported languages?\n\n"
+                "The locale file is left on disk so translations are not destroyed.",
+                parent=root,
+            ):
+                return
+            try:
+                registry.remove_locale(locale)
+            except Exception as exc:
+                messagebox.showerror("Could not remove language", str(exc), parent=root)
+                return
+            root.destroy()
+
+        tk.Button(header, text="Remove Language", command=remove_language).pack(side="right", padx=(8, 0))
+
+    if locale != loc.default_locale:
+        def make_default() -> None:
+            try:
+                registry.set_default_locale(locale)
+            except Exception as exc:
+                messagebox.showerror("Could not set default", str(exc), parent=root)
+                return
+            messagebox.showinfo("Default language", f"{loc.locale_label(locale)} is now the default game language.", parent=root)
+        tk.Button(header, text="Set as Default", command=make_default).pack(side="right")
+
+    search_row = tk.Frame(outer)
+    search_row.pack(fill="x", pady=(0, 8))
+    tk.Label(search_row, text="Filter", width=8, anchor="w").pack(side="left")
+    tk.Entry(search_row, textvariable=filter_var).pack(side="left", fill="x", expand=True)
+
+    paned = tk.PanedWindow(outer, orient="horizontal", sashrelief="raised")
+    paned.pack(fill="both", expand=True)
+
+    left = tk.Frame(paned)
+    right = tk.Frame(paned)
+    paned.add(left, minsize=420)
+    paned.add(right, minsize=420)
+
+    listbox = tk.Listbox(left, exportselection=False)
+    listbox.pack(fill="both", expand=True)
+
+    key_var = tk.StringVar()
+    context_var = tk.StringVar()
+    status_var = tk.StringVar()
+
+    tk.Label(right, textvariable=key_var, anchor="w", font=("TkDefaultFont", 10, "bold"), wraplength=650).pack(fill="x")
+    tk.Label(right, textvariable=context_var, anchor="w", fg="#555555", wraplength=650).pack(fill="x", pady=(2, 4))
+    tk.Label(right, textvariable=status_var, anchor="w").pack(fill="x", pady=(0, 8))
+
+    tk.Label(right, text=f"Source ({loc.locale_label(loc.source_locale)})", anchor="w", font=("TkDefaultFont", 10, "bold")).pack(fill="x")
+    source_text = tk.Text(right, height=8, wrap="word")
+    source_text.pack(fill="both", expand=True, pady=(2, 10))
+    source_text.configure(state="disabled")
+
+    tk.Label(
+        right,
+        text="Translation" if not source_locale else "Source text is edited in its normal content editor",
+        anchor="w",
+        font=("TkDefaultFont", 10, "bold"),
+    ).pack(fill="x")
+    translation_text = tk.Text(right, height=9, wrap="word")
+    translation_text.pack(fill="both", expand=True, pady=(2, 8))
+    if source_locale:
+        translation_text.configure(state="disabled")
+
+    visible_entries: list = []
+
+    def entry_status(entry) -> str:
+        return loc.status(entry, locale)
+
+    def display_status(status: str) -> str:
+        return {
+            "source": "SOURCE",
+            "translated": "OK",
+            "stale": "STALE",
+            "missing": "MISSING",
+        }.get(status, status.upper())
+
+    def refresh_list(select_key: str | None = None) -> None:
+        query = filter_var.get().strip().lower()
+        visible_entries.clear()
+        listbox.delete(0, "end")
+        for entry in entries:
+            status = entry_status(entry)
+            haystack = f"{entry.key} {entry.context} {entry.source} {status}".lower()
+            if query and query not in haystack:
+                continue
+            visible_entries.append(entry)
+            excerpt = entry.source.replace("\n", " ")
+            if len(excerpt) > 62:
+                excerpt = excerpt[:59] + "…"
+            listbox.insert("end", f"[{display_status(status):7}]  {excerpt}")
+        if visible_entries:
+            index = 0
+            if select_key:
+                index = next((i for i, entry in enumerate(visible_entries) if entry.key == select_key), 0)
+            listbox.selection_set(index)
+            listbox.see(index)
+            load_selected()
+        else:
+            current_key["key"] = None
+            key_var.set("")
+            context_var.set("")
+            status_var.set("")
+            source_text.configure(state="normal")
+            source_text.delete("1.0", "end")
+            source_text.configure(state="disabled")
+            if not source_locale:
+                translation_text.delete("1.0", "end")
+        update_summary()
+
+    def load_selected(_event=None) -> None:
+        selected = listbox.curselection()
+        if not selected or not visible_entries:
+            return
+        entry = visible_entries[int(selected[0])]
+        current_key["key"] = entry.key
+        key_var.set(entry.key)
+        context_var.set(entry.context)
+        status = entry_status(entry)
+        status_var.set(f"Status: {display_status(status)}")
+
+        source_text.configure(state="normal")
+        source_text.delete("1.0", "end")
+        source_text.insert("1.0", entry.source)
+        source_text.configure(state="disabled")
+
+        if not source_locale:
+            translation_text.delete("1.0", "end")
+            record = loc.load_locale(locale).get(entry.key)
+            if record:
+                translation_text.insert("1.0", record.text)
+
+    def save_translation() -> None:
+        if source_locale or not current_key["key"]:
+            return
+        entry = next((value for value in entries if value.key == current_key["key"]), None)
+        if entry is None:
+            return
+        try:
+            loc.set_translation(locale, entry, translation_text.get("1.0", "end").rstrip("\n"))
+        except Exception as exc:
+            messagebox.showerror("Could not save translation", str(exc), parent=root)
+            return
+        refresh_list(entry.key)
+
+    listbox.bind("<<ListboxSelect>>", load_selected)
+    filter_var.trace_add("write", lambda *_: refresh_list(current_key["key"]))
+
+    actions = tk.Frame(outer)
+    actions.pack(fill="x", pady=(9, 0))
+    if not source_locale:
+        tk.Button(actions, text="Save Translation", command=save_translation).pack(side="left")
+
+    def export_csv() -> None:
+        path = filedialog.asksaveasfilename(
+            parent=root,
+            title="Export translation CSV",
+            defaultextension=".csv",
+            initialfile=f"{registry.project_id}_{locale}.csv",
+            filetypes=[("CSV", "*.csv")],
+        )
+        if path:
+            loc.export_csv(Path(path), locale, entries)
+
+    def import_csv() -> None:
+        path = filedialog.askopenfilename(parent=root, title="Import translation CSV", filetypes=[("CSV", "*.csv")])
+        if not path:
+            return
+        imported, skipped = loc.import_csv(Path(path), locale, entries)
+        refresh_list(current_key["key"])
+        messagebox.showinfo("Translation import", f"Imported {imported} translations; skipped {skipped}.", parent=root)
+
+    def export_xliff() -> None:
+        path = filedialog.asksaveasfilename(
+            parent=root,
+            title="Export XLIFF",
+            defaultextension=".xlf",
+            initialfile=f"{registry.project_id}_{locale}.xlf",
+            filetypes=[("XLIFF", "*.xlf *.xliff")],
+        )
+        if path:
+            loc.export_xliff(Path(path), locale, entries)
+
+    def import_xliff() -> None:
+        path = filedialog.askopenfilename(parent=root, title="Import XLIFF", filetypes=[("XLIFF", "*.xlf *.xliff"), ("All files", "*.*")])
+        if not path:
+            return
+        imported, skipped = loc.import_xliff(Path(path), locale, entries)
+        refresh_list(current_key["key"])
+        messagebox.showinfo("XLIFF import", f"Imported {imported} translations; skipped {skipped}.", parent=root)
+
+    tk.Button(actions, text="Export CSV…", command=export_csv).pack(side="left", padx=(8, 0))
+    tk.Button(actions, text="Export XLIFF…", command=export_xliff).pack(side="left", padx=(6, 0))
+    if not source_locale:
+        tk.Button(actions, text="Import CSV…", command=import_csv).pack(side="left", padx=(18, 0))
+        tk.Button(actions, text="Import XLIFF…", command=import_xliff).pack(side="left", padx=(6, 0))
+    tk.Button(actions, text="Close", command=root.destroy).pack(side="right")
+
+    update_summary()
+    refresh_list()
+    root.mainloop()
 
 
 def edit_spawn_rule_dialog(registry: ProjectRegistry, rule) -> bool:
@@ -1287,7 +1614,7 @@ class ProjectEditor:
     the same authoring process and return here when closed.
     """
 
-    SECTIONS = ("Game", "Scenes", "Terrain", "Stories", "Pawns", "Characters", "Objects", "Dungeons", "Enemies", "Attacks", "Items", "Assets")
+    SECTIONS = ("Game", "Scenes", "Terrain", "Stories", "Pawns", "Characters", "Objects", "Dungeons", "Enemies", "Attacks", "Items", "Localization", "Assets")
 
     def __init__(self, registry: ProjectRegistry, world_assets, project_root: Path, item_labels: dict[str, str] | None = None) -> None:
         self.registry = registry
@@ -1315,12 +1642,18 @@ class ProjectEditor:
 
     def _new_project_file(self) -> None:
         root = _root("New Game Project", "560x220")
-        result: dict[str, str | None] = {"parent": None, "name": None}
+        result: dict[str, str | None] = {"parent": None, "name": None, "source_locale": None}
         tk.Label(root, text="Create a new Mystery Engine project", font=("TkDefaultFont", 11, "bold")).pack(fill="x", padx=14, pady=(14, 8))
         name_var = tk.StringVar(value="My Game")
         row = tk.Frame(root); row.pack(fill="x", padx=14, pady=6)
         tk.Label(row, text="Project name", width=16, anchor="w").pack(side="left")
         tk.Entry(row, textvariable=name_var).pack(side="left", fill="x", expand=True)
+
+        source_var = tk.StringVar(value="en-US")
+        source_row = tk.Frame(root); source_row.pack(fill="x", padx=14, pady=6)
+        tk.Label(source_row, text="Source locale", width=16, anchor="w").pack(side="left")
+        tk.Entry(source_row, textvariable=source_var).pack(side="left", fill="x", expand=True)
+        tk.Label(root, text="Examples: en-US, fr-FR, ja-JP", anchor="w", fg="#666666").pack(fill="x", padx=(126, 14))
 
         def choose() -> None:
             parent = filedialog.askdirectory(parent=root, title="Choose parent folder for the new project")
@@ -1328,6 +1661,7 @@ class ProjectEditor:
                 return
             result["parent"] = parent
             result["name"] = name_var.get().strip() or "My Game"
+            result["source_locale"] = source_var.get().strip() or "en-US"
             root.destroy()
 
         buttons = tk.Frame(root); buttons.pack(fill="x", padx=14, pady=16)
@@ -1342,6 +1676,7 @@ class ProjectEditor:
             return
         try:
             registry = ProjectRegistry.create_project(target, result["name"] or "My Game")
+            registry.set_source_locale(result["source_locale"] or "en-US", result["source_locale"] or "en-US")
         except Exception as exc:
             messagebox.showerror("Could not create project", str(exc))
             return
@@ -1413,6 +1748,19 @@ class ProjectEditor:
             labels = self.registry.attack_labels
         elif self.section == "Items":
             labels = self.registry.item_labels
+        elif self.section == "Localization":
+            entries = self.registry.localization_entries()
+            labels = {}
+            loc = self.registry.localization
+            for locale in loc.supported_locales:
+                translated, stale, total = loc.coverage(entries, locale)
+                if locale == loc.source_locale:
+                    suffix = f"Source · {total} strings"
+                else:
+                    pct = 100 if total == 0 else round((translated / total) * 100)
+                    suffix = f"{pct}% · {stale} stale" if stale else f"{pct}%"
+                default = " · Default" if locale == loc.default_locale else ""
+                labels[locale] = f"{loc.locale_label(locale)} — {suffix}{default}"
         else:
             labels = {key: key for key in self.registry.asset_keys("characters", {".png"})}
         self.items = list(labels.items())
@@ -1502,6 +1850,9 @@ class ProjectEditor:
         elif self.section == "Items":
             created = edit_item_dialog(self.registry)
             self.status = f"Created {created}" if created else "Cancelled"
+        elif self.section == "Localization":
+            created = add_locale_dialog(self.registry)
+            self.status = f"Added {created}" if created else "Cancelled"
         elif self.section == "Dungeons":
             name = simpledialog.askstring("New dungeon", "Dungeon name:")
             if name:
@@ -1572,6 +1923,8 @@ class ProjectEditor:
             edit_world_object_dialog(self.registry, item_id)
         elif self.section == "Items":
             edit_item_dialog(self.registry, item_id)
+        elif self.section == "Localization":
+            edit_localization_workspace(self.registry, item_id)
         elif self.section == "Dungeons":
             from mystery_engine.editor.dungeon_builder import DungeonBuilderEditor
             path = self.registry.dungeon_path(item_id)

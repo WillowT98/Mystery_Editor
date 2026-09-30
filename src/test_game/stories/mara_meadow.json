@@ -33,17 +33,20 @@
         {
           "text": "There you are. The path through the dungeon is stable now.",
           "expression": "neutral",
-          "pawn": "mara"
+          "pawn": "mara",
+          "id": "line_001"
         },
         {
           "text": "So the engine survived us.",
           "expression": "neutral",
-          "pawn": "fox"
+          "pawn": "fox",
+          "id": "line_002"
         },
         {
           "text": "For a first expedition? I'll accept that.",
           "expression": "neutral",
-          "pawn": "mara"
+          "pawn": "mara",
+          "id": "line_003"
         }
       ],
       "next": "end"
@@ -54,12 +57,14 @@
         {
           "text": "That hurt. We can go back whenever you're ready.",
           "expression": "neutral",
-          "pawn": "mara"
+          "pawn": "mara",
+          "id": "line_001"
         },
         {
           "text": "And perhaps lose slightly fewer of our things this time.",
           "expression": "neutral",
-          "pawn": "fox"
+          "pawn": "fox",
+          "id": "line_002"
         }
       ],
       "next": "end"
@@ -70,17 +75,20 @@
         {
           "text": "The test dungeon is just east of here.",
           "expression": "neutral",
-          "pawn": "mara"
+          "pawn": "mara",
+          "id": "line_001"
         },
         {
           "text": "Three floors. Enough to see whether all of this actually works.",
           "expression": "neutral",
-          "pawn": "mara"
+          "pawn": "mara",
+          "id": "line_002"
         },
         {
           "text": "That's reassuringly scientific.",
           "expression": "neutral",
-          "pawn": "fox"
+          "pawn": "fox",
+          "id": "line_003"
         }
       ],
       "next": "end"
