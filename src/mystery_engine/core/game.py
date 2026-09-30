@@ -604,6 +604,9 @@ class MysteryGame:
                 facing=actor.facing.name,
                 enabled=actor.enabled,
                 sprite_key=actor.sprite_key,
+                animation_name=actor.animation_name,
+                animation_override=actor.animation_override,
+                animation_loop=actor.animation_loop_override,
             )
             for actor in world.actors
             if actor.id in party_ids
@@ -616,6 +619,9 @@ class MysteryGame:
                     facing=actor.facing.name,
                     enabled=actor.enabled,
                     sprite_key=actor.sprite_key,
+                    animation_name=actor.animation_name,
+                    animation_override=actor.animation_override,
+                    animation_loop=actor.animation_loop_override,
                 )
                 for actor in world.actors
                 if actor.id not in party_ids
