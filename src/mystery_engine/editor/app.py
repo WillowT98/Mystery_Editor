@@ -1953,6 +1953,23 @@ class ExplorationSceneEditor:
                     label = obj.label or definition.label or definition.display_name
                     self._draw_sidebar_help(y, [f"Action: {action}", f"Label: {label}"])
                     y += 58
+
+                    if obj.asset in {"item_storage", "money_storage"} and self.project_registry is not None:
+                        effective_sprite = obj.sprite_override or definition.sprite_key
+                        sprite_exists = bool(
+                            effective_sprite
+                            and (self.asset_root / "objects" / f"{effective_sprite}.png").exists()
+                        )
+                        sprite_text = effective_sprite if sprite_exists else "none"
+                        self._draw_sidebar_help(y, [f"Sprite: {sprite_text}"])
+                        y += 31
+                        sprite_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
+                        self._palette_items.append(PaletteItem("__storage_sprite", "Storage sprite", sprite_rect, None))
+                        pygame.draw.rect(self.screen, (55, 66, 82), sprite_rect, border_radius=6)
+                        caption = "Change storage sprite…" if sprite_exists else "Import storage sprite…"
+                        self.screen.blit(self.font_small.render(caption, True, (232, 238, 232)), (sprite_rect.x + 10, sprite_rect.y + 7))
+                        y += 40
+
                     for key, caption in (("__edit_action", "Edit action ID  [A]"), ("__edit_label", "Edit label  [L]")):
                         br = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
                         self._palette_items.append(PaletteItem(key, caption, br, None))
@@ -2293,6 +2310,38 @@ class ExplorationSceneEditor:
         except Exception as exc:
             self.status = f"Could not import entrance sprite: {exc}"
 
+    def _change_selected_storage_sprite(self) -> None:
+        pair = self._selected_pair()
+        if pair is None or pair[0].asset not in {"item_storage", "money_storage"} or self.project_registry is None:
+            return
+        obj, definition = pair
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk(); root.withdraw(); root.attributes("-topmost", True)
+            chosen = filedialog.askopenfilename(
+                parent=root,
+                title=f"Choose {definition.display_name.lower()} sprite",
+                filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+            )
+            root.destroy()
+            if not chosen:
+                return
+            preferred = f"{obj.asset}_sprite"
+            key, _ = self.project_registry.import_asset(
+                Path(chosen), "objects", preferred_id=preferred,
+                allowed_suffixes={".png"},
+            )
+            before = self.history.snapshot(self.scene)
+            obj.sprite_override = key
+            self.history.remember(before)
+            self.dirty = True
+            self._surface_cache.clear()
+            self._scaled_cache.clear()
+            self.status = f"{definition.display_name} sprite: {key}"
+        except Exception as exc:
+            self.status = f"Could not import storage sprite: {exc}"
+
     def _object_hit(self, pos: tuple[int, int]) -> int | None:
         wx, wy = self.screen_to_world(pos)
         best: tuple[float, int] | None = None
@@ -2427,6 +2476,7 @@ class ExplorationSceneEditor:
                         if pair: self._open_dungeon_editor(pair[0].target_dungeon)
                     elif item.key == "__dungeon_change": self._change_selected_dungeon()
                     elif item.key == "__dungeon_sprite": self._change_selected_dungeon_sprite()
+                    elif item.key == "__storage_sprite": self._change_selected_storage_sprite()
                     elif item.key == "__sound_prev": self._cycle_selected_object_sound(-1)
                     elif item.key == "__sound_next": self._cycle_selected_object_sound(1)
                     elif item.key.startswith("__object_sound::"): self._set_selected_object_sound(str(item.value))

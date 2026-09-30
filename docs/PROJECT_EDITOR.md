@@ -298,6 +298,12 @@ on the shared `PersistentGameState` bag/storage/wallet fields, so storage conten
 remain part of the same persistent state used by saving, defeat loss, and future
 load-game reconstruction.
 
+Storage objects may also use project art. Select a placed Item Storage or Money
+Storage object and use **Import storage sprite…** (or **Change storage sprite…**
+once one is assigned). The PNG is copied into `assets/objects/` and stored as a
+per-instance sprite override, so different placed storage objects may use different
+art without creating new object definitions.
+
 
 ## Standalone projects and the File menu
 

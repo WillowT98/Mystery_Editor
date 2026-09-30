@@ -65,3 +65,11 @@ def test_story_editor_window_close_requests_application_exit():
 
     assert editor.handle_event(pygame.event.Event(pygame.QUIT)) is False
     assert editor._close_application_requested is True
+
+
+def test_storage_sprite_import_is_exposed_in_scene_editor():
+    source = (__import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "mystery_engine" / "editor" / "app.py").read_text(encoding="utf-8")
+    assert "__storage_sprite" in source
+    assert "Import storage sprite" in source
+    assert "Change storage sprite" in source
+    assert "_change_selected_storage_sprite" in source
