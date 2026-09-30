@@ -290,6 +290,83 @@ class StoryActionDispatcher:
             self.game.add_message(str(params.get("text", "")))
             return ImmediateAction()
 
+        if action in {"give_item", "remove_item"}:
+            item_id = str(params.get("item", ""))
+            quantity = max(1, int(params.get("quantity", 1)))
+            location = str(params.get("location", "bag")).lower()
+            inventory = self.game.state.storage if location == "storage" else self.game.state.bag
+            registry = getattr(self.game.definition, "project_registry", None)
+            if action == "give_item":
+                if registry is None or item_id not in getattr(registry, "items", {}):
+                    self.game.add_message(f"Unknown item: {item_id}")
+                    return ImmediateAction()
+                if inventory.add(registry.item(item_id), quantity):
+                    self.game.add_message(f"Received {registry.item(item_id).name} ×{quantity}.")
+                else:
+                    self.game.add_message("There is no room for that item.")
+            else:
+                if inventory.remove(item_id, quantity):
+                    self.game.add_message(f"Removed {item_id} ×{quantity}.")
+                else:
+                    self.game.add_message(f"Not enough {item_id}.")
+            return ImmediateAction()
+
+        if action in {"give_money", "remove_money"}:
+            amount = max(0, int(params.get("amount", 0)))
+            location = str(params.get("location", "carried")).lower()
+            if location == "stored":
+                current = self.game.state.wallet.stored
+                if action == "give_money":
+                    self.game.state.wallet.stored += amount
+                else:
+                    self.game.state.wallet.stored = max(0, current - amount)
+            else:
+                current = self.game.state.wallet.carried
+                if action == "give_money":
+                    self.game.state.wallet.carried += amount
+                else:
+                    self.game.state.wallet.carried = max(0, current - amount)
+            self.game.add_message(f"{'Received' if action == 'give_money' else 'Removed'} {amount} money.")
+            return ImmediateAction()
+
+        if action in {"heal_party", "restore_skill_charges", "restore_party"}:
+            character_id = str(params.get("character", "")).strip()
+            members = (
+                [member for member in self.game.state.party if member.id == character_id]
+                if character_id else list(self.game.state.party)
+            )
+            if action in {"heal_party", "restore_party"}:
+                amount = params.get("amount")
+                for member in members:
+                    if amount is None or str(amount).lower() == "full":
+                        member.stats.current_hp = member.stats.max_hp
+                    else:
+                        member.stats.current_hp = min(
+                            member.stats.max_hp,
+                            member.stats.current_hp + max(0, int(amount)),
+                        )
+                    member.incapacitated = False
+            if action in {"restore_skill_charges", "restore_party"}:
+                skill_id = str(params.get("skill", "")).strip()
+                amount = params.get("amount")
+                for member in members:
+                    skills = [skill for skill in member.skills if not skill_id or skill.definition.id == skill_id]
+                    for skill in skills:
+                        if skill.definition.max_charges is None:
+                            skill.charges = None
+                        elif amount is None or str(amount).lower() == "full":
+                            skill.charges = skill.definition.max_charges
+                        else:
+                            skill.charges = min(
+                                skill.definition.max_charges,
+                                (skill.charges or 0) + max(0, int(amount)),
+                            )
+            self.game.add_message(
+                "Party restored." if action == "restore_party"
+                else ("Party healed." if action == "heal_party" else "Skill charges restored.")
+            )
+            return ImmediateAction()
+
         # Game-specific semantic actions stay out of engine code.
         registry = dict(getattr(self.game.definition, "story_actions", {}))
         callback = registry.get(action)
