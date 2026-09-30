@@ -1361,7 +1361,7 @@ class ExplorationSceneEditor:
             self._draw_sidebar_help(y + 10, ["Paint heights, not cliff tiles.", "Cliffs are generated automatically.", "F: flood fill"])
 
         elif self.mode == "objects":
-            for definition in self.catalog.by_category("scenery", "interactable", "portal", "marker", "actor"):
+            for definition in self.catalog.by_category("scenery", "interactable", "dungeon", "portal", "marker", "actor"):
                 item_rect = pygame.Rect(rect.x + 14, y, rect.w - 28, 74)
                 self._palette_items.append(PaletteItem(definition.id, definition.display_name, item_rect, definition.id))
                 pygame.draw.rect(self.screen, (77, 93, 112) if self.asset_brush == definition.id else (43, 51, 65), item_rect, border_radius=7)
