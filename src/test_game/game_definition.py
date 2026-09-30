@@ -162,12 +162,23 @@ class TestGameDefinition:
                 game.enter_dungeon()
             return transition
 
+        def story_transition(placed):
+            def transition() -> None:
+                if not placed.target_story:
+                    return
+                try:
+                    game.run_story(placed.target_story)
+                except (KeyError, FileNotFoundError):
+                    game.add_message(f"Unknown story: {placed.target_story}")
+            return transition
+
         return build_exploration_map(
             scene,
             self.project_registry.world_asset_catalog(WORLD_ASSETS),
             interactions,
             portal_transition_factory=portal_transition,
             dungeon_transition_factory=dungeon_transition,
+            story_transition_factory=story_transition,
         )
 
     def create_dungeon_floor(self, game: "MysteryGame", floor_number: int):
