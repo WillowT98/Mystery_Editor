@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "id": "fox_lunge",
+  "name": "Lunge",
+  "description": "Strike a target up to two cells away in the facing direction.",
+  "target": "enemy",
+  "range": 2,
+  "power": 7,
+  "heal": 0,
+  "damage_type": "physical",
+  "max_charges": 8,
+  "accuracy": 1,
+  "range_pattern": "two_tiles",
+  "sfx_cue": "combat.light_hit"
+}
