@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "id": "waystone_inspect",
+  "name": "Inspect Waystone",
+  "scene": "test_clearing",
+  "entries": {
+    "default": "talk"
+  },
+  "nodes": {
+    "talk": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "speaker": "Waystone",
+          "text": "A plain marker has been driven into the clearing. Someone has written: TEST AREA.",
+          "expression": "neutral"
+        }
+      ],
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {
+      "talk": [
+        160,
+        180
+      ],
+      "end": [
+        500,
+        180
+      ]
+    }
+  }
+}
