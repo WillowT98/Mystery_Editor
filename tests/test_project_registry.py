@@ -4,7 +4,15 @@ import json
 from pathlib import Path
 
 from mystery_engine.dungeon import DungeonDefinition, SpawnRule
-from mystery_engine.project import AttackDefinitionData, EnemyDefinitionData, PawnDefinitionData, ProjectRegistry
+from mystery_engine.project import (
+    AttackDefinitionData,
+    EnemyDefinitionData,
+    GameSettingsData,
+    ItemDefinitionData,
+    PawnDefinitionData,
+    PlayableCharacterDefinitionData,
+    ProjectRegistry,
+)
 from mystery_engine.story import SceneObjectData, WorldAssetCatalog
 
 
@@ -12,6 +20,8 @@ def _registry(tmp_path: Path) -> ProjectRegistry:
     game_root = tmp_path / "game"
     (game_root / "content" / "attacks").mkdir(parents=True)
     (game_root / "content" / "enemies").mkdir(parents=True)
+    (game_root / "content" / "items").mkdir(parents=True)
+    (game_root / "content" / "characters").mkdir(parents=True)
     (game_root / "content" / "pawns").mkdir(parents=True)
     (game_root / "dungeons").mkdir()
     (game_root / "scenes").mkdir()
@@ -25,6 +35,8 @@ def _registry(tmp_path: Path) -> ProjectRegistry:
         "content": {
             "attacks": "content/attacks",
             "enemies": "content/enemies",
+            "items": "content/items",
+            "characters": "content/characters",
             "pawns": "content/pawns",
             "dungeons": "dungeons",
             "scenes": "scenes",
@@ -215,3 +227,79 @@ def test_scene_story_link_metadata_round_trip():
     )
     loaded = SceneObjectData.from_dict(placed.to_dict())
     assert loaded.target_story == "mara_meadow"
+
+
+def test_project_registry_saves_items_and_sprite_keys(tmp_path):
+    registry = _registry(tmp_path)
+    registry.save_item(ItemDefinitionData(
+        id="herb",
+        name="Healing Herb",
+        description="Restores HP.",
+        heal=12,
+        droppable=True,
+        sprite_key="green_herb",
+    ))
+    item = registry.item("herb")
+    assert item.name == "Healing Herb"
+    assert item.heal == 12
+    assert item.sprite_key == "green_herb"
+    assert registry.item_labels == {"herb": "Healing Herb"}
+
+
+def test_project_registry_builds_playable_character_from_pawn(tmp_path):
+    registry = _registry(tmp_path)
+    registry.save_pawn(PawnDefinitionData(
+        id="hero_pawn", name="Hero", sprite_key="hero", portrait_key="hero_face",
+    ))
+    registry.save_attack(AttackDefinitionData(
+        id="jab", name="Jab", target="enemy", range=1, power=4,
+        damage_type="physical", range_pattern="adjacent",
+    ))
+    registry.save_character(PlayableCharacterDefinitionData(
+        id="hero",
+        pawn_id="hero_pawn",
+        max_hp=42,
+        attack=7,
+        defense=5,
+        attacks=("jab",),
+        resistances={"lightning": 0.75},
+        ai_tactic="protect",
+    ))
+    hero = registry.make_character("hero", leader=True)
+    assert hero.name == "Hero"
+    assert hero.leader
+    assert hero.party_member
+    assert hero.stats.max_hp == 42
+    assert hero.metadata["sprite_key"] == "hero"
+    assert hero.metadata["portrait_key"] == "hero_face"
+    assert [skill.definition.id for skill in hero.skills] == ["jab"]
+    assert hero.resistances["lightning"] == 0.75
+    assert registry.character_labels == {"hero": "Hero"}
+
+
+def test_game_settings_round_trip_in_manifest(tmp_path):
+    registry = _registry(tmp_path)
+    settings = GameSettingsData(
+        title="A New Adventure",
+        version="2.1",
+        starting_scene="meadow",
+        starting_marker="arrival",
+        default_dungeon="first",
+        bag_capacity=16,
+        storage_capacity=60,
+        starting_carried_money=75,
+        starting_stored_money=25,
+        defeat_money_loss_fraction=0.25,
+        defeat_item_loss_chance=0.10,
+        starting_party=("hero", "friend"),
+        leader="hero",
+        starting_items={"herb": 3},
+        starting_storage={"stone": 2},
+        starting_flags={"intro_seen": False},
+        starting_variables={"trust": 2},
+        dungeon_result_stories={"success": "victory_scene"},
+        sfx_event_cues={"confirm": "ui.confirm"},
+    )
+    registry.save_game_settings(settings)
+    loaded = ProjectRegistry.load(registry.game_root).game_settings
+    assert loaded == settings
