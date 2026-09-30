@@ -1244,6 +1244,39 @@ def edit_localization_workspace(registry: ProjectRegistry, locale: str) -> None:
     header.pack(fill="x", pady=(0, 8))
     tk.Label(header, textvariable=summary_var, anchor="w", font=("TkDefaultFont", 11, "bold")).pack(side="left", fill="x", expand=True)
 
+    if source_locale:
+        def change_source() -> None:
+            new_code = simpledialog.askstring(
+                "Source Language",
+                "Locale code for the language your project content is written in:",
+                initialvalue=loc.source_locale,
+                parent=root,
+            )
+            if not new_code or new_code.strip() == loc.source_locale:
+                return
+            new_code = new_code.strip()
+            label = simpledialog.askstring(
+                "Source Language",
+                "Display name for this language:",
+                initialvalue=new_code,
+                parent=root,
+            )
+            if not messagebox.askyesno(
+                "Change Source Language",
+                "This changes the language metadata only; it does not translate your existing source text.\n\n"
+                "Source language can only be changed before target translations exist. Continue?",
+                parent=root,
+            ):
+                return
+            try:
+                registry.set_source_locale(new_code, label or new_code)
+            except Exception as exc:
+                messagebox.showerror("Could not change source language", str(exc), parent=root)
+                return
+            root.destroy()
+
+        tk.Button(header, text="Change Source Language…", command=change_source).pack(side="right", padx=(8, 0))
+
     if locale != loc.default_locale:
         def make_default() -> None:
             try:
@@ -1591,12 +1624,18 @@ class ProjectEditor:
 
     def _new_project_file(self) -> None:
         root = _root("New Game Project", "560x220")
-        result: dict[str, str | None] = {"parent": None, "name": None}
+        result: dict[str, str | None] = {"parent": None, "name": None, "source_locale": None}
         tk.Label(root, text="Create a new Mystery Engine project", font=("TkDefaultFont", 11, "bold")).pack(fill="x", padx=14, pady=(14, 8))
         name_var = tk.StringVar(value="My Game")
         row = tk.Frame(root); row.pack(fill="x", padx=14, pady=6)
         tk.Label(row, text="Project name", width=16, anchor="w").pack(side="left")
         tk.Entry(row, textvariable=name_var).pack(side="left", fill="x", expand=True)
+
+        source_var = tk.StringVar(value="en-US")
+        source_row = tk.Frame(root); source_row.pack(fill="x", padx=14, pady=6)
+        tk.Label(source_row, text="Source locale", width=16, anchor="w").pack(side="left")
+        tk.Entry(source_row, textvariable=source_var).pack(side="left", fill="x", expand=True)
+        tk.Label(root, text="Examples: en-US, fr-FR, ja-JP", anchor="w", fg="#666666").pack(fill="x", padx=(126, 14))
 
         def choose() -> None:
             parent = filedialog.askdirectory(parent=root, title="Choose parent folder for the new project")
@@ -1604,6 +1643,7 @@ class ProjectEditor:
                 return
             result["parent"] = parent
             result["name"] = name_var.get().strip() or "My Game"
+            result["source_locale"] = source_var.get().strip() or "en-US"
             root.destroy()
 
         buttons = tk.Frame(root); buttons.pack(fill="x", padx=14, pady=16)
@@ -1618,6 +1658,7 @@ class ProjectEditor:
             return
         try:
             registry = ProjectRegistry.create_project(target, result["name"] or "My Game")
+            registry.set_source_locale(result["source_locale"] or "en-US", result["source_locale"] or "en-US")
         except Exception as exc:
             messagebox.showerror("Could not create project", str(exc))
             return
