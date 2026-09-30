@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING
 from mystery_engine.core import DungeonResult, PersistentGameState, StoryState, Wallet
 from mystery_engine.core.inventory import Inventory
 from mystery_engine.project import ProjectRegistry
+from mystery_engine.core import Vec2
 from mystery_engine.story import (
+    ExplorationActor,
     ExplorationMap,
     RectObstacle,
     WorldAssetCatalog,
@@ -177,7 +179,7 @@ class ProjectGameDefinition:
                     game.run_story(placed.target_story)
             return transition
 
-        return build_exploration_map(
+        world = build_exploration_map(
             scene,
             self.project_registry.world_asset_catalog(SYSTEM_WORLD_ASSETS),
             {},
@@ -186,6 +188,17 @@ class ProjectGameDefinition:
             story_transition_factory=story_transition,
             terrain_styles=self.project_registry.terrain_runtime(),
         )
+        for member in game.state.party:
+            if any(actor.id == member.id for actor in world.actors):
+                continue
+            world.actors.append(ExplorationActor(
+                id=member.id,
+                name=member.name,
+                position=Vec2(world.width / 2, world.height / 2),
+                radius=28.0,
+                sprite_key=member.metadata.get("sprite_key", member.id),
+            ))
+        return world
 
     def create_dungeon_floor(self, game: "MysteryGame", floor_number: int):
         if self.dungeon_definition is None:
