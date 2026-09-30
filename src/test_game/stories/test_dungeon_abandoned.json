@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "id": "test_dungeon_abandoned",
+  "name": "Test Dungeon — Retreat",
+  "scene": "test_clearing",
+  "entries": {
+    "default": "dialogue"
+  },
+  "nodes": {
+    "dialogue": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "line_001",
+          "pawn": "mara",
+          "text": "We'll call that one a tactical retreat.",
+          "expression": "neutral"
+        }
+      ],
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {
+      "dialogue": [
+        180,
+        180
+      ],
+      "end": [
+        560,
+        180
+      ]
+    }
+  }
+}

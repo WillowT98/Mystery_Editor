@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "id": "test_dungeon_success",
+  "name": "Test Dungeon — Success",
+  "scene": "test_clearing",
+  "entries": {
+    "default": "mark_complete"
+  },
+  "nodes": {
+    "mark_complete": {
+      "type": "effect",
+      "effects": [
+        {
+          "type": "set_flag",
+          "name": "completed_test_dungeon",
+          "value": true
+        },
+        {
+          "type": "set_flag",
+          "name": "failed_test_dungeon",
+          "value": false
+        }
+      ],
+      "next": "dialogue"
+    },
+    "dialogue": {
+      "type": "dialogue",
+      "lines": [
+        {
+          "id": "line_001",
+          "pawn": "fox",
+          "text": "Back in one piece.",
+          "expression": "neutral"
+        },
+        {
+          "id": "line_002",
+          "pawn": "mara",
+          "text": "And with a functioning dungeon engine, apparently.",
+          "expression": "neutral"
+        }
+      ],
+      "next": "end"
+    },
+    "end": {
+      "type": "end"
+    }
+  },
+  "editor": {
+    "positions": {
+      "mark_complete": [
+        120,
+        180
+      ],
+      "dialogue": [
+        430,
+        180
+      ],
+      "end": [
+        800,
+        180
+      ]
+    }
+  }
+}
