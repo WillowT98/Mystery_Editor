@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mystery_engine.core.game import MysteryGame
-from mystery_engine.core import DungeonResult, PersistentGameState, StoryState, Wallet
+from mystery_engine.core import DungeonResult, PersistentGameState, SkillRuntime, StoryState, Wallet
 from mystery_engine.core.inventory import Inventory
 from mystery_engine.dungeon import DungeonDefinition
 from mystery_engine.project import ProjectRegistry
@@ -75,6 +75,13 @@ class TestGameDefinition:
     def create_state(self) -> PersistentGameState:
         fox = make_fox()
         mara = make_mara()
+        # Party construction remains game-specific, but ordinary attack data now
+        # comes from the same reusable registry used by the authoring UI.
+        fox.skills = [SkillRuntime.from_definition(self.project_registry.attack_skill("fox_lunge"))]
+        mara.skills = [
+            SkillRuntime.from_definition(self.project_registry.attack_skill("mara_spark")),
+            SkillRuntime.from_definition(self.project_registry.attack_skill("mara_mend")),
+        ]
         return PersistentGameState(
             game_id=self.game_id,
             game_version=self.game_version,
