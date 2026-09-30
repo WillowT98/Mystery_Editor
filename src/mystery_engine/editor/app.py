@@ -2472,10 +2472,10 @@ class ExplorationSceneEditor:
         self.camera_y = max(0.0, min(max_y, self.camera_y))
 
     def handle_event(self, event: pygame.event.Event) -> bool:
-        mods = pygame.key.get_mods()
         if event.type == pygame.QUIT:
             self._close_application_requested = True
             return False
+        mods = pygame.key.get_mods()
         if event.type == pygame.VIDEORESIZE:
             self._clamp_camera()
         elif event.type == pygame.MOUSEMOTION:
