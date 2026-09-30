@@ -28,6 +28,11 @@
           "voice_cue": "dialogue.tone_2"
         },
         {
+          "id": "dd001b",
+          "pawn": "mara",
+          "text": "We lost {dungeon_lost_money} coins and {dungeon_lost_items}. Nothing important enough to justify pushing on while hurt."
+        },
+        {
           "id": "dd002",
           "pawn": "mara",
           "text": "Anything broken?"
