@@ -139,6 +139,7 @@ class ExplorationScenery:
     size: tuple[int, int]
     anchor: str = "bottom_center"
     draw_behind_actors: bool = False
+    visible: bool = True
     # Collision shapes are local to scenery.position. For bottom-centered
     # scenery, (0, 0) is the bottom-center anchor used by the renderer.
     collision: ObstacleShape | None = None
