@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "id": "weaving_wisp_memory_ripple",
+  "name": "Memory Ripple",
+  "description": "Disturb every foe in the room.",
+  "target": "enemy",
+  "range": 4,
+  "power": 2,
+  "heal": 0,
+  "damage_type": "arcane",
+  "max_charges": 2,
+  "accuracy": 1,
+  "range_pattern": "room",
+  "sfx_cue": "magic.arcane_cast"
+}
