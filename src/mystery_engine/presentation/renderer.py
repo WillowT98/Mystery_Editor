@@ -697,18 +697,6 @@ class Renderer:
         self._surface_cache[key] = surface
         return surface
 
-    def _draw_tiled_rect(self, rect: pygame.Rect, sprite: pygame.Surface | None) -> None:
-        if sprite is None:
-            pygame.draw.rect(self.canvas, pygame.Color("#536052"), rect)
-            return
-        tw, th = sprite.get_size()
-        old_clip = self.canvas.get_clip()
-        self.canvas.set_clip(rect)
-        for y in range(rect.top, rect.bottom, th):
-            for x in range(rect.left, rect.right, tw):
-                self.canvas.blit(sprite, (x, y))
-        self.canvas.set_clip(old_clip)
-
     def _exploration_walk_frame(self, actor_id: str, x: float, y: float, now: float) -> int:
         current = (float(x), float(y))
         state = self._exploration_walk_states.get(actor_id)
@@ -859,20 +847,6 @@ class Renderer:
 
     def _load_item_sprite(self, item_id: str, size: tuple[int, int]) -> pygame.Surface | None:
         return self._load_surface(f"items/{item_id}.png", size)
-
-    def _draw_textured_rect(self, rect: pygame.Rect, sprite: pygame.Surface | None) -> None:
-        if rect.w <= 0 or rect.h <= 0:
-            return
-        if sprite is None:
-            pygame.draw.rect(self.canvas, pygame.Color("#666861"), rect)
-            return
-        tw, th = sprite.get_size()
-        old_clip = self.canvas.get_clip()
-        self.canvas.set_clip(rect)
-        for y in range(rect.top, rect.bottom, th):
-            for x in range(rect.left, rect.right, tw):
-                self.canvas.blit(sprite, (x, y))
-        self.canvas.set_clip(old_clip)
 
     @staticmethod
     def _facing_suffix(facing) -> str:
