@@ -588,6 +588,7 @@ def run_dungeon_builder(
     item_labels: dict[str, str],
     *,
     project_root: Path | None = None,
+    project_registry=None,
 ) -> None:
     dungeon_path = Path(dungeon_path)
     definition = DungeonDefinition.load(dungeon_path) if dungeon_path.exists() else DungeonDefinition.blank(dungeon_path.stem)
