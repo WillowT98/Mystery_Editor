@@ -304,6 +304,7 @@ def build_exploration_map(
                     definition.size,
                     anchor=definition.anchor,
                     draw_behind_actors=definition.draw_behind_actors,
+                    visible=definition.runtime_visible,
                     collision=collision,
                 )
             )
