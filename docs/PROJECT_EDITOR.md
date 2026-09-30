@@ -117,3 +117,57 @@ asset for existing scenes.
 
 `run_editor.py` and `run_dungeon_editor.py` still work and now load the same
 project registry. The recommended workflow is `run_project_editor.py`.
+
+
+## Room-first story authoring
+
+Open a room from **Scenes** and choose **6 Story**. The exploration room remains
+visible while story content is authored.
+
+The Story sidebar provides:
+
+- a room/scene chooser;
+- the project pawn library;
+- **New pawn / import art**;
+- click-to-place and drag-to-reposition pawns in the visible room;
+- stories bound to the current room;
+- **New story for this room**;
+- structured dialogue nodes;
+- **Advanced graph** for branching, conditions, actions, and choreography.
+
+A pawn is a reusable project content resource under `content/pawns/`. It has a
+stable ID, editable display name, world sprite, optional dialogue portrait,
+interaction radius, and color key.
+
+The pawn editor imports source images by **copying** them into the project:
+world art goes under `assets/characters/` and portraits under
+`assets/portraits/`. A single PNG is sufficient for a static pawn; compatible
+directional or walk sheets can still be supplied using the existing renderer
+conventions.
+
+Dialogue lines can reference a stable pawn ID:
+
+```json
+{
+  "pawn": "mara",
+  "text": "The ruins are east of here.",
+  "expression": "neutral"
+}
+```
+
+At runtime, the project registry resolves that pawn ID to its current display
+name and portrait. Renaming a pawn therefore does not require editing every line
+of dialogue.
+
+The structured dialogue editor draws its pawn choices from the pawns placed in
+the current room. Legacy free-form `speaker` lines remain supported for
+narrators and older content.
+
+A placed pawn can also be assigned the current story with **Make pawn start
+current story**. This writes a generic `target_story` reference onto the scene
+object. Interacting with that pawn launches the story graph without a
+game-specific Python callback.
+
+Story graphs can now include `name` and `scene` metadata. The scene binding
+lets the advanced graph editor playtest in the correct room and lets the room
+editor discover the stories relevant to the visible scene.

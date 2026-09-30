@@ -8,7 +8,9 @@
     "enemies": "content/enemies",
     "dungeons": "dungeons",
     "scenes": "scenes",
-    "assets": "assets"
+    "assets": "assets",
+    "pawns": "content/pawns",
+    "stories": "stories"
   },
   "damage_types": [
     "physical",

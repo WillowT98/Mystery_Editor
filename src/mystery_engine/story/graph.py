@@ -65,6 +65,8 @@ class StoryGraph:
     nodes: dict[str, dict[str, Any]]
     editor: dict[str, Any] = field(default_factory=dict)
     source_path: Path | None = None
+    name: str | None = None
+    scene_id: str | None = None
 
     @classmethod
     def blank(cls, graph_id: str = "new_story") -> "StoryGraph":
@@ -80,6 +82,7 @@ class StoryGraph:
                 "end": {"type": "end"},
             },
             editor={"positions": {"start": [140, 180], "end": [520, 180]}},
+            name=graph_id.replace("_", " ").title(),
         )
 
     @classmethod
@@ -96,6 +99,8 @@ class StoryGraph:
             nodes=nodes,
             editor=dict(data.get("editor") or {}),
             source_path=source_path,
+            name=(str(data["name"]) if data.get("name") else None),
+            scene_id=(str(data["scene"]) if data.get("scene") else None),
         )
 
     @classmethod
@@ -107,13 +112,18 @@ class StoryGraph:
         return cls.from_dict(data, source_path=path)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data = {
             "format": 1,
             "id": self.id,
             "entries": dict(self.entries),
             "nodes": self.nodes,
             "editor": self.editor,
         }
+        if self.name:
+            data["name"] = self.name
+        if self.scene_id:
+            data["scene"] = self.scene_id
+        return data
 
     def save(self, path: Path | None = None) -> Path:
         target = Path(path or self.source_path or f"{self.id}.json")
@@ -265,6 +275,7 @@ class StoryRuntimeContext:
     choose: Callable[[str, list[ChoiceOption], Callable[[str], None]], None]
     run_action: Callable[[str, dict[str, Any]], StoryActionHandle | None]
     load_graph: Callable[[str], StoryGraph] | None = None
+    resolve_pawn: Callable[[str], tuple[str, str | None]] | None = None
     on_finish: Callable[[str | None], None] | None = None
     rng: Random = field(default_factory=Random)
 
@@ -341,16 +352,28 @@ class StoryGraphRunner:
 
             if node_type == "dialogue":
                 if not cursor.state.get("started"):
-                    lines = [
-                        DialogueLine(
-                            speaker=str(line.get("speaker", "")),
+                    lines: list[DialogueLine] = []
+                    for line in node.get("lines", []):
+                        if not isinstance(line, dict):
+                            continue
+                        pawn_id = str(line.get("pawn") or "")
+                        speaker = str(line.get("speaker", ""))
+                        portrait = str(line["portrait_key"]) if line.get("portrait_key") else None
+                        if pawn_id and self.context.resolve_pawn is not None:
+                            try:
+                                resolved_name, resolved_portrait = self.context.resolve_pawn(pawn_id)
+                                speaker = resolved_name
+                                if portrait is None:
+                                    portrait = resolved_portrait
+                            except KeyError:
+                                if not speaker:
+                                    speaker = pawn_id
+                        lines.append(DialogueLine(
+                            speaker=speaker,
                             text=str(line.get("text", "")),
-                            portrait_key=(str(line["portrait_key"]) if line.get("portrait_key") else None),
+                            portrait_key=portrait,
                             expression=str(line.get("expression", "neutral")),
-                        )
-                        for line in node.get("lines", [])
-                        if isinstance(line, dict)
-                    ]
+                        ))
                     self.context.dialogue.start(DialogueSequence(lines))
                     cursor.state["started"] = True
                     return
@@ -482,6 +505,7 @@ class StoryGraphRunner:
                         choose=self.context.choose,
                         run_action=self.context.run_action,
                         load_graph=self.context.load_graph,
+                        resolve_pawn=self.context.resolve_pawn,
                         rng=self.context.rng,
                     )
                     child = StoryGraphRunner(child_context)

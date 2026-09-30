@@ -4,16 +4,18 @@ import json
 from pathlib import Path
 
 from mystery_engine.dungeon import DungeonDefinition, SpawnRule
-from mystery_engine.project import AttackDefinitionData, EnemyDefinitionData, ProjectRegistry
-from mystery_engine.story import SceneObjectData
+from mystery_engine.project import AttackDefinitionData, EnemyDefinitionData, PawnDefinitionData, ProjectRegistry
+from mystery_engine.story import SceneObjectData, WorldAssetCatalog
 
 
 def _registry(tmp_path: Path) -> ProjectRegistry:
     game_root = tmp_path / "game"
     (game_root / "content" / "attacks").mkdir(parents=True)
     (game_root / "content" / "enemies").mkdir(parents=True)
+    (game_root / "content" / "pawns").mkdir(parents=True)
     (game_root / "dungeons").mkdir()
     (game_root / "scenes").mkdir()
+    (game_root / "stories").mkdir()
     (game_root / "assets").mkdir()
     (game_root / "project.json").write_text(json.dumps({
         "format": 1,
@@ -23,8 +25,10 @@ def _registry(tmp_path: Path) -> ProjectRegistry:
         "content": {
             "attacks": "content/attacks",
             "enemies": "content/enemies",
+            "pawns": "content/pawns",
             "dungeons": "dungeons",
             "scenes": "scenes",
+            "stories": "stories",
             "assets": "assets",
         },
         "damage_types": ["physical", "lightning", "arcane"],
@@ -157,3 +161,57 @@ def test_scene_dungeon_entrance_metadata_round_trip():
     assert loaded.target_dungeon == "ancient_ruins"
     assert loaded.sprite_override == "ruins_arch"
     assert loaded.label == "Ancient Ruins"
+
+
+def test_project_registry_saves_pawns_and_merges_world_asset_catalog(tmp_path):
+    registry = _registry(tmp_path)
+    registry.save_pawn(PawnDefinitionData(
+        id="willow",
+        name="Willow",
+        sprite_key="willow_sprite",
+        portrait_key="willow_portrait",
+        radius=30,
+        color_key="willow",
+    ))
+
+    assert registry.pawn_labels["willow"] == "Willow"
+    assert registry.resolve_story_pawn("willow") == ("Willow", "willow_portrait")
+
+    merged = registry.world_asset_catalog(WorldAssetCatalog(assets={}))
+    pawn_asset = merged.get("willow")
+    assert pawn_asset.category == "actor"
+    assert pawn_asset.sprite_key == "willow_sprite"
+    assert pawn_asset.actor_name == "Willow"
+
+
+def test_registry_creates_scene_bound_story(tmp_path):
+    registry = _registry(tmp_path)
+    scene_path = registry.scene_dir / "meadow.json"
+    scene_path.write_text(
+        json.dumps({
+            "format": 1,
+            "id": "meadow",
+            "tile_size": 64,
+            "width_tiles": 4,
+            "height_tiles": 4,
+            "terrain": [["grass"] * 4 for _ in range(4)],
+            "elevations": [[0] * 4 for _ in range(4)],
+            "objects": [],
+        }),
+        encoding="utf-8",
+    )
+
+    graph, path = registry.create_story("Meadow Talk", "meadow")
+    assert path.exists()
+    assert graph.scene_id == "meadow"
+    assert graph.name == "Meadow Talk"
+    assert registry.stories_for_scene("meadow") == {graph.id: path}
+
+
+def test_scene_story_link_metadata_round_trip():
+    placed = SceneObjectData(
+        "mara", "mara", 128, 256,
+        target_story="mara_meadow",
+    )
+    loaded = SceneObjectData.from_dict(placed.to_dict())
+    assert loaded.target_story == "mara_meadow"

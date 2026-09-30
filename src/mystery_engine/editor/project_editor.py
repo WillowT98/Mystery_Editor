@@ -6,7 +6,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import pygame
 
-from mystery_engine.project import AttackDefinitionData, EnemyDefinitionData, ProjectRegistry, slugify
+from mystery_engine.project import AttackDefinitionData, EnemyDefinitionData, PawnDefinitionData, ProjectRegistry, slugify
 
 
 def _root(title: str, geometry: str = "720x760") -> tk.Tk:
@@ -277,6 +277,277 @@ def edit_enemy_dialog(registry: ProjectRegistry, enemy_id: str | None = None) ->
     return result["id"]
 
 
+def edit_pawn_dialog(registry: ProjectRegistry, pawn_id: str | None = None) -> str | None:
+    current = registry.pawns.get(pawn_id) if pawn_id else None
+    root = _root("Pawn Editor", "760x520")
+    result: dict[str, str | None] = {"id": None}
+    outer = tk.Frame(root)
+    outer.pack(fill="both", expand=True, padx=16, pady=12)
+    fields: dict[str, tk.StringVar] = {}
+
+    def entry_row(label: str, key: str, value: object = "") -> None:
+        row = tk.Frame(outer)
+        row.pack(fill="x", pady=4)
+        tk.Label(row, text=label, width=18, anchor="w").pack(side="left")
+        var = tk.StringVar(value=str(value))
+        fields[key] = var
+        tk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+
+    entry_row("ID", "id", current.id if current else "")
+    entry_row("Name", "name", current.name if current else "")
+    entry_row("Radius", "radius", current.radius if current else 28)
+    entry_row("Color key", "color", current.color_key if current else "neutral")
+
+    sprite_row = tk.Frame(outer)
+    sprite_row.pack(fill="x", pady=4)
+    tk.Label(sprite_row, text="World sprite", width=18, anchor="w").pack(side="left")
+    sprite_var = tk.StringVar(value=current.sprite_key if current else "")
+    fields["sprite"] = sprite_var
+    sprite_combo = ttk.Combobox(
+        sprite_row, textvariable=sprite_var,
+        values=registry.asset_keys("characters", {".png"}), state="normal",
+    )
+    sprite_combo.pack(side="left", fill="x", expand=True)
+
+    def import_sprite() -> None:
+        chosen = filedialog.askopenfilename(
+            parent=root, title="Import pawn sprite",
+            filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+        )
+        if not chosen:
+            return
+        try:
+            key, _ = registry.import_asset(Path(chosen), "characters", allowed_suffixes={".png"})
+        except Exception as exc:
+            messagebox.showerror("Could not import sprite", str(exc), parent=root)
+            return
+        sprite_var.set(key)
+        sprite_combo["values"] = registry.asset_keys("characters", {".png"})
+
+    tk.Button(sprite_row, text="Import…", command=import_sprite).pack(side="left", padx=(6, 0))
+
+    portrait_row = tk.Frame(outer)
+    portrait_row.pack(fill="x", pady=4)
+    tk.Label(portrait_row, text="Dialogue portrait", width=18, anchor="w").pack(side="left")
+    portrait_var = tk.StringVar(value=current.portrait_key or "" if current else "")
+    fields["portrait"] = portrait_var
+    portrait_combo = ttk.Combobox(
+        portrait_row, textvariable=portrait_var,
+        values=[""] + registry.asset_keys("portraits", {".png"}), state="normal",
+    )
+    portrait_combo.pack(side="left", fill="x", expand=True)
+
+    def import_portrait() -> None:
+        chosen = filedialog.askopenfilename(
+            parent=root, title="Import dialogue portrait",
+            filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+        )
+        if not chosen:
+            return
+        try:
+            key, _ = registry.import_asset(Path(chosen), "portraits", allowed_suffixes={".png"})
+        except Exception as exc:
+            messagebox.showerror("Could not import portrait", str(exc), parent=root)
+            return
+        portrait_var.set(key)
+        portrait_combo["values"] = [""] + registry.asset_keys("portraits", {".png"})
+
+    tk.Button(portrait_row, text="Import…", command=import_portrait).pack(side="left", padx=(6, 0))
+
+    note = (
+        "A single PNG is enough for a static pawn. Directional/walk sheets with the same "
+        "sprite key can be added later and the renderer will use them automatically."
+    )
+    tk.Label(outer, text=note, justify="left", wraplength=700, fg="#555555").pack(fill="x", pady=(14, 6))
+
+    def save() -> None:
+        try:
+            ident = fields["id"].get().strip() or slugify(fields["name"].get(), "pawn")
+            if current is not None and ident != current.id:
+                raise ValueError("Pawn IDs are stable after creation; edit the display name instead.")
+            data = PawnDefinitionData(
+                id=ident,
+                name=fields["name"].get().strip() or ident,
+                sprite_key=fields["sprite"].get().strip() or ident,
+                portrait_key=fields["portrait"].get().strip() or None,
+                radius=max(1.0, float(fields["radius"].get() or 28)),
+                color_key=fields["color"].get().strip() or "neutral",
+            )
+            registry.save_pawn(data)
+        except Exception as exc:
+            messagebox.showerror("Could not save pawn", str(exc), parent=root)
+            return
+        result["id"] = data.id
+        root.destroy()
+
+    buttons = tk.Frame(outer)
+    buttons.pack(fill="x", pady=(16, 0))
+    tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8, 0))
+    tk.Button(buttons, text="Save Pawn", command=save).pack(side="right")
+    root.mainloop()
+    return result["id"]
+
+
+def edit_dialogue_node_dialog(registry: ProjectRegistry, scene, graph, node_id: str) -> bool:
+    node = graph.nodes.get(node_id)
+    if not isinstance(node, dict) or str(node.get("type", "")) != "dialogue":
+        return False
+
+    root = _root(f"Dialogue — {node_id}", "900x680")
+    working = [dict(line) for line in node.get("lines", []) if isinstance(line, dict)]
+    saved = {"ok": False}
+
+    placed_pawn_ids: list[str] = []
+    for obj in scene.objects:
+        if obj.asset in registry.pawns and obj.asset not in placed_pawn_ids:
+            placed_pawn_ids.append(obj.asset)
+    pawn_labels = {
+        pawn_id: registry.pawn_labels.get(pawn_id, pawn_id)
+        for pawn_id in placed_pawn_ids
+    }
+
+    outer = tk.Frame(root)
+    outer.pack(fill="both", expand=True, padx=14, pady=12)
+    tk.Label(
+        outer,
+        text=f"Room: {scene.id}    Story: {graph.name or graph.id}",
+        anchor="w",
+        font=("TkDefaultFont", 10, "bold"),
+    ).pack(fill="x", pady=(0, 8))
+
+    line_box = tk.Listbox(outer, height=18, exportselection=False)
+    line_box.pack(fill="both", expand=True)
+
+    def display(line: dict) -> str:
+        pawn_id = str(line.get("pawn") or "")
+        speaker = pawn_labels.get(pawn_id) or str(line.get("speaker") or pawn_id or "Narrator")
+        text = str(line.get("text") or "").replace("\n", " ")
+        return f"{speaker}: {text}"
+
+    def refresh(select: int | None = None) -> None:
+        line_box.delete(0, "end")
+        for line in working:
+            line_box.insert("end", display(line))
+        if working:
+            index = max(0, min(select if select is not None else 0, len(working)-1))
+            line_box.selection_set(index)
+            line_box.see(index)
+
+    def edit_line(index: int | None) -> None:
+        current = dict(working[index]) if index is not None else {}
+        win = tk.Toplevel(root)
+        win.title("Edit dialogue line" if index is not None else "Add dialogue line")
+        win.geometry("760x430")
+        frame = tk.Frame(win)
+        frame.pack(fill="both", expand=True, padx=14, pady=12)
+
+        tk.Label(frame, text="Speaker pawn", anchor="w").pack(fill="x")
+        displays = [f"{pawn_labels[p]}  [{p}]" for p in placed_pawn_ids]
+        by_display = {f"{pawn_labels[p]}  [{p}]": p for p in placed_pawn_ids}
+        custom_label = "Custom / narrator"
+        displays.append(custom_label)
+        pawn_var = tk.StringVar(value=custom_label)
+        current_pawn = str(current.get("pawn") or "")
+        if current_pawn in pawn_labels:
+            pawn_var.set(f"{pawn_labels[current_pawn]}  [{current_pawn}]")
+        pawn_combo = ttk.Combobox(frame, textvariable=pawn_var, values=displays, state="readonly")
+        pawn_combo.pack(fill="x", pady=(2, 8))
+
+        tk.Label(frame, text="Custom speaker name", anchor="w").pack(fill="x")
+        speaker_var = tk.StringVar(value=str(current.get("speaker") or ""))
+        tk.Entry(frame, textvariable=speaker_var).pack(fill="x", pady=(2, 8))
+
+        tk.Label(frame, text="Dialogue", anchor="w").pack(fill="x")
+        text_widget = tk.Text(frame, height=8, wrap="word")
+        text_widget.pack(fill="both", expand=True, pady=(2, 8))
+        text_widget.insert("1.0", str(current.get("text") or ""))
+
+        tk.Label(frame, text="Expression", anchor="w").pack(fill="x")
+        expression_var = tk.StringVar(value=str(current.get("expression") or "neutral"))
+        tk.Entry(frame, textvariable=expression_var).pack(fill="x", pady=(2, 8))
+
+        def accept() -> None:
+            selected_pawn = by_display.get(pawn_var.get())
+            line = {
+                "text": text_widget.get("1.0", "end").rstrip("\n"),
+                "expression": expression_var.get().strip() or "neutral",
+            }
+            if selected_pawn:
+                line["pawn"] = selected_pawn
+            else:
+                line["speaker"] = speaker_var.get().strip()
+            if current.get("portrait_key"):
+                line["portrait_key"] = current["portrait_key"]
+            if index is None:
+                working.append(line)
+                select = len(working)-1
+            else:
+                working[index] = line
+                select = index
+            refresh(select)
+            win.destroy()
+
+        buttons = tk.Frame(frame)
+        buttons.pack(fill="x")
+        tk.Button(buttons, text="Cancel", command=win.destroy).pack(side="right", padx=(8, 0))
+        tk.Button(buttons, text="OK", command=accept).pack(side="right")
+        win.transient(root)
+        win.grab_set()
+
+    def selected_index() -> int | None:
+        selected = line_box.curselection()
+        return int(selected[0]) if selected else None
+
+    controls = tk.Frame(outer)
+    controls.pack(fill="x", pady=8)
+    tk.Button(controls, text="+ Line", command=lambda: edit_line(None)).pack(side="left")
+    tk.Button(controls, text="Edit", command=lambda: edit_line(selected_index()) if selected_index() is not None else None).pack(side="left", padx=5)
+
+    def delete_line() -> None:
+        index = selected_index()
+        if index is None:
+            return
+        working.pop(index)
+        refresh(min(index, len(working)-1))
+
+    def move(delta: int) -> None:
+        index = selected_index()
+        if index is None:
+            return
+        target = index + delta
+        if not 0 <= target < len(working):
+            return
+        working[index], working[target] = working[target], working[index]
+        refresh(target)
+
+    tk.Button(controls, text="Delete", command=delete_line).pack(side="left")
+    tk.Button(controls, text="↑", command=lambda: move(-1)).pack(side="left", padx=(12, 2))
+    tk.Button(controls, text="↓", command=lambda: move(1)).pack(side="left")
+
+    next_var = tk.StringVar(value=str(node.get("next") or ""))
+    next_row = tk.Frame(outer)
+    next_row.pack(fill="x", pady=(0, 8))
+    tk.Label(next_row, text="Next node", width=12, anchor="w").pack(side="left")
+    ttk.Combobox(
+        next_row, textvariable=next_var,
+        values=[""] + list(graph.nodes), state="normal",
+    ).pack(side="left", fill="x", expand=True)
+
+    def save() -> None:
+        node["lines"] = working
+        node["next"] = next_var.get().strip()
+        saved["ok"] = True
+        root.destroy()
+
+    buttons = tk.Frame(outer)
+    buttons.pack(fill="x")
+    tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8, 0))
+    tk.Button(buttons, text="Save Dialogue", command=save).pack(side="right")
+    refresh()
+    root.mainloop()
+    return bool(saved["ok"])
+
+
 def edit_spawn_rule_dialog(registry: ProjectRegistry, rule) -> bool:
     root = _root("Dungeon Enemy Modifiers", "820x860")
     saved = {"ok": False}
@@ -407,7 +678,7 @@ class ProjectEditor:
     the same authoring process and return here when closed.
     """
 
-    SECTIONS = ("Scenes", "Dungeons", "Enemies", "Attacks", "Assets")
+    SECTIONS = ("Scenes", "Stories", "Pawns", "Dungeons", "Enemies", "Attacks", "Assets")
 
     def __init__(self, registry: ProjectRegistry, world_assets, project_root: Path, item_labels: dict[str, str] | None = None) -> None:
         self.registry = registry
@@ -426,6 +697,10 @@ class ProjectEditor:
         self.registry.reload()
         if self.section == "Scenes":
             labels = self.registry.scene_labels()
+        elif self.section == "Stories":
+            labels = self.registry.story_labels()
+        elif self.section == "Pawns":
+            labels = self.registry.pawn_labels
         elif self.section == "Dungeons":
             labels = self.registry.dungeon_labels()
         elif self.section == "Enemies":
@@ -473,7 +748,17 @@ class ProjectEditor:
         self.screen.blit(status, (x0, self.screen.get_height()-30))
 
     def _new(self) -> None:
-        if self.section == "Enemies":
+        if self.section == "Pawns":
+            created = edit_pawn_dialog(self.registry)
+            self.status = f"Created {created}" if created else "Cancelled"
+        elif self.section == "Stories":
+            scene_id = choose_catalog_id("Story room", self.registry.scene_labels())
+            if scene_id:
+                name = simpledialog.askstring("New story", "Story / scene name:")
+                if name:
+                    graph, _ = self.registry.create_story(name, scene_id)
+                    self.status = f"Created {graph.name or graph.id}"
+        elif self.section == "Enemies":
             created = edit_enemy_dialog(self.registry)
             self.status = f"Created {created}" if created else "Cancelled"
         elif self.section == "Attacks":
@@ -507,7 +792,35 @@ class ProjectEditor:
         if not self.items:
             return
         item_id = self.items[self.selected][0]
-        if self.section == "Enemies":
+        if self.section == "Pawns":
+            edit_pawn_dialog(self.registry, item_id)
+        elif self.section == "Stories":
+            graph = self.registry.load_story(item_id)
+            if graph.scene_id and graph.scene_id in self.registry.scene_paths():
+                from mystery_engine.editor.app import ExplorationSceneEditor
+                from mystery_engine.story import load_exploration_scene
+                path = self.registry.scene_paths()[graph.scene_id]
+                editor = ExplorationSceneEditor(
+                    load_exploration_scene(path),
+                    path,
+                    self.registry.world_asset_catalog(self.world_assets),
+                    self.registry.asset_root,
+                    project_root=self.project_root,
+                    project_registry=self.registry,
+                )
+                editor.mode = "story"
+                editor.story_id = item_id
+                editor.run()
+            else:
+                from mystery_engine.editor.story_graph import StoryGraphEditor
+                editor = StoryGraphEditor(
+                    graph, self.registry.story_path(item_id),
+                    project_root=self.project_root,
+                    project_registry=self.registry,
+                )
+                editor.run()
+            self._reinit_display()
+        elif self.section == "Enemies":
             edit_enemy_dialog(self.registry, item_id)
         elif self.section == "Attacks":
             edit_attack_dialog(self.registry, item_id)
@@ -527,7 +840,8 @@ class ProjectEditor:
             path = self.registry.scene_paths()[item_id]
             from mystery_engine.story import load_exploration_scene
             editor = ExplorationSceneEditor(
-                load_exploration_scene(path), path, self.world_assets, self.registry.asset_root,
+                load_exploration_scene(path), path,
+                self.registry.world_asset_catalog(self.world_assets), self.registry.asset_root,
                 project_root=self.project_root, project_registry=self.registry,
             )
             editor.run()

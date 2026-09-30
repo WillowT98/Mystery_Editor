@@ -56,11 +56,13 @@ class StoryGraphEditor:
         path: Path,
         *,
         project_root: Path | None = None,
+        project_registry=None,
         window_size: tuple[int, int] = (1600, 920),
     ) -> None:
         self.graph = graph
         self.path = Path(path)
         self.project_root = Path(project_root) if project_root else None
+        self.project_registry = project_registry
         self.window_size = window_size
         self.screen: pygame.Surface | None = None
         self.font: pygame.font.Font | None = None
@@ -200,6 +202,23 @@ class StoryGraphEditor:
         if self.selected is None:
             return
         current = dict(self.graph.nodes[self.selected])
+        if (
+            str(current.get("type", "")) == "dialogue"
+            and self.project_registry is not None
+            and self.graph.scene_id
+        ):
+            try:
+                from mystery_engine.story import load_exploration_scene
+                from .project_editor import edit_dialogue_node_dialog
+                scene_path = self.project_registry.scene_paths()[self.graph.scene_id]
+                scene = load_exploration_scene(scene_path)
+                if edit_dialogue_node_dialog(self.project_registry, scene, self.graph, self.selected):
+                    self.dirty = True
+                    self.status = f"Updated {self.selected}"
+                return
+            except KeyError:
+                self.status = f"Story room not found: {self.graph.scene_id}"
+                return
         edited = self._edit_json(f"Edit node: {self.selected}", current)
         if edited is not None:
             if "type" not in edited:
@@ -417,7 +436,9 @@ class StoryGraphEditor:
         y = r.y + 16
         title = self.font_large.render("Story Graph", True, (242, 240, 231))
         self.screen.blit(title, (r.x + 16, y)); y += 48
-        self.screen.blit(self.font_small.render(self.graph.id, True, (172, 185, 204)), (r.x + 16, y)); y += 38
+        self.screen.blit(self.font_small.render(self.graph.name or self.graph.id, True, (172, 185, 204)), (r.x + 16, y)); y += 24
+        room_label = f"Room: {self.graph.scene_id}" if self.graph.scene_id else "Room: unbound"
+        self.screen.blit(self.font_small.render(room_label, True, (150, 164, 184)), (r.x + 16, y)); y += 34
 
         for label, action in [("Save", "save"), ("Validate", "validate"), ("Playtest", "playtest")]:
             self._button(pygame.Rect(r.x + 16, y, 96, 34), label, action)
@@ -426,7 +447,9 @@ class StoryGraphEditor:
         y += 4
         if self.selected:
             self.screen.blit(self.font.render(self.selected, True, (226, 194, 94)), (r.x + 16, y)); y += 38
-            for label, action in [("Edit JSON", "edit"), ("Rename", "rename"), ("Set default entry", "entry"), ("Connect…", "connect"), ("Delete", "delete")]:
+            selected_kind = str(self.graph.nodes.get(self.selected, {}).get("type", ""))
+            edit_label = "Edit Dialogue" if selected_kind == "dialogue" and self.project_registry is not None else "Edit JSON"
+            for label, action in [(edit_label, "edit"), ("Rename", "rename"), ("Set default entry", "entry"), ("Connect…", "connect"), ("Delete", "delete")]:
                 self._button(pygame.Rect(r.x + 16, y, r.w - 32, 34), label, action)
                 y += 40
 
@@ -533,6 +556,10 @@ class StoryGraphEditor:
         env = os.environ.copy()
         env["MYSTERY_STORY_PLAYTEST"] = "1"
         env["MYSTERY_STORY_PATH"] = str(self.path.resolve())
+        if self.project_registry is not None and self.graph.scene_id:
+            scene_path = self.project_registry.scene_paths().get(self.graph.scene_id)
+            if scene_path is not None:
+                env["MYSTERY_SCENE_PATH"] = str(scene_path.resolve())
         try:
             subprocess.Popen([sys.executable, str(self.project_root / "run_game.py")], cwd=self.project_root, env=env)
             self.status = "Story playtest launched"
@@ -559,7 +586,14 @@ class StoryGraphEditor:
         pygame.quit()
 
 
-def run_story_editor(path: Path, *, project_root: Path | None = None) -> None:
+def run_story_editor(
+    path: Path,
+    *,
+    project_root: Path | None = None,
+    project_registry=None,
+) -> None:
     path = Path(path)
     graph = StoryGraph.load(path) if path.exists() else StoryGraph.blank(path.stem)
-    StoryGraphEditor(graph, path, project_root=project_root).run()
+    StoryGraphEditor(
+        graph, path, project_root=project_root, project_registry=project_registry,
+    ).run()

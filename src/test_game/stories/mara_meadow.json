@@ -31,19 +31,19 @@
       "type": "dialogue",
       "lines": [
         {
-          "speaker": "Mara",
           "text": "There you are. The path through the dungeon is stable now.",
-          "expression": "neutral"
+          "expression": "neutral",
+          "pawn": "mara"
         },
         {
-          "speaker": "Fox",
           "text": "So the engine survived us.",
-          "expression": "neutral"
+          "expression": "neutral",
+          "pawn": "fox"
         },
         {
-          "speaker": "Mara",
           "text": "For a first expedition? I'll accept that.",
-          "expression": "neutral"
+          "expression": "neutral",
+          "pawn": "mara"
         }
       ],
       "next": "end"
@@ -52,14 +52,14 @@
       "type": "dialogue",
       "lines": [
         {
-          "speaker": "Mara",
           "text": "That hurt. We can go back whenever you're ready.",
-          "expression": "neutral"
+          "expression": "neutral",
+          "pawn": "mara"
         },
         {
-          "speaker": "Fox",
           "text": "And perhaps lose slightly fewer of our things this time.",
-          "expression": "neutral"
+          "expression": "neutral",
+          "pawn": "fox"
         }
       ],
       "next": "end"
@@ -68,19 +68,19 @@
       "type": "dialogue",
       "lines": [
         {
-          "speaker": "Mara",
           "text": "The test dungeon is just east of here.",
-          "expression": "neutral"
+          "expression": "neutral",
+          "pawn": "mara"
         },
         {
-          "speaker": "Mara",
           "text": "Three floors. Enough to see whether all of this actually works.",
-          "expression": "neutral"
+          "expression": "neutral",
+          "pawn": "mara"
         },
         {
-          "speaker": "Fox",
           "text": "That's reassuringly scientific.",
-          "expression": "neutral"
+          "expression": "neutral",
+          "pawn": "fox"
         }
       ],
       "next": "end"
@@ -91,12 +91,32 @@
   },
   "editor": {
     "positions": {
-      "state_check": [120, 130],
-      "failed_check": [450, 260],
-      "completed": [450, 70],
-      "failed": [800, 220],
-      "first": [800, 390],
-      "end": [1160, 220]
+      "state_check": [
+        120,
+        130
+      ],
+      "failed_check": [
+        450,
+        260
+      ],
+      "completed": [
+        450,
+        70
+      ],
+      "failed": [
+        800,
+        220
+      ],
+      "first": [
+        800,
+        390
+      ],
+      "end": [
+        1160,
+        220
+      ]
     }
-  }
+  },
+  "name": "Mara Meadow Conversation",
+  "scene": "test_clearing"
 }
