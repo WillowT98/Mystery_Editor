@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "id": "flower_bush",
+  "name": "Flower bush",
+  "category": "scenery",
+  "sprite_key": "flower_bush",
+  "size": [
+    121,
+    105
+  ],
+  "anchor": "bottom_center",
+  "collider_enabled": true,
+  "collision": [
+    -48,
+    -34,
+    96,
+    34
+  ],
+  "collision_radius": 0,
+  "draw_behind_actors": true,
+  "runtime_visible": true
+}
