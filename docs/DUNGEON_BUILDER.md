@@ -1,18 +1,16 @@
 # Dungeon Builder
 
-Mystery Engine dungeons are authored as JSON definitions rather than hard-coded floor construction.
+Mystery Engine dungeons are authored as project JSON definitions rather than hard-coded floor construction.
 
-Launch the current test dungeon with:
-
-```bash
-python run_dungeon_editor.py
-```
-
-Open or create another dungeon with:
+Open the unified game maker with:
 
 ```bash
-python run_dungeon_editor.py --dungeon src/test_game/dungeons/my_dungeon.json
+python run_project_editor.py --project /path/to/project
 ```
+
+Choose **Dungeons** to create or edit a dungeon. The specialized builder opens
+inside that project workflow so enemy, item, attack, asset, and project settings
+all come from the same registry.
 
 ## Builder tabs
 
