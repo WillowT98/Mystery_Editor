@@ -10,7 +10,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from mystery_engine.dungeon import GENERATION_PROFILES, DungeonDefinition, floor_spec_matches
-from test_game.game_definition import TestGameDefinition
+from mystery_engine.project_runtime import ProjectGameDefinition
 
 
 def test_floor_specs_cover_ranges_lists_and_open_ended_ranges():
@@ -22,7 +22,7 @@ def test_floor_specs_cover_ranges_lists_and_open_ended_ranges():
 
 
 def test_test_dungeon_loads_from_json_and_has_music():
-    definition = TestGameDefinition()
+    definition = ProjectGameDefinition(ROOT / "src" / "test_game")
     dungeon = definition.dungeon_definition
     assert dungeon.id == "test_dungeon"
     assert dungeon.floor_count == 3

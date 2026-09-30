@@ -263,7 +263,7 @@ class TurnManager:
 
     def _check_stairs(self, outcome: TurnOutcome) -> bool:
         if self.leader.grid_pos == self.floor.stairs_pos:
-            outcome.messages.append("Fox reaches the stairs.")
+            outcome.messages.append(f"{self.leader.name} reaches the stairs.")
             return True
         return False
 

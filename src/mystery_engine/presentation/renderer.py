@@ -196,8 +196,6 @@ class Renderer:
         camera_world_x = leader_x * tile + tile / 2 - center_x
         camera_world_y = leader_y * tile + tile / 2 - center_y
 
-        edge_h = self._load_native_surface("tiles/dungeon_edge_h.png")
-        edge_v = self._load_native_surface("tiles/dungeon_edge_v.png")
         stairs_tile = self._load_surface("tiles/stairs.png", (tile, tile))
 
         min_x = max(0, int(camera_world_x // tile) - 1)
@@ -447,12 +445,12 @@ class Renderer:
         pygame.draw.rect(self.canvas, self.accent, rect, 3, border_radius=12)
 
         portrait = pygame.Rect(rect.x + 28, rect.y + 38, self.config.portrait_px, self.config.portrait_px)
-        key = line.speaker.lower().replace(" ", "_")
+        key = line.portrait_key or line.speaker.lower().replace(" ", "_")
         portrait_surf = self._load_surface(f"portraits/{key}.png", portrait.size)
         if portrait_surf is not None:
             self.canvas.blit(portrait_surf, portrait)
         else:
-            pygame.draw.rect(self.canvas, self.ally if line.speaker == "Mara" else self.player, portrait, border_radius=12)
+            pygame.draw.rect(self.canvas, self.panel2, portrait, border_radius=12)
             initial = self.font_title.render(line.speaker[:1], True, self.text)
             self.canvas.blit(initial, initial.get_rect(center=portrait.center))
         speaker = self.font_large.render(line.speaker, True, self.accent)
@@ -668,16 +666,6 @@ class Renderer:
         self.canvas.blit(sprite, rect)
         return rect
 
-    def _draw_dungeon_floor_boundary(self, floor: DungeonFloor, pos: GridPos, rect: pygame.Rect, edge_h: pygame.Surface | None, edge_v: pygame.Surface | None) -> None:
-        # Compatibility shim: dungeon walkable/wall boundaries are now baked into
-        # explicit oriented autotile PNGs (`dungeon_auto_###.png`) instead of
-        # being composited from edge fragments at draw time.
-        return
-
-    def _blit_dungeon_corner_cap(self, edge_h: pygame.Surface | None, edge_v: pygame.Surface | None, pos: tuple[int, int], ew: int, eh: int, which: str) -> None:
-        # compatibility shim; explicit dungeon boundary tiles are now used instead.
-        return
-
     def _load_native_surface(self, relative: str) -> pygame.Surface | None:
         if self.asset_root is None:
             return None
@@ -708,18 +696,6 @@ class Renderer:
             surface = pygame.transform.scale(surface, size)
         self._surface_cache[key] = surface
         return surface
-
-    def _draw_tiled_rect(self, rect: pygame.Rect, sprite: pygame.Surface | None) -> None:
-        if sprite is None:
-            pygame.draw.rect(self.canvas, pygame.Color("#536052"), rect)
-            return
-        tw, th = sprite.get_size()
-        old_clip = self.canvas.get_clip()
-        self.canvas.set_clip(rect)
-        for y in range(rect.top, rect.bottom, th):
-            for x in range(rect.left, rect.right, tw):
-                self.canvas.blit(sprite, (x, y))
-        self.canvas.set_clip(old_clip)
 
     def _exploration_walk_frame(self, actor_id: str, x: float, y: float, now: float) -> int:
         current = (float(x), float(y))
@@ -870,48 +846,7 @@ class Renderer:
         return sprite
 
     def _load_item_sprite(self, item_id: str, size: tuple[int, int]) -> pygame.Surface | None:
-        # Prefer a shared horizontal sheet for known test-game items.
-        # Order: field_salve, throwing_stone, waystone_shard.
-        cache_key = (f"items/item_sheet.png#{item_id}", size)
-        if cache_key in self._surface_cache:
-            return self._surface_cache[cache_key]
-
-        if self.asset_root is not None:
-            sheet_path = self.asset_root / "items/item_sheet.png"
-            if sheet_path.exists():
-                index_map = {"field_salve": 0, "throwing_stone": 1, "waystone_shard": 2}
-                if item_id in index_map:
-                    sheet = pygame.image.load(sheet_path.as_posix()).convert_alpha()
-                    cols = 3
-                    fw = sheet.get_width() // cols
-                    fh = sheet.get_height()
-                    frame = pygame.Surface((fw, fh), pygame.SRCALPHA)
-                    frame.blit(sheet, (0, 0), pygame.Rect(index_map[item_id] * fw, 0, fw, fh))
-                    cropped = frame.get_bounding_rect()
-                    if cropped.width > 0 and cropped.height > 0:
-                        frame = frame.subsurface(cropped).copy()
-                    if frame.get_size() != size:
-                        frame = pygame.transform.smoothscale(frame, size)
-                    self._surface_cache[cache_key] = frame
-                    return frame
-
-        sprite = self._load_surface(f"items/{item_id}.png", size)
-        self._surface_cache[cache_key] = sprite
-        return sprite
-
-    def _draw_textured_rect(self, rect: pygame.Rect, sprite: pygame.Surface | None) -> None:
-        if rect.w <= 0 or rect.h <= 0:
-            return
-        if sprite is None:
-            pygame.draw.rect(self.canvas, pygame.Color("#666861"), rect)
-            return
-        tw, th = sprite.get_size()
-        old_clip = self.canvas.get_clip()
-        self.canvas.set_clip(rect)
-        for y in range(rect.top, rect.bottom, th):
-            for x in range(rect.left, rect.right, tw):
-                self.canvas.blit(sprite, (x, y))
-        self.canvas.set_clip(old_clip)
+        return self._load_surface(f"items/{item_id}.png", size)
 
     @staticmethod
     def _facing_suffix(facing) -> str:

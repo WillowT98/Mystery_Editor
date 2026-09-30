@@ -32,12 +32,12 @@ class StoryGraphEditor:
     NODE_H = 128
 
     ACTION_TEMPLATES = {
-        "Move": ("action", {"action": "move_actor", "params": {"actor": "mara", "target": "marker_id"}, "wait": True}),
-        "Face": ("action", {"action": "face_actor", "params": {"actor": "mara", "target": "fox"}, "wait": True}),
+        "Move": ("action", {"action": "move_actor", "params": {"actor": "actor_id", "target": "marker_id"}, "wait": True}),
+        "Face": ("action", {"action": "face_actor", "params": {"actor": "actor_id", "target": "target_actor_id"}, "wait": True}),
         "Teleport": ("action", {"action": "teleport_actor", "params": {"actor": "mara", "target": "marker_id"}, "wait": True}),
-        "Actor state": ("action", {"action": "set_actor_state", "params": {"actor": "mara", "visible": True}, "wait": True}),
-        "Animation": ("action", {"action": "animation", "params": {"actor": "mara", "animation": "idle"}, "wait": True}),
-        "Effect": ("action", {"action": "effect", "params": {"target": "mara", "effect": "surprise"}, "wait": True}),
+        "Actor state": ("action", {"action": "set_actor_state", "params": {"actor": "actor_id", "visible": True}, "wait": True}),
+        "Animation": ("action", {"action": "animation", "params": {"actor": "actor_id", "animation": "idle"}, "wait": True}),
+        "Effect": ("action", {"action": "effect", "params": {"target": "actor_id", "effect": "surprise"}, "wait": True}),
         "Camera": ("action", {"action": "camera_pan", "params": {"target": "marker_id", "duration": 0.5}, "wait": True}),
         "Camera shake": ("action", {"action": "camera_shake", "params": {"strength": 10, "duration": 0.5}, "wait": True}),
         "Screen": ("action", {"action": "screen_fade", "params": {"color": "black", "duration": 0.4, "alpha": 1.0}, "wait": True}),
@@ -156,9 +156,9 @@ class StoryGraphEditor:
             node = json.loads(json.dumps(template))
             node["type"] = kind
         elif kind == "dialogue":
-            node = {"type": "dialogue", "lines": [{"speaker": "Mara", "text": "New line.", "expression": "neutral"}], "next": ""}
+            node = {"type": "dialogue", "lines": [{"id": "line_001", "speaker": "Speaker", "text": "New line.", "expression": "neutral"}], "next": ""}
         elif kind == "choice":
-            node = {"type": "choice", "title": "Choose", "choices": [{"text": "Option", "target": ""}]}
+            node = {"type": "choice", "title": "Choose", "choices": [{"id": "choice_001", "text": "Option", "target": ""}]}
         elif kind == "condition":
             node = {"type": "condition", "condition": {"kind": "flag", "name": "flag_name", "op": "==", "value": True}, "true": "", "false": ""}
         elif kind == "random":

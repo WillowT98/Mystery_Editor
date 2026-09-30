@@ -76,7 +76,7 @@ class StoryGraph:
             nodes={
                 "start": {
                     "type": "dialogue",
-                    "lines": [{"id": "line_001", "speaker": "Mara", "text": "New dialogue.", "expression": "neutral"}],
+                    "lines": [{"id": "line_001", "speaker": "Speaker", "text": "New dialogue.", "expression": "neutral"}],
                     "next": "end",
                 },
                 "end": {"type": "end"},

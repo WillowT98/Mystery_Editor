@@ -400,7 +400,7 @@ class MysteryGame:
         self.definition.on_dungeon_result(self, result, lost_money=lost_money, lost_items=lost_items)
 
     def save_snapshot(self, path: Path | None = None) -> Path:
-        path = path or Path("saves") / "test-save.json"
+        path = path or Path("saves") / f"{self.definition.game_id}-save.json"
         self.save_manager.dump(self.state, path)
         self._play_event_sfx("save")
         self.add_message(f"Saved snapshot to {path}.")
@@ -453,7 +453,7 @@ class MysteryGame:
             self._finish_or_defer_dungeon_result(DungeonResult.DEFEAT)
             return
 
-        # Stairs are intentionally automatic in the test vertical slice.
+        # Reaching stairs advances automatically; dungeon definitions decide the floor count.
         if self.state.leader.grid_pos == self.dungeon.floor.stairs_pos:
             if self.dungeon.floor_number >= self.definition.dungeon_floor_count:
                 self.return_to_exploration(DungeonResult.SUCCESS)
@@ -773,7 +773,7 @@ class MysteryGame:
         self.state.bag.remove(item.id)
         raw = item.throwable_damage
         dealt = target.stats.damage(max(1, round(raw * target.resistance_to(item.damage_type))))
-        self.add_message(f"Fox throws {item.name}; {target.name} takes {dealt} damage.")
+        self.add_message(f"{self.state.leader.name} throws {item.name}; {target.name} takes {dealt} damage.")
         self.menu.close()
         outcome = self.dungeon.turns.execute_player_action(WaitAction(self.state.leader))
         for cue in outcome.sound_cues:
@@ -872,8 +872,8 @@ class MysteryGame:
 
     def _show_journal(self) -> None:
         self.menu.close()
-        complete = self.state.story.flag("completed_test_dungeon")
-        text = "The test expedition is complete." if complete else "Mara is waiting near the dungeon entrance."
+        provider = getattr(self.definition, "journal_text", None)
+        text = str(provider(self) if callable(provider) else "No journal entries.")
         self.say([DialogueLine("Journal", text)])
 
     def _show_controls(self) -> None:

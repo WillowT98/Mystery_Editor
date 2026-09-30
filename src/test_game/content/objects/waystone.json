@@ -19,6 +19,5 @@
   "collision_radius": 0,
   "draw_behind_actors": false,
   "runtime_visible": true,
-  "label": "Waystone",
-  "action_id": "inspect_waystone"
+  "label": "Waystone"
 }

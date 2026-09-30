@@ -4,17 +4,15 @@ For ordinary room dialogue, the preferred workflow is now **Scenes → open room
 
 Mystery Engine story graphs are data-driven conversations and in-scene cutscenes. They are designed to cover the same broad class of authored scenes as a Mystery Dungeon-style acting script without exposing hundreds of engine opcodes directly.
 
-Launch the sample graph with:
+Open the unified game maker with:
 
 ```bash
-python run_story_editor.py
+python run_project_editor.py --project /path/to/project
 ```
 
-Open or create another graph with:
-
-```bash
-python run_story_editor.py --story src/test_game/stories/my_scene.json
-```
+Stories can be opened from the project-level **Stories** section or directly
+from a room's Story mode, keeping scene pawns and project content available while
+dialogue is authored.
 
 ## Editor workflow
 

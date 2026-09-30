@@ -833,11 +833,11 @@ def edit_world_object_dialog(registry: ProjectRegistry, object_id: str | None = 
 
     tk.Label(outer, text="Interaction defaults", anchor="w", font=("TkDefaultFont", 10, "bold")).pack(fill="x", pady=(8, 4))
     entry_row("Interaction label", "label", current.label or "" if current else "")
-    entry_row("Legacy action ID", "action", current.action_id or "" if current else "")
+    entry_row("Custom action ID", "action", current.action_id or "" if current else "")
     entry_row("Interact SFX cue", "sfx", current.sound_cues.get("interact", "") if current else "")
     tk.Label(
         outer,
-        text="For no-code interactions, place the object in a room and assign a Story to that instance. Action ID remains for legacy/custom code hooks.",
+        text="For no-code interactions, assign a Story to the placed object. Custom action IDs are an advanced hook for projects that supply custom runtime code.",
         justify="left", wraplength=760, fg="#555555",
     ).pack(fill="x", pady=(2, 8))
 
