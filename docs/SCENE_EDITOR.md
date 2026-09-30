@@ -46,6 +46,16 @@ Place game-provided scenery, actors, and interactables at free pixel positions. 
 ### Select
 Select, drag, duplicate, delete, and nudge placed objects. Collision and anchor overlays can be toggled for debugging.
 
+### Triggers
+Use **7 Triggers** to author automatic story starts without placing invisible interaction objects.
+
+- **Scene-enter trigger** — runs a story after the room has loaded and the party has been positioned.
+- **Region trigger** — draw a rectangle directly on the room canvas; the story runs when the leader crosses from outside to inside it.
+
+Each trigger stores a stable ID, story ID, optional story entry point, enabled state, an optional story-state condition, and whether it fires **once** or is **repeatable**. Conditions use the same flag/variable condition JSON as story graph branches. A once trigger records completion in persistent story state, so it remains consumed across scene revisits and save/load.
+
+Repeatable scene-enter triggers fire once per room visit. Repeatable region triggers fire again only after the leader leaves the region and later re-enters it.
+
 ## Adding new placeable assets
 
 Add a `WorldAssetDefinition` to the game-side catalog. For example:
