@@ -572,6 +572,8 @@ class Renderer:
                     self.canvas.blit(sprite, rect)
                 else:
                     style = world.terrain_styles.get(kind, {})
+                    if bool(style.get("transparent", False)):
+                        continue
                     configured = style.get("fallback_color")
                     fallback = pygame.Color(str(configured)) if configured else {
                         "grass": pygame.Color("#6aa65d"),
