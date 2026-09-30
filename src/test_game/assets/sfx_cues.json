@@ -196,6 +196,61 @@
       "loop": false
     },
     {
+      "id": "dialogue.tone_1",
+      "label": "Dialogue Tone 1",
+      "category": "Dialogue",
+      "variants": [
+        "sfx/ui/text_advance_01.ogg"
+      ],
+      "volume": 0.42,
+      "cooldown": 0.045,
+      "loop": false
+    },
+    {
+      "id": "dialogue.tone_2",
+      "label": "Dialogue Tone 2",
+      "category": "Dialogue",
+      "variants": [
+        "sfx/ui/text_advance_02.ogg"
+      ],
+      "volume": 0.42,
+      "cooldown": 0.045,
+      "loop": false
+    },
+    {
+      "id": "dialogue.tone_3",
+      "label": "Dialogue Tone 3",
+      "category": "Dialogue",
+      "variants": [
+        "sfx/ui/text_advance_03.ogg"
+      ],
+      "volume": 0.42,
+      "cooldown": 0.045,
+      "loop": false
+    },
+    {
+      "id": "dialogue.tone_4",
+      "label": "Dialogue Tone 4",
+      "category": "Dialogue",
+      "variants": [
+        "sfx/ui/text_advance_04.ogg"
+      ],
+      "volume": 0.42,
+      "cooldown": 0.045,
+      "loop": false
+    },
+    {
+      "id": "dialogue.tone_5",
+      "label": "Dialogue Tone 5",
+      "category": "Dialogue",
+      "variants": [
+        "sfx/ui/text_advance_05.ogg"
+      ],
+      "volume": 0.42,
+      "cooldown": 0.045,
+      "loop": false
+    },
+    {
       "id": "magic.arcane_cast",
       "label": "Arcane Cast",
       "category": "Magic",

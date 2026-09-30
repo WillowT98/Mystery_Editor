@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 import pygame
 
 from mystery_engine.story import RectObstacle
+from mystery_engine.presentation.sfx import SoundCueCatalog
 from mystery_engine.project import (
     AttackDefinitionData,
     EnemyDefinitionData,
@@ -42,6 +43,11 @@ def pawn_animation_working_copy(pawn: PawnDefinitionData | None) -> dict[str, di
         str(name): dict(payload)
         for name, payload in (pawn.animations.items() if pawn is not None else [])
     }
+
+
+def project_sfx_cue_ids(registry: ProjectRegistry) -> list[str]:
+    catalog = SoundCueCatalog.load(registry.asset_root / "sfx_cues.json")
+    return [cue.id for cue in catalog.all()]
 
 
 def choose_catalog_id(title: str, labels: dict[str, str], initial: str | None = None) -> str | None:
@@ -986,6 +992,22 @@ def edit_pawn_dialog(registry: ProjectRegistry, pawn_id: str | None = None) -> s
 
     tk.Button(portrait_row, text="Import…", command=import_portrait).pack(side="left", padx=(6, 0))
 
+    voice_row = tk.Frame(outer)
+    voice_row.pack(fill="x", pady=4)
+    tk.Label(voice_row, text="Dialogue voice cue", width=18, anchor="w").pack(side="left")
+    voice_var = tk.StringVar(value=current.voice_cue or "" if current else "")
+    ttk.Combobox(
+        voice_row,
+        textvariable=voice_var,
+        values=[""] + project_sfx_cue_ids(registry),
+        state="normal",
+    ).pack(side="left", fill="x", expand=True)
+    tk.Label(
+        outer,
+        text="Played as text reveals. Leave blank to use the project's dialogue_blip fallback, if configured.",
+        anchor="w", fg="#666666",
+    ).pack(fill="x", padx=(126, 0), pady=(0, 4))
+
     animation_row = tk.Frame(outer)
     animation_row.pack(fill="x", pady=(12, 4))
     tk.Label(animation_row, text="Animation sets", width=18, anchor="w").pack(side="left")
@@ -1147,6 +1169,7 @@ def edit_pawn_dialog(registry: ProjectRegistry, pawn_id: str | None = None) -> s
                 portrait_key=fields["portrait"].get().strip() or None,
                 radius=max(1.0, float(fields["radius"].get() or 28)),
                 color_key=fields["color"].get().strip() or "neutral",
+                voice_cue=voice_var.get().strip() or None,
                 animations={str(name): dict(payload) for name, payload in working_animations.items()},
             )
             registry.save_pawn(data)
@@ -1242,6 +1265,15 @@ def edit_dialogue_node_dialog(registry: ProjectRegistry, scene, graph, node_id: 
         expression_var = tk.StringVar(value=str(current.get("expression") or "neutral"))
         tk.Entry(frame, textvariable=expression_var).pack(fill="x", pady=(2, 8))
 
+        tk.Label(frame, text="Voice cue override (optional)", anchor="w").pack(fill="x")
+        voice_var = tk.StringVar(value=str(current.get("voice_cue") or ""))
+        ttk.Combobox(
+            frame,
+            textvariable=voice_var,
+            values=[""] + project_sfx_cue_ids(registry),
+            state="normal",
+        ).pack(fill="x", pady=(2, 8))
+
         def accept() -> None:
             selected_pawn = by_display.get(pawn_var.get())
             if current.get("id"):
@@ -1264,6 +1296,8 @@ def edit_dialogue_node_dialog(registry: ProjectRegistry, scene, graph, node_id: 
                 line["speaker"] = speaker_var.get().strip()
             if current.get("portrait_key"):
                 line["portrait_key"] = current["portrait_key"]
+            if voice_var.get().strip():
+                line["voice_cue"] = voice_var.get().strip()
             if index is None:
                 working.append(line)
                 select = len(working)-1

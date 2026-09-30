@@ -284,6 +284,7 @@ class StoryRuntimeContext:
     run_action: Callable[[str, dict[str, Any]], StoryActionHandle | None]
     load_graph: Callable[[str], StoryGraph] | None = None
     resolve_pawn: Callable[[str], tuple[str, str | None]] | None = None
+    resolve_pawn_voice: Callable[[str], str | None] | None = None
     evaluate_gameplay_condition: Callable[[dict[str, Any]], bool | None] | None = None
     on_finish: Callable[[str | None], None] | None = None
     rng: Random = field(default_factory=Random)
@@ -380,12 +381,15 @@ class StoryGraphRunner:
                         pawn_id = str(line.get("pawn") or "")
                         speaker = str(line.get("speaker", ""))
                         portrait = str(line["portrait_key"]) if line.get("portrait_key") else None
+                        voice_cue = str(line["voice_cue"]) if line.get("voice_cue") else None
                         if pawn_id and self.context.resolve_pawn is not None:
                             try:
                                 resolved_name, resolved_portrait = self.context.resolve_pawn(pawn_id)
                                 speaker = resolved_name
                                 if portrait is None:
                                     portrait = resolved_portrait
+                                if voice_cue is None and self.context.resolve_pawn_voice is not None:
+                                    voice_cue = self.context.resolve_pawn_voice(pawn_id)
                             except KeyError:
                                 if not speaker:
                                     speaker = pawn_id
@@ -394,6 +398,7 @@ class StoryGraphRunner:
                             text=self._format_text(line.get("text", "")),
                             portrait_key=portrait,
                             expression=str(line.get("expression", "neutral")),
+                            voice_cue=voice_cue,
                         ))
                     self.context.dialogue.start(DialogueSequence(lines))
                     cursor.state["started"] = True
@@ -527,6 +532,7 @@ class StoryGraphRunner:
                         run_action=self.context.run_action,
                         load_graph=self.context.load_graph,
                         resolve_pawn=self.context.resolve_pawn,
+                        resolve_pawn_voice=self.context.resolve_pawn_voice,
                         evaluate_gameplay_condition=self.context.evaluate_gameplay_condition,
                         rng=self.context.rng,
                     )

@@ -133,6 +133,9 @@ class ProjectGameDefinition:
     def resolve_story_pawn(self, pawn_id: str) -> tuple[str, str | None]:
         return self.project_registry.resolve_story_pawn(pawn_id)
 
+    def resolve_story_pawn_voice(self, pawn_id: str) -> str | None:
+        return self.project_registry.resolve_story_pawn_voice(pawn_id)
+
     def localize_story(self, graph):
         return self.project_registry.localize_story(graph)
 

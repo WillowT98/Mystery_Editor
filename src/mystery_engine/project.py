@@ -621,6 +621,7 @@ class PawnDefinitionData:
     portrait_key: str | None = None
     radius: float = 28.0
     color_key: str = "neutral"
+    voice_cue: str | None = None
     animations: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
@@ -632,6 +633,7 @@ class PawnDefinitionData:
             portrait_key=(str(data["portrait_key"]) if data.get("portrait_key") else None),
             radius=max(1.0, float(data.get("radius", 28.0))),
             color_key=str(data.get("color_key", "neutral")),
+            voice_cue=(str(data["voice_cue"]) if data.get("voice_cue") else None),
             animations={
                 str(name): dict(payload)
                 for name, payload in dict(data.get("animations") or {}).items()
@@ -648,6 +650,8 @@ class PawnDefinitionData:
             "radius": self.radius,
             "color_key": self.color_key,
         }
+        if self.voice_cue:
+            data["voice_cue"] = self.voice_cue
         if self.animations:
             data["animations"] = self.animations
         if self.portrait_key:
@@ -1046,6 +1050,11 @@ class ProjectRegistry:
     def resolve_story_pawn(self, pawn_id: str) -> tuple[str, str | None]:
         pawn = self.pawn(pawn_id)
         return self.text(f"pawn.{pawn.id}.name", pawn.name), pawn.portrait_key or pawn.sprite_key
+
+    def resolve_story_pawn_voice(self, pawn_id: str) -> str | None:
+        pawn = self.pawns[pawn_id]
+        return pawn.voice_cue
+
 
     def world_asset_catalog(self, base: WorldAssetCatalog) -> WorldAssetCatalog:
         merged = dict(base.assets)
