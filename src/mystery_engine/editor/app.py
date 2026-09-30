@@ -1798,6 +1798,24 @@ class ExplorationSceneEditor:
                         self._draw_sidebar_help(y + 4, [f"{field_name}:", self._text_edit_buffer + "|"])
                         y += 62
 
+                    if self.project_registry is not None:
+                        story_name = "None"
+                        if obj.target_story:
+                            story_name = self.project_registry.story_labels().get(obj.target_story, obj.target_story)
+                        self._draw_sidebar_help(y + 4, [f"Story interaction: {story_name}"])
+                        y += 34
+                        story_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
+                        self._palette_items.append(PaletteItem("__object_story", "Choose story", story_rect, None))
+                        pygame.draw.rect(self.screen, (55, 66, 82), story_rect, border_radius=6)
+                        self.screen.blit(self.font_small.render("Choose interaction story…", True, (232, 238, 232)), (story_rect.x + 10, story_rect.y + 7))
+                        y += 40
+                        if obj.target_story:
+                            clear_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 30)
+                            self._palette_items.append(PaletteItem("__object_story_clear", "Clear story", clear_rect, None))
+                            pygame.draw.rect(self.screen, (66, 58, 65), clear_rect, border_radius=6)
+                            self.screen.blit(self.font_small.render("Clear story interaction", True, (232, 232, 225)), (clear_rect.x + 10, clear_rect.y + 5))
+                            y += 36
+
                 if definition.category in {"interactable", "portal", "actor"}:
                     cue_id = self._effective_object_sound(obj, definition)
                     cue = self.sfx_catalog.get(cue_id)
@@ -2047,6 +2065,37 @@ class ExplorationSceneEditor:
             self.dirty = True
             self.status = f"Entrance linked to {self.project_registry.dungeon_labels().get(chosen, chosen)}"
 
+    def _change_selected_story_link(self) -> None:
+        pair = self._selected_pair()
+        if pair is None or self.project_registry is None:
+            return
+        obj, definition = pair
+        if definition.category not in {"interactable", "actor"}:
+            self.status = "Only actors and interactable objects can start stories"
+            return
+        from .project_editor import choose_catalog_id
+        chosen = choose_catalog_id(
+            "Choose interaction story",
+            self.project_registry.story_labels(),
+            obj.target_story,
+        )
+        if chosen:
+            before = self.history.snapshot(self.scene)
+            obj.target_story = chosen
+            self.history.remember(before)
+            self.dirty = True
+            self.status = f"{definition.display_name} now starts {self.project_registry.story_labels().get(chosen, chosen)}"
+
+    def _clear_selected_story_link(self) -> None:
+        pair = self._selected_pair()
+        if pair is None or not pair[0].target_story:
+            return
+        before = self.history.snapshot(self.scene)
+        pair[0].target_story = None
+        self.history.remember(before)
+        self.dirty = True
+        self.status = "Story interaction cleared"
+
     def _change_selected_dungeon_sprite(self) -> None:
         pair = self._selected_pair()
         if pair is None or pair[1].category != "dungeon" or self.project_registry is None:
@@ -2186,6 +2235,8 @@ class ExplorationSceneEditor:
                     elif item.key == "__collision_reset": self.reset_collision_override()
                     elif item.key == "__edit_action": self._start_text_edit("action")
                     elif item.key == "__edit_label": self._start_text_edit("label")
+                    elif item.key == "__object_story": self._change_selected_story_link()
+                    elif item.key == "__object_story_clear": self._clear_selected_story_link()
                     elif item.key == "__portal_open": self.open_linked_scene()
                     elif item.key == "__portal_mode": self.toggle_portal_mode()
                     elif item.key == "__portal_unlink": self.unlink_selected_portal()
