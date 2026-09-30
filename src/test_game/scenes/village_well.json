@@ -862,7 +862,7 @@
     },
     {
       "id": "old_well",
-      "asset": "waystone",
+      "asset": "village_well",
       "x": 745,
       "y": 470,
       "label": "Old village well",
