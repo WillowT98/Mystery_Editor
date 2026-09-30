@@ -1069,6 +1069,7 @@ class ProjectRegistry:
                     actor_name=self.text(f"pawn.{pawn.id}.name", pawn.name),
                     color_key=pawn.color_key,
                     radius=pawn.radius,
+                    animations=pawn.animations,
                 )
             else:
                 definition = pawn.to_world_asset()
