@@ -443,9 +443,24 @@ The project was audited after the orientation-aware cliff pass. The slim package
 
 The cleanup does not change runtime rendering or collision behavior. The full test suite passes after regenerating assets.
 
+## Unified project editor
+
+The preferred authoring workflow is now the project-level editor:
+
+```bash
+python run_project_editor.py
+```
+
+It provides one navigation surface for scenes, dungeons, enemies, reusable attacks,
+and imported assets. Enemy/attack definitions are data-backed, dungeon enemy entries
+support per-dungeon stat/resistance/attack/name/sprite modifiers, and generic dungeon
+entrances can create or select a dungeon directly from the exploration editor.
+Imported files are copied into the project rather than moved. See
+`docs/PROJECT_EDITOR.md` for the current workflow and data layout.
+
 ## Exploration scene editor
 
-A first visual editor is now included for data-driven exploration scenes.
+The exploration editor remains available directly for data-driven exploration scenes.
 
 Launch the current test clearing with:
 
