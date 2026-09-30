@@ -478,6 +478,9 @@ class ProjectGameDefinition:
             facing=str(data.get("facing", "S")).upper(),
             enabled=bool(data.get("enabled", True)),
             sprite_key=(str(data["sprite_key"]) if data.get("sprite_key") is not None else None),
+            animation_name=(str(data["animation_name"]) if data.get("animation_name") else None),
+            animation_override=bool(data.get("animation_override", False)),
+            animation_loop=(bool(data["animation_loop"]) if "animation_loop" in data else None),
         )
 
     def create_exploration(self, game: "MysteryGame") -> ExplorationMap:
@@ -511,6 +514,10 @@ class ProjectGameDefinition:
                 actor.enabled = saved.enabled
                 if saved.sprite_key is not None:
                     actor.sprite_key = saved.sprite_key
+                if saved.animation_name and saved.animation_name in actor.animations:
+                    actor.animation_name = saved.animation_name
+                    actor.animation_override = saved.animation_override
+                    actor.animation_loop_override = saved.animation_loop
                 restored_party = True
 
         if not restored_party and settings.starting_marker:
@@ -599,6 +606,10 @@ class ProjectGameDefinition:
                 actor.enabled = saved.enabled
                 if saved.sprite_key is not None:
                     actor.sprite_key = saved.sprite_key
+                if saved.animation_name and saved.animation_name in actor.animations:
+                    actor.animation_name = saved.animation_name
+                    actor.animation_override = saved.animation_override
+                    actor.animation_loop_override = saved.animation_loop
             for object_id, saved in saved_scene_state.objects.items():
                 item = next((candidate for candidate in world.interactables if candidate.id == object_id), None)
                 if item is not None:
