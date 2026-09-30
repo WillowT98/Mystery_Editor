@@ -437,7 +437,7 @@ class EnemyDefinitionData:
             except KeyError as exc:
                 raise KeyError(f"Enemy {self.id} references unknown attack: {attack_id}") from exc
             skills.append(SkillRuntime.from_definition(definition))
-        metadata = {"sprite_key": self.sprite_key}
+        metadata = {"sprite_key": self.sprite_key, "definition_id": self.id}
         if self.portrait_key:
             metadata["portrait_key"] = self.portrait_key
         return Character(

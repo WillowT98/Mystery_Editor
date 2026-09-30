@@ -11,6 +11,9 @@ import pygame
 from mystery_engine.config import EngineConfig
 from mystery_engine.core.combat import CombatResolver, ProjectileEvent
 from mystery_engine.core.game_state import (
+    DungeonActorState,
+    DungeonGroundItemState,
+    DungeonState,
     PersistentGameState,
     SaveManager,
     SceneActorState,
@@ -380,6 +383,9 @@ class MysteryGame:
     def enter_dungeon(self, start_floor: int = 1) -> None:
         if self.dialogue.active:
             return
+        if self.exploration is not None:
+            self._capture_exploration_state()
+        self.state.dungeon = None
         self.mode = GameMode.DUNGEON
         self.menu.close()
         self.audio.stop(fade_ms=350)
@@ -399,6 +405,7 @@ class MysteryGame:
             lost_items = self.state.bag.apply_loss(self.rng, self.definition.defeat_item_loss_chance)
 
         self.dungeon = None
+        self.state.dungeon = None
         self.mode = GameMode.EXPLORATION
         self.menu.close()
         self._sync_exploration_music()
@@ -449,12 +456,125 @@ class MysteryGame:
             },
         )
 
+    def _capture_dungeon_state(self) -> None:
+        session = self.dungeon
+        if session is None:
+            self.state.dungeon = None
+            return
+        floor = session.floor
+        self.state.dungeon = DungeonState(
+            dungeon_id=str(getattr(self.definition, "active_dungeon_id", "")),
+            floor_number=session.floor_number,
+            width=floor.width,
+            height=floor.height,
+            tiles=[
+                [
+                    {
+                        "kind": tile.kind.name,
+                        "walkable": tile.walkable,
+                        "blocks_sight": tile.blocks_sight,
+                        "terrain": tile.terrain,
+                    }
+                    for tile in row
+                ]
+                for row in floor.tiles
+            ],
+            rooms=[list(room) for room in floor.rooms],
+            player_spawn=(
+                (floor.player_spawn.x, floor.player_spawn.y)
+                if floor.player_spawn is not None else None
+            ),
+            stairs_pos=(
+                (floor.stairs_pos.x, floor.stairs_pos.y)
+                if floor.stairs_pos is not None else None
+            ),
+            tileset=floor.tileset,
+            music=floor.music,
+            music_volume=floor.music_volume,
+            dungeon_name=floor.dungeon_name,
+            generation_profile=floor.generation_profile,
+            actors=[
+                DungeonActorState(
+                    id=actor.id,
+                    definition_id=(
+                        str(actor.metadata.get("definition_id"))
+                        if actor.metadata.get("definition_id") else None
+                    ),
+                    name=actor.name,
+                    hostile=actor.hostile,
+                    x=(actor.grid_pos.x if actor.grid_pos is not None else None),
+                    y=(actor.grid_pos.y if actor.grid_pos is not None else None),
+                    facing=actor.facing.name,
+                    incapacitated=actor.incapacitated,
+                    max_hp=actor.stats.max_hp,
+                    current_hp=actor.stats.current_hp,
+                    attack=actor.stats.attack,
+                    defense=actor.stats.defense,
+                    resources=dict(actor.resources),
+                    resistances=dict(actor.resistances),
+                    skill_charges={
+                        skill.definition.id: skill.charges for skill in actor.skills
+                    },
+                    skill_ids=[skill.definition.id for skill in actor.skills],
+                    metadata=dict(actor.metadata),
+                )
+                for actor in floor.entities
+            ],
+            ground_items=[
+                DungeonGroundItemState(item.item.id, item.pos.x, item.pos.y)
+                for item in floor.ground_items
+            ],
+            discovered=[(pos.x, pos.y) for pos in sorted(session.turns.memory.discovered, key=lambda p: (p.y, p.x))],
+            visible=[(pos.x, pos.y) for pos in sorted(session.turns.memory.visible, key=lambda p: (p.y, p.x))],
+            turn_count=session.turns.turn_count,
+            rng_state=self.rng.getstate(),
+        )
+
+    @staticmethod
+    def _tupleify_rng_state(value):
+        if isinstance(value, list):
+            return tuple(MysteryGame._tupleify_rng_state(item) for item in value)
+        return value
+
+    def _restore_dungeon_session(self, saved: DungeonState) -> None:
+        restorer = getattr(self.definition, "restore_dungeon_floor", None)
+        if not callable(restorer):
+            raise ValueError("This project cannot restore dungeon saves.")
+        floor = restorer(saved, self.state.party)
+        leader = self.state.leader
+        turns = TurnManager(
+            floor,
+            self.state.party,
+            self.state.bag,
+            leader,
+            self.rng,
+            event_sounds=getattr(self.definition, "sfx_event_cues", {}),
+        )
+        turns.turn_count = saved.turn_count
+        turns.memory.discovered = {GridPos(x, y) for x, y in saved.discovered}
+        turns.memory.visible = {GridPos(x, y) for x, y in saved.visible}
+        self.dungeon = DungeonSession(saved.floor_number, floor, turns)
+        if saved.rng_state is not None:
+            self.rng.setstate(self._tupleify_rng_state(saved.rng_state))
+        self.mode = GameMode.DUNGEON
+        error = self.audio.play_scene(floor.music, floor.music_volume)
+        if error:
+            self.add_message(error)
+
     def save_snapshot(self, path: Path | None = None) -> Path | None:
-        if self.mode is not GameMode.EXPLORATION or self.exploration is None:
-            self.add_message("Saving is currently available only while exploring.")
-            return None
+        if self.mode is GameMode.DUNGEON:
+            if self.dungeon is None:
+                self.add_message("There is no active dungeon session to save.")
+                return None
+            self._capture_dungeon_state()
+        else:
+            if self.exploration is None:
+                self.add_message("There is no active exploration state to save.")
+                return None
+            self.state.dungeon = None
+            self._capture_exploration_state()
+
         path = path or self.default_save_path
-        self._capture_exploration_state()
         self.save_manager.dump(self.state, path)
         self._play_event_sfx("save")
         self.add_message(f"Game saved to {path}.")
@@ -494,10 +614,22 @@ class MysteryGame:
             on_finish=self._story_finished,
             rng=self.rng,
         ))
+        # Always rebuild exploration first because it is the dungeon return point.
         self.exploration = self.definition.create_exploration(self)
         if self.input is not None:
             self.input.dungeon.reset()
-        self._sync_exploration_music()
+        if self.state.dungeon is not None:
+            try:
+                self._restore_dungeon_session(self.state.dungeon)
+            except (ValueError, KeyError, TypeError) as exc:
+                self.state.dungeon = None
+                self.mode = GameMode.EXPLORATION
+                self._sync_exploration_music()
+                self.add_message(f"Dungeon save could not be restored: {exc}")
+                return False
+        else:
+            self.mode = GameMode.EXPLORATION
+            self._sync_exploration_music()
         self.add_message(f"Loaded save from {path}.")
         return True
 
@@ -628,14 +760,11 @@ class MysteryGame:
                 children=self._language_menu_entries,
                 detail=str(getattr(self.definition, "active_locale_label", lambda: "")()),
             ))
-        save_allowed = self.mode is GameMode.EXPLORATION
         entries.extend([
             MenuEntry("Controls", action=self._show_controls),
             MenuEntry(
                 "Save Game",
                 action=lambda: self._save_from_menu(),
-                enabled=save_allowed,
-                detail="" if save_allowed else "Exploration only",
             ),
             MenuEntry(
                 "Load Game",
