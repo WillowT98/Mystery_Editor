@@ -16,6 +16,7 @@ from mystery_engine.core import (
     TargetKind,
 )
 from mystery_engine.dungeon import DungeonDefinition, SpawnRule
+from mystery_engine.story import StoryGraph, WorldAssetCatalog, WorldAssetDefinition
 
 
 def slugify(value: str, fallback: str = "content") -> str:
@@ -191,6 +192,51 @@ class EnemyDefinitionData:
         )
 
 
+@dataclass(frozen=True)
+class PawnDefinitionData:
+    id: str
+    name: str
+    sprite_key: str
+    portrait_key: str | None = None
+    radius: float = 28.0
+    color_key: str = "neutral"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PawnDefinitionData":
+        return cls(
+            id=str(data["id"]),
+            name=str(data.get("name") or data["id"]),
+            sprite_key=str(data.get("sprite_key") or data["id"]),
+            portrait_key=(str(data["portrait_key"]) if data.get("portrait_key") else None),
+            radius=max(1.0, float(data.get("radius", 28.0))),
+            color_key=str(data.get("color_key", "neutral")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "format": 1,
+            "id": self.id,
+            "name": self.name,
+            "sprite_key": self.sprite_key,
+            "radius": self.radius,
+            "color_key": self.color_key,
+        }
+        if self.portrait_key:
+            data["portrait_key"] = self.portrait_key
+        return data
+
+    def to_world_asset(self) -> WorldAssetDefinition:
+        return WorldAssetDefinition(
+            id=self.id,
+            category="actor",
+            sprite_key=self.sprite_key,
+            display_name=self.name,
+            actor_name=self.name,
+            color_key=self.color_key,
+            radius=self.radius,
+        )
+
+
 class ProjectRegistry:
     """Data-backed registry used by runtime content and the authoring UI.
 
@@ -206,10 +252,15 @@ class ProjectRegistry:
         content = dict(self.manifest.get("content", {}))
         self.attack_dir = self.game_root / str(content.get("attacks", "content/attacks"))
         self.enemy_dir = self.game_root / str(content.get("enemies", "content/enemies"))
+        self.pawn_dir = self.game_root / str(content.get("pawns", "content/pawns"))
         self.dungeon_dir = self.game_root / str(content.get("dungeons", "dungeons"))
         self.scene_dir = self.game_root / str(content.get("scenes", "scenes"))
+        self.story_dir = self.game_root / str(content.get("stories", "stories"))
         self.asset_root = self.game_root / str(content.get("assets", "assets"))
-        for directory in (self.attack_dir, self.enemy_dir, self.dungeon_dir, self.scene_dir, self.asset_root):
+        for directory in (
+            self.attack_dir, self.enemy_dir, self.pawn_dir, self.dungeon_dir,
+            self.scene_dir, self.story_dir, self.asset_root,
+        ):
             directory.mkdir(parents=True, exist_ok=True)
         self.reload()
 
@@ -227,8 +278,10 @@ class ProjectRegistry:
             "content": {
                 "attacks": "content/attacks",
                 "enemies": "content/enemies",
+                "pawns": "content/pawns",
                 "dungeons": "dungeons",
                 "scenes": "scenes",
+                "stories": "stories",
                 "assets": "assets",
             },
             "damage_types": ["physical"],
@@ -255,6 +308,7 @@ class ProjectRegistry:
         self.attacks_data: dict[str, AttackDefinitionData] = {}
         self.attacks: dict[str, SkillDefinition] = {}
         self.enemies: dict[str, EnemyDefinitionData] = {}
+        self.pawns: dict[str, PawnDefinitionData] = {}
 
         if self.attack_dir.exists():
             for path in sorted(self.attack_dir.glob("*.json")):
@@ -267,6 +321,11 @@ class ProjectRegistry:
                 data = EnemyDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
                 self.enemies[data.id] = data
 
+        if self.pawn_dir.exists():
+            for path in sorted(self.pawn_dir.glob("*.json")):
+                data = PawnDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                self.pawns[data.id] = data
+
     @property
     def attack_labels(self) -> dict[str, str]:
         return {key: value.name for key, value in sorted(self.attacks_data.items())}
@@ -274,6 +333,33 @@ class ProjectRegistry:
     @property
     def enemy_labels(self) -> dict[str, str]:
         return {key: value.name for key, value in sorted(self.enemies.items())}
+
+    @property
+    def pawn_labels(self) -> dict[str, str]:
+        return {key: value.name for key, value in sorted(self.pawns.items())}
+
+    def save_pawn(self, data: PawnDefinitionData) -> Path:
+        self.pawn_dir.mkdir(parents=True, exist_ok=True)
+        path = self.pawn_dir / f"{data.id}.json"
+        path.write_text(json.dumps(data.to_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        self.reload()
+        return path
+
+    def pawn(self, pawn_id: str) -> PawnDefinitionData:
+        try:
+            return self.pawns[pawn_id]
+        except KeyError as exc:
+            raise KeyError(f"Unknown pawn: {pawn_id}") from exc
+
+    def resolve_story_pawn(self, pawn_id: str) -> tuple[str, str | None]:
+        pawn = self.pawn(pawn_id)
+        return pawn.name, pawn.portrait_key or pawn.sprite_key
+
+    def world_asset_catalog(self, base: WorldAssetCatalog) -> WorldAssetCatalog:
+        merged = dict(base.assets)
+        for pawn in self.pawns.values():
+            merged[pawn.id] = pawn.to_world_asset()
+        return WorldAssetCatalog(assets=merged)
 
     def save_attack(self, data: AttackDefinitionData) -> Path:
         self.attack_dir.mkdir(parents=True, exist_ok=True)
@@ -380,6 +466,65 @@ class ProjectRegistry:
 
     def scene_labels(self) -> dict[str, str]:
         return {scene_id: path.stem for scene_id, path in self.scene_paths().items()}
+
+    def story_paths(self) -> dict[str, Path]:
+        result: dict[str, Path] = {}
+        for path in sorted(self.story_dir.glob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            story_id = str(data.get("id") or path.stem)
+            result[story_id] = path
+        return result
+
+    def story_labels(self) -> dict[str, str]:
+        labels: dict[str, str] = {}
+        for story_id, path in self.story_paths().items():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                labels[story_id] = str(data.get("name") or story_id).replace("_", " ")
+            except (OSError, json.JSONDecodeError):
+                labels[story_id] = story_id
+        return labels
+
+    def stories_for_scene(self, scene_id: str) -> dict[str, Path]:
+        result: dict[str, Path] = {}
+        for story_id, path in self.story_paths().items():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if str(data.get("scene") or "") == scene_id:
+                result[story_id] = path
+        return result
+
+    def load_story(self, story_id: str) -> StoryGraph:
+        try:
+            return StoryGraph.load(self.story_paths()[story_id])
+        except KeyError as exc:
+            raise KeyError(f"Unknown story: {story_id}") from exc
+
+    def story_path(self, story_id: str) -> Path:
+        try:
+            return self.story_paths()[story_id]
+        except KeyError as exc:
+            raise KeyError(f"Unknown story: {story_id}") from exc
+
+    def create_story(
+        self,
+        name: str,
+        scene_id: str,
+        story_id: str | None = None,
+    ) -> tuple[StoryGraph, Path]:
+        base = slugify(story_id or name, "story")
+        story_id = self._unique_resource_id(base, set(self.story_paths()))
+        graph = StoryGraph.blank(story_id)
+        graph.name = name.strip() or story_id
+        graph.scene_id = scene_id
+        path = self.story_dir / f"{story_id}.json"
+        graph.save(path)
+        return graph, path
 
     def import_asset(
         self,
