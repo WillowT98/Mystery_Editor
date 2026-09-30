@@ -10,7 +10,13 @@ import pygame
 
 from mystery_engine.config import EngineConfig
 from mystery_engine.core.combat import CombatResolver, ProjectileEvent
-from mystery_engine.core.game_state import PersistentGameState, SaveManager
+from mystery_engine.core.game_state import (
+    PersistentGameState,
+    SaveManager,
+    SceneActorState,
+    SceneObjectState,
+    SceneState,
+)
 from mystery_engine.core.inventory import ItemDefinition
 from mystery_engine.core.models import AITactic, Character, RangePattern, TargetKind
 from mystery_engine.core.types import Direction, DungeonResult, GameMode, GridPos, Vec2
@@ -47,6 +53,7 @@ class GameDefinition(Protocol):
     defeat_item_loss_chance: float
 
     def create_state(self) -> PersistentGameState: ...
+    def load_state(self, payload: dict) -> PersistentGameState: ...
     def create_exploration(self, game: "MysteryGame") -> ExplorationMap: ...
     def create_exploration_scene(self, game: "MysteryGame", scene_path: Path) -> ExplorationMap: ...
     def create_dungeon_floor(self, game: "MysteryGame", floor_number: int) -> DungeonFloor: ...
@@ -309,6 +316,8 @@ class MysteryGame:
             return
 
         old_world = self.exploration
+        if old_world is not None:
+            self._capture_exploration_state()
         new_world = loader(self, Path(scene_path))
 
         old_party_actors = {}
@@ -362,6 +371,7 @@ class MysteryGame:
             actor.facing = facing
 
         self.exploration = new_world
+        self.state.world.current_scene = new_world.id
         self.mode = GameMode.EXPLORATION
         self.menu.close()
         self._sync_exploration_music()
@@ -399,12 +409,97 @@ class MysteryGame:
             member.grid_pos = None
         self.definition.on_dungeon_result(self, result, lost_money=lost_money, lost_items=lost_items)
 
-    def save_snapshot(self, path: Path | None = None) -> Path:
-        path = path or Path("saves") / f"{self.definition.game_id}-save.json"
+    @property
+    def default_save_path(self) -> Path:
+        return Path("saves") / f"{self.definition.game_id}-save.json"
+
+    def _capture_exploration_state(self) -> None:
+        """Copy mutable exploration state into the persistent state graph."""
+        world = self.exploration
+        if world is None:
+            return
+        party_ids = {member.id for member in self.state.party}
+        self.state.world.current_scene = world.id
+        self.state.world.party_positions = {
+            actor.id: SceneActorState(
+                x=actor.position.x,
+                y=actor.position.y,
+                facing=actor.facing.name,
+                enabled=actor.enabled,
+                sprite_key=actor.sprite_key,
+            )
+            for actor in world.actors
+            if actor.id in party_ids
+        }
+        self.state.world.scenes[world.id] = SceneState(
+            actors={
+                actor.id: SceneActorState(
+                    x=actor.position.x,
+                    y=actor.position.y,
+                    facing=actor.facing.name,
+                    enabled=actor.enabled,
+                    sprite_key=actor.sprite_key,
+                )
+                for actor in world.actors
+                if actor.id not in party_ids
+            },
+            objects={
+                item.id: SceneObjectState(enabled=item.enabled)
+                for item in world.interactables
+            },
+        )
+
+    def save_snapshot(self, path: Path | None = None) -> Path | None:
+        if self.mode is not GameMode.EXPLORATION or self.exploration is None:
+            self.add_message("Saving is currently available only while exploring.")
+            return None
+        path = path or self.default_save_path
+        self._capture_exploration_state()
         self.save_manager.dump(self.state, path)
         self._play_event_sfx("save")
-        self.add_message(f"Saved snapshot to {path}.")
+        self.add_message(f"Game saved to {path}.")
         return path
+
+    def load_snapshot(self, path: Path | None = None) -> bool:
+        path = path or self.default_save_path
+        if not path.exists():
+            self.add_message("No save game was found.")
+            return False
+        loader = getattr(self.definition, "load_state", None)
+        if not callable(loader):
+            self.add_message("This project cannot reconstruct saved games.")
+            return False
+        try:
+            payload = self.save_manager.load_raw(path)
+            state = loader(payload)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            self.add_message(f"Could not load save: {exc}")
+            return False
+
+        self.state = state
+        self.dungeon = None
+        self.mode = GameMode.EXPLORATION
+        self.dialogue = DialogueController()
+        self.menu.close()
+        self.projectile_queue.clear()
+        self.active_projectile = None
+        self._pending_dungeon_result = None
+        self.story_runner = StoryGraphRunner(StoryRuntimeContext(
+            story=self.state.story,
+            dialogue=self.dialogue,
+            choose=self._open_story_choice,
+            run_action=self.story_actions,
+            load_graph=self._load_story_graph,
+            resolve_pawn=getattr(self.definition, "resolve_story_pawn", None),
+            on_finish=self._story_finished,
+            rng=self.rng,
+        ))
+        self.exploration = self.definition.create_exploration(self)
+        if self.input is not None:
+            self.input.dungeon.reset()
+        self._sync_exploration_music()
+        self.add_message(f"Loaded save from {path}.")
+        return True
 
     # ---------- update ----------
 
@@ -533,9 +628,20 @@ class MysteryGame:
                 children=self._language_menu_entries,
                 detail=str(getattr(self.definition, "active_locale_label", lambda: "")()),
             ))
+        save_allowed = self.mode is GameMode.EXPLORATION
         entries.extend([
             MenuEntry("Controls", action=self._show_controls),
-            MenuEntry("Save snapshot", action=lambda: self._save_from_menu()),
+            MenuEntry(
+                "Save Game",
+                action=lambda: self._save_from_menu(),
+                enabled=save_allowed,
+                detail="" if save_allowed else "Exploration only",
+            ),
+            MenuEntry(
+                "Load Game",
+                action=lambda: self._load_from_menu(),
+                enabled=self.default_save_path.exists(),
+            ),
             MenuEntry("Quit", action=self._quit_from_menu),
         ])
         self.menu.open("System", entries)
@@ -547,7 +653,8 @@ class MysteryGame:
             MenuEntry("Journal", action=self._show_journal),
             MenuEntry("System", children=lambda: [
                 MenuEntry("Audio", children=self._audio_menu_entries, detail=f"Music {round(self.audio.master_volume * 100)}%"),
-                MenuEntry("Save snapshot", action=lambda: self._save_from_menu()),
+                MenuEntry("Save Game", action=lambda: self._save_from_menu()),
+                MenuEntry("Load Game", action=lambda: self._load_from_menu(), enabled=self.default_save_path.exists()),
                 MenuEntry("Controls", action=self._show_controls),
             ]),
         ]
@@ -1009,6 +1116,10 @@ class MysteryGame:
 
     def _save_from_menu(self) -> None:
         self.save_snapshot()
+        self.menu.close()
+
+    def _load_from_menu(self) -> None:
+        self.load_snapshot()
         self.menu.close()
 
     def _quit_from_menu(self) -> None:

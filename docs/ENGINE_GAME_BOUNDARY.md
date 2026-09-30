@@ -25,6 +25,37 @@ The `mystery_engine` package owns reusable vocabulary and behavior:
 - stable-ID save serialization;
 - the runtime that composes a generic `GameDefinition`.
 
+## Save/load and persistent exploration state
+
+The engine save format stores stable IDs plus mutable runtime state rather than
+serializing Python objects directly. Project definitions reconstruct characters,
+items, attacks, and other content from those IDs when a save is loaded.
+
+Exploration saves persist:
+
+- party composition, leader, HP, resources, skill charges, and tactics;
+- bag/storage contents and capacities;
+- carried and stored money;
+- story flags and variables;
+- the current scene and exact party position/facing;
+- per-scene non-party actor position, facing, enabled state, and sprite override;
+- per-scene interactable enabled state.
+
+Scene transitions snapshot the mutable state of the room being left, so story
+actions such as moving an NPC or disabling an interactable survive later revisits
+even before the player saves.
+
+Saving is intentionally limited to exploration mode for now. Dungeon-session
+state (generated floor layout, enemies, ground items, discovery/visibility, turn
+count, and projectile state) is not yet serialized, so the engine does not create
+misleading partial mid-dungeon saves. Loading an exploration save is available
+from the system menu and replaces the active runtime state with the reconstructed
+save.
+
+The loader accepts the older save shape that predates the `world` block; those
+saves resume from the configured starting scene while retaining their saved
+party/inventory/story data.
+
 ## Game-owned concepts
 
 The `test_game` package owns concrete content and choices:
