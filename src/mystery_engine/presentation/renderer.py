@@ -257,7 +257,7 @@ class Renderer:
             if ground.pos not in memory.visible:
                 continue
             rect = pygame.Rect(int(ground.pos.x * tile - camera_world_x), int(ground.pos.y * tile - camera_world_y), tile, tile)
-            sprite = self._load_item_sprite(ground.item.sprite_key or ground.item.id, (40, 40))
+            sprite = self._load_item_sprite(ground.item, (40, 40))
             if sprite is not None:
                 self.canvas.blit(sprite, sprite.get_rect(center=rect.center))
             else:
@@ -845,8 +845,32 @@ class Renderer:
         self._surface_cache[cache_key] = sprite
         return sprite
 
-    def _load_item_sprite(self, item_id: str, size: tuple[int, int]) -> pygame.Surface | None:
-        return self._load_surface(f"items/{item_id}.png", size)
+    def _load_item_sprite(self, item, size: tuple[int, int]) -> pygame.Surface | None:
+        sheet_key = getattr(item, "sprite_sheet_key", None)
+        if sheet_key:
+            columns = max(1, int(getattr(item, "sprite_sheet_columns", 1)))
+            index = max(0, int(getattr(item, "sprite_sheet_index", 0)))
+            cache_key = (f"items/{sheet_key}.png#{index}/{columns}", size)
+            cached = self._surface_cache.get(cache_key)
+            if cached is not None:
+                return cached
+            sheet = self._load_native_surface(f"items/{sheet_key}.png")
+            if sheet is not None and sheet.get_width() >= columns:
+                frame_w = sheet.get_width() // columns
+                frame_h = sheet.get_height()
+                index = min(columns - 1, index)
+                frame = pygame.Surface((frame_w, frame_h), pygame.SRCALPHA)
+                frame.blit(sheet, (0, 0), pygame.Rect(index * frame_w, 0, frame_w, frame_h))
+                bounds = frame.get_bounding_rect()
+                if bounds.width > 0 and bounds.height > 0:
+                    frame = frame.subsurface(bounds).copy()
+                if frame.get_size() != size:
+                    frame = pygame.transform.scale(frame, size)
+                self._surface_cache[cache_key] = frame
+                return frame
+
+        sprite_key = getattr(item, "sprite_key", None) or getattr(item, "id", "")
+        return self._load_surface(f"items/{sprite_key}.png", size)
 
     @staticmethod
     def _facing_suffix(facing) -> str:
