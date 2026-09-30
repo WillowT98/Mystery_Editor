@@ -445,6 +445,7 @@ class TerrainDefinitionData:
     sprite_keys: tuple[str, ...] = ()
     blocked: bool = False
     fallback_color: str = "#526f49"
+    transparent: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TerrainDefinitionData":
@@ -461,6 +462,7 @@ class TerrainDefinitionData:
             sprite_keys=tuple(str(v) for v in sprites),
             blocked=bool(data.get("blocked", False)),
             fallback_color=str(data.get("fallback_color", "#526f49")),
+            transparent=bool(data.get("transparent", False)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -472,6 +474,7 @@ class TerrainDefinitionData:
             "sprite_keys": list(self.sprite_keys),
             "blocked": self.blocked,
             "fallback_color": self.fallback_color,
+            "transparent": self.transparent,
         }
 
     def runtime_dict(self) -> dict[str, Any]:
@@ -710,6 +713,7 @@ class ProjectRegistry:
         registry = cls(root)
         registry.save_terrain(TerrainDefinitionData("grass", "Grass", "single", (), False, "#6aa65d"))
         registry.save_terrain(TerrainDefinitionData("void", "Void", "single", (), True, "#0c0f17"))
+        registry.save_terrain(TerrainDefinitionData("background", "Background Only", "single", (), False, "#000000", True))
         return registry
 
     @classmethod
