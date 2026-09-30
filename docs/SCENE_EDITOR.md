@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`run_editor.py` edits the same exploration scene format that the runtime loads. The editor does not place final path, water, or cliff edge tiles. It edits semantic data and lets the existing renderer derive orientation.
+The exploration scene editor is opened from the unified project editor. It edits the same scene format that the runtime loads. The editor does not place final path, water, or cliff edge tiles; it edits semantic data and lets the renderer derive orientation.
 
 ## Data flow
 
@@ -16,7 +16,7 @@ WorldAssetCatalog + scene JSON
                        +--> ExplorationMap used by the game
 ```
 
-This keeps `mystery_engine` independent of `test_game`.
+This keeps the engine independent of any particular authored project.
 
 ## Scene JSON
 
