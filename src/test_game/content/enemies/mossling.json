@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "id": "mossling",
+  "name": "Mossling",
+  "stats": {
+    "max_hp": 16,
+    "attack": 3,
+    "defense": 2
+  },
+  "sprite_key": "mossling",
+  "portrait_key": "mossling",
+  "attacks": [],
+  "resistances": {}
+}
