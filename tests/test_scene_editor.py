@@ -5,6 +5,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from mystery_engine.project import ProjectRegistry
+from mystery_engine.project_runtime import SYSTEM_WORLD_ASSETS
 from mystery_engine.story import (
     ExplorationSceneData,
     PolygonObstacle,
@@ -14,8 +16,11 @@ from mystery_engine.story import (
     load_exploration_scene,
     save_exploration_scene,
 )
-from test_game.world_assets import WORLD_ASSETS
 
+
+GAME_ROOT = Path(__file__).resolve().parents[1] / "src" / "test_game"
+REGISTRY = ProjectRegistry.load(GAME_ROOT)
+WORLD_ASSETS = REGISTRY.world_asset_catalog(SYSTEM_WORLD_ASSETS)
 
 class SceneDataTests(unittest.TestCase):
     def test_scene_roundtrip(self):
