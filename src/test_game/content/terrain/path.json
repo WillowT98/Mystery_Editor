@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "id": "path",
+  "name": "Path",
+  "mode": "autotile",
+  "sprite_keys": [],
+  "blocked": false,
+  "fallback_color": "#b68c59"
+}
