@@ -382,10 +382,11 @@ class ProjectEditor:
 
     SECTIONS = ("Scenes", "Dungeons", "Enemies", "Attacks", "Assets")
 
-    def __init__(self, registry: ProjectRegistry, world_assets, project_root: Path) -> None:
+    def __init__(self, registry: ProjectRegistry, world_assets, project_root: Path, item_labels: dict[str, str] | None = None) -> None:
         self.registry = registry
         self.world_assets = world_assets
         self.project_root = Path(project_root)
+        self.item_labels = dict(item_labels or {})
         self.section = "Dungeons"
         self.selected = 0
         self.screen: pygame.Surface | None = None
@@ -489,7 +490,7 @@ class ProjectEditor:
             definition = self.registry.load_dungeon(item_id)
             editor = DungeonBuilderEditor(
                 definition, path, self.registry.asset_root,
-                self.registry.enemy_labels, {},
+                self.registry.enemy_labels, self.item_labels,
                 project_root=self.project_root, project_registry=self.registry,
             )
             editor.run()
@@ -556,5 +557,10 @@ class ProjectEditor:
         pygame.quit()
 
 
-def run_project_editor(game_root: Path, world_assets, project_root: Path) -> None:
-    ProjectEditor(ProjectRegistry.load(game_root), world_assets, project_root).run()
+def run_project_editor(
+    game_root: Path,
+    world_assets,
+    project_root: Path,
+    item_labels: dict[str, str] | None = None,
+) -> None:
+    ProjectEditor(ProjectRegistry.load(game_root), world_assets, project_root, item_labels).run()
