@@ -1305,10 +1305,11 @@ class ExplorationSceneEditor:
             x += 118
         x += 8
         for label, active in [("G Grid", self.grid), ("C Collision", self.show_collision), ("V Elevation", self.show_elevation)]:
-            rect = pygame.Rect(x, 9, 112, 40)
+            rect = pygame.Rect(x, 9, 92, 40)
             pygame.draw.rect(self.screen, (67, 96, 76) if active else (47, 56, 70), rect, border_radius=7)
-            self.screen.blit(self.font.render(label, True, (245, 242, 232)), (rect.x + 10, rect.y + 9))
-            x += 118
+            text_surface = self.font_small.render(label, True, (245, 242, 232))
+            self.screen.blit(text_surface, text_surface.get_rect(center=rect.center))
+            x += 98
         save_rect = pygame.Rect(self.screen.get_width() - self.SIDE_W - 110, 9, 96, 40)
         if self.project_registry is not None:
             back_rect = pygame.Rect(save_rect.x - 126, 9, 116, 40)
