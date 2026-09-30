@@ -179,10 +179,6 @@ def edit_enemy_dialog(registry: ProjectRegistry, enemy_id: str | None = None) ->
     outer = tk.Frame(root)
     outer.pack(fill="both", expand=True, padx=16, pady=12)
     fields: dict[str, tk.StringVar] = {}
-    working_animations = {
-        str(name): dict(payload)
-        for name, payload in (current.animations.items() if current else [])
-    }
 
     def entry_row(label: str, key: str, value: object = "") -> None:
         r = tk.Frame(outer)
@@ -906,6 +902,10 @@ def edit_pawn_dialog(registry: ProjectRegistry, pawn_id: str | None = None) -> s
     outer = tk.Frame(root)
     outer.pack(fill="both", expand=True, padx=16, pady=12)
     fields: dict[str, tk.StringVar] = {}
+    working_animations = {
+        str(name): dict(payload)
+        for name, payload in (current.animations.items() if current else [])
+    }
 
     def entry_row(label: str, key: str, value: object = "") -> None:
         row = tk.Frame(outer)
