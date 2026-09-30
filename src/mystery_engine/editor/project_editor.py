@@ -250,6 +250,128 @@ def edit_enemy_dialog(registry: ProjectRegistry, enemy_id: str | None = None) ->
     return result["id"]
 
 
+def edit_spawn_rule_dialog(registry: ProjectRegistry, rule) -> bool:
+    root = _root("Dungeon Enemy Modifiers", "820x860")
+    saved = {"ok": False}
+
+    fields: dict[str, tk.StringVar] = {}
+    outer = tk.Frame(root)
+    outer.pack(fill="both", expand=True, padx=16, pady=12)
+
+    def entry_row(label: str, key: str, value: object = "") -> None:
+        row = tk.Frame(outer)
+        row.pack(fill="x", pady=3)
+        tk.Label(row, text=label, width=22, anchor="w").pack(side="left")
+        var = tk.StringVar(value=str(value))
+        fields[key] = var
+        tk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+
+    entry_row("Floor range", "floors", rule.floors)
+    entry_row("Spawn weight", "weight", rule.weight)
+    entry_row("Minimum per floor", "min", rule.min_per_floor)
+    entry_row("Maximum per floor", "max", rule.max_per_floor)
+    entry_row("HP %", "hp", rule.hp_percent)
+    entry_row("Attack %", "attack", rule.attack_percent)
+    entry_row("Defense %", "defense", rule.defense_percent)
+    entry_row("Name override", "name", rule.name_override or "")
+
+    sprite_row = tk.Frame(outer)
+    sprite_row.pack(fill="x", pady=3)
+    tk.Label(sprite_row, text="Sprite override", width=22, anchor="w").pack(side="left")
+    sprite_var = tk.StringVar(value=rule.sprite_override or "")
+    fields["sprite"] = sprite_var
+    sprite_combo = ttk.Combobox(
+        sprite_row, textvariable=sprite_var,
+        values=[""] + registry.asset_keys("characters", {".png"}), state="normal",
+    )
+    sprite_combo.pack(side="left", fill="x", expand=True)
+
+    def import_sprite() -> None:
+        chosen = filedialog.askopenfilename(
+            parent=root, title="Import enemy sprite override",
+            filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+        )
+        if not chosen:
+            return
+        try:
+            key, _ = registry.import_asset(Path(chosen), "characters", allowed_suffixes={".png"})
+        except Exception as exc:
+            messagebox.showerror("Could not import sprite", str(exc), parent=root)
+            return
+        sprite_var.set(key)
+        sprite_combo["values"] = [""] + registry.asset_keys("characters", {".png"})
+
+    tk.Button(sprite_row, text="Import…", command=import_sprite).pack(side="left", padx=(6, 0))
+
+    tk.Label(outer, text="Resistance overrides", anchor="w",
+             font=("TkDefaultFont", 10, "bold")).pack(fill="x", pady=(12, 3))
+    resistance_vars: dict[str, tuple[tk.BooleanVar, tk.StringVar]] = {}
+    resist_frame = tk.Frame(outer)
+    resist_frame.pack(fill="x")
+    for row_index, damage_type in enumerate(registry.damage_types):
+        enabled = tk.BooleanVar(value=damage_type in rule.resistances)
+        multiplier = tk.StringVar(value=str(rule.resistances.get(damage_type, 1.0)))
+        resistance_vars[damage_type] = (enabled, multiplier)
+        tk.Checkbutton(resist_frame, text=damage_type, variable=enabled, width=16, anchor="w").grid(
+            row=row_index//2, column=(row_index%2)*2, sticky="w"
+        )
+        tk.Entry(resist_frame, textvariable=multiplier, width=8).grid(
+            row=row_index//2, column=(row_index%2)*2+1, sticky="w", padx=(0, 18)
+        )
+
+    tk.Label(outer, text="Additional attacks", anchor="w",
+             font=("TkDefaultFont", 10, "bold")).pack(fill="x", pady=(12, 3))
+    attack_box = tk.Listbox(outer, selectmode="multiple", height=9, exportselection=False)
+    attack_box.pack(fill="x")
+    attack_ids = list(registry.attack_labels)
+    for index, attack_id in enumerate(attack_ids):
+        attack_box.insert("end", f"{registry.attack_labels[attack_id]}  [{attack_id}]")
+        if attack_id in rule.extra_attacks:
+            attack_box.selection_set(index)
+
+    def new_attack() -> None:
+        created = edit_attack_dialog(registry)
+        if created:
+            attack_ids[:] = list(registry.attack_labels)
+            attack_box.delete(0, "end")
+            for index, attack_id in enumerate(attack_ids):
+                attack_box.insert("end", f"{registry.attack_labels[attack_id]}  [{attack_id}]")
+                if attack_id in rule.extra_attacks or attack_id == created:
+                    attack_box.selection_set(index)
+
+    tk.Button(outer, text="+ Create Attack", command=new_attack).pack(anchor="w", pady=(4, 0))
+
+    def save() -> None:
+        try:
+            rule.floors = fields["floors"].get().strip() or "all"
+            rule.weight = max(0.0, float(fields["weight"].get()))
+            rule.min_per_floor = max(0, int(fields["min"].get()))
+            rule.max_per_floor = max(rule.min_per_floor, int(fields["max"].get()))
+            rule.hp_percent = max(1.0, float(fields["hp"].get()))
+            rule.attack_percent = max(0.0, float(fields["attack"].get()))
+            rule.defense_percent = max(0.0, float(fields["defense"].get()))
+            rule.name_override = fields["name"].get().strip() or None
+            rule.sprite_override = fields["sprite"].get().strip() or None
+            rule.resistances = {
+                dtype: max(0.0, float(mult.get()))
+                for dtype, (enabled, mult) in resistance_vars.items()
+                if enabled.get()
+            }
+            rule.extra_attacks = [attack_ids[i] for i in attack_box.curselection()]
+        except Exception as exc:
+            messagebox.showerror("Could not save modifiers", str(exc), parent=root)
+            return
+        saved["ok"] = True
+        root.destroy()
+
+    buttons = tk.Frame(outer)
+    buttons.pack(fill="x", pady=(14, 0))
+    tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8, 0))
+    tk.Button(buttons, text="Save Modifiers", command=save).pack(side="right")
+    root.mainloop()
+    return bool(saved["ok"])
+
+
 class ProjectEditor:
     """Project-level authoring shell.
 
