@@ -196,8 +196,6 @@ class Renderer:
         camera_world_x = leader_x * tile + tile / 2 - center_x
         camera_world_y = leader_y * tile + tile / 2 - center_y
 
-        edge_h = self._load_native_surface("tiles/dungeon_edge_h.png")
-        edge_v = self._load_native_surface("tiles/dungeon_edge_v.png")
         stairs_tile = self._load_surface("tiles/stairs.png", (tile, tile))
 
         min_x = max(0, int(camera_world_x // tile) - 1)
@@ -667,16 +665,6 @@ class Renderer:
             rect = sprite.get_rect(center=(sx, sy))
         self.canvas.blit(sprite, rect)
         return rect
-
-    def _draw_dungeon_floor_boundary(self, floor: DungeonFloor, pos: GridPos, rect: pygame.Rect, edge_h: pygame.Surface | None, edge_v: pygame.Surface | None) -> None:
-        # Compatibility shim: dungeon walkable/wall boundaries are now baked into
-        # explicit oriented autotile PNGs (`dungeon_auto_###.png`) instead of
-        # being composited from edge fragments at draw time.
-        return
-
-    def _blit_dungeon_corner_cap(self, edge_h: pygame.Surface | None, edge_v: pygame.Surface | None, pos: tuple[int, int], ew: int, eh: int, which: str) -> None:
-        # compatibility shim; explicit dungeon boundary tiles are now used instead.
-        return
 
     def _load_native_surface(self, relative: str) -> pygame.Surface | None:
         if self.asset_root is None:
