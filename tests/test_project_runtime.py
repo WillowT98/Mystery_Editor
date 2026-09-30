@@ -9,9 +9,9 @@ from mystery_engine.project import (
     ProjectRegistry,
     TerrainDefinitionData,
 )
-from mystery_engine.core import DungeonResult, StoryState
+from mystery_engine.core import Direction, DungeonResult, SaveManager, StoryState
 from mystery_engine.project_runtime import ProjectGameDefinition, SYSTEM_WORLD_ASSETS, build_project_game
-from mystery_engine.story import ExplorationSceneData, save_exploration_scene
+from mystery_engine.story import ExplorationSceneData, SceneObjectData, save_exploration_scene
 
 
 def test_generic_project_runtime_builds_state_and_scene(tmp_path):
@@ -206,3 +206,168 @@ def test_money_storage_moves_between_carried_and_stored_balances():
     game._transfer_storage_money(False, 90)
     assert game.state.wallet.carried == 265
     assert game.state.wallet.stored == 50
+
+
+def test_save_roundtrip_restores_world_location_and_scene_state(tmp_path):
+    registry = ProjectRegistry.create_project(tmp_path / "game", "Persistent Game")
+    registry.save_pawn(PawnDefinitionData(
+        id="hero_pawn",
+        name="Hero",
+        sprite_key="hero",
+        portrait_key=None,
+    ))
+    registry.save_pawn(PawnDefinitionData(
+        id="npc",
+        name="NPC",
+        sprite_key="npc",
+        portrait_key=None,
+    ))
+    registry.save_character(PlayableCharacterDefinitionData(
+        id="hero",
+        pawn_id="hero_pawn",
+        max_hp=30,
+        attack=5,
+        defense=3,
+    ))
+
+    scene = ExplorationSceneData.blank("start", 8, 8)
+    scene.objects.extend([
+        SceneObjectData("npc_instance", "npc", 160, 180),
+        SceneObjectData("storage_box", "item_storage", 260, 180),
+    ])
+    save_exploration_scene(scene, registry.scene_dir / "start.json")
+    registry.save_game_settings(GameSettingsData(
+        title="Persistent Game",
+        starting_scene="start",
+        starting_party=("hero",),
+        leader="hero",
+        bag_capacity=7,
+        storage_capacity=13,
+    ))
+
+    game = build_project_game(registry.game_root)
+    game.exploration = game.definition.create_exploration(game)
+    hero = game.exploration.actor("hero")
+    hero.position.x = 333.5
+    hero.position.y = 444.25
+    hero.facing = Direction.E
+
+    npc = game.exploration.actor("npc_instance")
+    npc.position.x = 512
+    npc.position.y = 288
+    npc.facing = Direction.W
+    npc.enabled = False
+    npc.sprite_key = "npc_changed"
+
+    storage = next(item for item in game.exploration.interactables if item.id == "storage_box")
+    storage.enabled = False
+    game._capture_exploration_state()
+
+    save_path = tmp_path / "save.json"
+    SaveManager().dump(game.state, save_path)
+    loaded_state = game.definition.load_state(SaveManager().load_raw(save_path))
+
+    assert loaded_state.world.current_scene == "start"
+    assert loaded_state.bag.capacity == 7
+    assert loaded_state.storage.capacity == 13
+    assert loaded_state.world.party_positions["hero"].x == 333.5
+    assert loaded_state.world.party_positions["hero"].facing == "E"
+
+    fake_game = SimpleNamespace(
+        state=loaded_state,
+        add_message=lambda *_: None,
+        change_exploration_scene=lambda *_: None,
+        run_story=lambda *_: None,
+        enter_dungeon=lambda *_: None,
+        open_item_storage=lambda: None,
+        open_money_storage=lambda: None,
+    )
+    restored = game.definition.create_exploration(fake_game)
+    restored_hero = restored.actor("hero")
+    restored_npc = restored.actor("npc_instance")
+    restored_storage = next(item for item in restored.interactables if item.id == "storage_box")
+
+    assert (restored_hero.position.x, restored_hero.position.y) == (333.5, 444.25)
+    assert restored_hero.facing is Direction.E
+    assert (restored_npc.position.x, restored_npc.position.y) == (512, 288)
+    assert restored_npc.facing is Direction.W
+    assert restored_npc.enabled is False
+    assert restored_npc.sprite_key == "npc_changed"
+    assert restored_storage.enabled is False
+
+
+def test_scene_transition_captures_scene_state_before_leaving(tmp_path):
+    registry = ProjectRegistry.create_project(tmp_path / "game", "Transition Game")
+    registry.save_pawn(PawnDefinitionData(
+        id="hero_pawn",
+        name="Hero",
+        sprite_key="hero",
+        portrait_key=None,
+    ))
+    registry.save_character(PlayableCharacterDefinitionData(
+        id="hero",
+        pawn_id="hero_pawn",
+        max_hp=30,
+        attack=5,
+        defense=3,
+    ))
+    first = ExplorationSceneData.blank("first", 6, 5)
+    first.objects.append(SceneObjectData("storage_box", "item_storage", 160, 160))
+    second = ExplorationSceneData.blank("second", 6, 5)
+    save_exploration_scene(first, registry.scene_dir / "first.json")
+    save_exploration_scene(second, registry.scene_dir / "second.json")
+    registry.save_game_settings(GameSettingsData(
+        title="Transition Game",
+        starting_scene="first",
+        starting_party=("hero",),
+        leader="hero",
+    ))
+
+    game = build_project_game(registry.game_root)
+    game.exploration = game.definition.create_exploration(game)
+    item = next(entry for entry in game.exploration.interactables if entry.id == "storage_box")
+    item.enabled = False
+
+    game.change_exploration_scene(registry.scene_dir / "second.json")
+
+    assert game.state.world.current_scene == "first"
+    assert game.state.world.scenes["first"].objects["storage_box"].enabled is False
+
+
+def test_legacy_save_without_world_data_still_loads(tmp_path):
+    registry = ProjectRegistry.create_project(tmp_path / "game", "Legacy Game")
+    registry.save_pawn(PawnDefinitionData(
+        id="hero_pawn",
+        name="Hero",
+        sprite_key="hero",
+        portrait_key=None,
+    ))
+    registry.save_character(PlayableCharacterDefinitionData(
+        id="hero",
+        pawn_id="hero_pawn",
+        max_hp=30,
+        attack=5,
+        defense=3,
+    ))
+    registry.save_game_settings(GameSettingsData(
+        title="Legacy Game",
+        starting_party=("hero",),
+        leader="hero",
+    ))
+    definition = ProjectGameDefinition(registry.game_root)
+    payload = {
+        "game_id": registry.project_id,
+        "game_version": "0.1.0",
+        "characters": [{"id": "hero", "hp": 19, "resources": {}, "skill_charges": {}}],
+        "wallet": {"carried": 12, "stored": 34},
+        "bag": [],
+        "storage": [],
+        "story": {"flags": {"legacy": True}, "variables": {}},
+    }
+
+    state = definition.load_state(payload)
+
+    assert state.leader.stats.current_hp == 19
+    assert state.wallet.carried == 12
+    assert state.story.flag("legacy")
+    assert state.world.current_scene is None
