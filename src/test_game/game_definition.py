@@ -28,10 +28,13 @@ class TestGameDefinition:
 
     def __init__(self) -> None:
         self.project_registry = ProjectRegistry.load(Path(__file__).resolve().parent)
+        self.project_registry.set_active_locale(
+            os.environ.get("MYSTERY_LOCALE") or self.project_registry.localization.default_locale
+        )
         settings = self.project_registry.game_settings
         self.game_id = self.project_registry.project_id
         self.game_version = settings.version
-        self.title = settings.title
+        self.title = self.project_registry.text("game.title", settings.title)
         self.defeat_money_loss_fraction = settings.defeat_money_loss_fraction
         self.defeat_item_loss_chance = settings.defeat_item_loss_chance
         self.sfx_event_cues = dict(settings.sfx_event_cues)
@@ -51,6 +54,37 @@ class TestGameDefinition:
 
     def resolve_story_pawn(self, pawn_id: str) -> tuple[str, str | None]:
         return self.project_registry.resolve_story_pawn(pawn_id)
+
+    def localize_story(self, graph):
+        return self.project_registry.localize_story(graph)
+
+    def available_locales(self) -> list[tuple[str, str]]:
+        loc = self.project_registry.localization
+        return [(code, loc.locale_label(code)) for code in loc.supported_locales]
+
+    def active_locale(self) -> str:
+        return self.project_registry.localization.active_locale
+
+    def active_locale_label(self) -> str:
+        loc = self.project_registry.localization
+        return loc.locale_label(loc.active_locale)
+
+    def set_locale(self, game: "MysteryGame", locale: str) -> None:
+        self.project_registry.set_active_locale(locale)
+        self.title = self.project_registry.text("game.title", self.project_registry.game_settings.title)
+        for member in game.state.party:
+            character = self.project_registry.characters.get(member.id)
+            if character is not None:
+                pawn = self.project_registry.pawns.get(character.pawn_id)
+                if pawn is not None:
+                    member.name = self.project_registry.text(f"pawn.{pawn.id}.name", pawn.name)
+            for skill in member.skills:
+                if skill.definition.id in self.project_registry.attacks:
+                    skill.definition = self.project_registry.attacks[skill.definition.id]
+        for inventory in (game.state.bag, game.state.storage):
+            for stack in inventory.stacks:
+                if stack.item.id in self.project_registry.items:
+                    stack.item = self.project_registry.items[stack.item.id]
 
     def create_state(self) -> PersistentGameState:
         settings = self.project_registry.game_settings
@@ -138,7 +172,7 @@ class TestGameDefinition:
             game.say([DialogueLine("Waystone", "A plain marker has been driven into the clearing. Someone has written: TEST AREA.")])
 
         scene_path = Path(scene_path).resolve()
-        scene = load_exploration_scene(scene_path)
+        scene = self.project_registry.localize_scene(load_exploration_scene(scene_path))
         interactions = {
             "talk_mara": talk_to_mara,
             "enter_test_dungeon": enter_dungeon,
