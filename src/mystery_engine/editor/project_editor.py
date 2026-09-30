@@ -1277,6 +1277,24 @@ def edit_localization_workspace(registry: ProjectRegistry, locale: str) -> None:
 
         tk.Button(header, text="Change Source Language…", command=change_source).pack(side="right", padx=(8, 0))
 
+    if not source_locale:
+        def remove_language() -> None:
+            if not messagebox.askyesno(
+                "Remove Language",
+                f"Remove {loc.locale_label(locale)} from this project's supported languages?\n\n"
+                "The locale file is left on disk so translations are not destroyed.",
+                parent=root,
+            ):
+                return
+            try:
+                registry.remove_locale(locale)
+            except Exception as exc:
+                messagebox.showerror("Could not remove language", str(exc), parent=root)
+                return
+            root.destroy()
+
+        tk.Button(header, text="Remove Language", command=remove_language).pack(side="right", padx=(8, 0))
+
     if locale != loc.default_locale:
         def make_default() -> None:
             try:
