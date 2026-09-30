@@ -1471,6 +1471,96 @@ class ExplorationSceneEditor:
             else:
                 self._draw_sidebar_help(y, ["No ambience cues registered.", "Add assets/sfx_cues.json to enable them."])
 
+        elif self.mode == "story":
+            if self.project_registry is None:
+                self._draw_sidebar_help(y, [
+                    "Story authoring requires project context.",
+                    "Open this room from run_project_editor.py.",
+                ])
+            else:
+                self._refresh_project_catalog()
+                self._draw_sidebar_help(y, [f"Room: {self.scene.id}"])
+                y += 34
+                br = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
+                self._palette_items.append(PaletteItem("__story_room", "Choose room", br, None))
+                pygame.draw.rect(self.screen, (55, 66, 82), br, border_radius=6)
+                self.screen.blit(self.font_small.render("Choose room / scene…", True, (235, 238, 232)), (br.x + 10, br.y + 7))
+                y += 48
+
+                self.screen.blit(self.font.render("Pawns", True, (242, 240, 231)), (rect.x + 18, y))
+                y += 34
+                br = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
+                self._palette_items.append(PaletteItem("__story_new_pawn", "New pawn", br, None))
+                pygame.draw.rect(self.screen, (50, 83, 96), br, border_radius=6)
+                self.screen.blit(self.font_small.render("+ New pawn / import art", True, (235, 238, 232)), (br.x + 10, br.y + 7))
+                y += 42
+
+                for pawn_id, label in self.project_registry.pawn_labels.items():
+                    br = pygame.Rect(rect.x + 14, y, rect.w - 28, 54)
+                    self._palette_items.append(PaletteItem(f"__story_pawn::{pawn_id}", label, br, pawn_id))
+                    active = self.story_pawn_brush == pawn_id
+                    pygame.draw.rect(self.screen, (77, 93, 112) if active else (43, 51, 65), br, border_radius=7)
+                    definition = self.catalog.get(pawn_id)
+                    icon = self._world_asset_native_surface(definition)
+                    if icon:
+                        scale = min(40 / icon.get_width(), 40 / icon.get_height(), 1.0)
+                        thumb_size = (max(1, round(icon.get_width()*scale)), max(1, round(icon.get_height()*scale)))
+                        thumb = icon if icon.get_size() == thumb_size else pygame.transform.scale(icon, thumb_size)
+                        self.screen.blit(thumb, thumb.get_rect(center=(br.x + 30, br.centery)))
+                    self.screen.blit(self.font_small.render(label, True, (242, 240, 232)), (br.x + 58, br.y + 8))
+                    placed_count = sum(1 for obj in self.scene.objects if obj.asset == pawn_id)
+                    note = self.font_small.render(f"{placed_count} placed", True, (173, 184, 199))
+                    self.screen.blit(note, (br.x + 58, br.y + 29))
+                    y += 60
+
+                y += 6
+                self.screen.blit(self.font.render("Story", True, (242, 240, 231)), (rect.x + 18, y))
+                y += 34
+                br = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
+                self._palette_items.append(PaletteItem("__story_new", "New story", br, None))
+                pygame.draw.rect(self.screen, (50, 83, 96), br, border_radius=6)
+                self.screen.blit(self.font_small.render("+ New story for this room", True, (235, 238, 232)), (br.x + 10, br.y + 7))
+                y += 42
+
+                for story_id in self._scene_story_ids():
+                    graph = self.project_registry.load_story(story_id)
+                    label = graph.name or graph.id
+                    br = pygame.Rect(rect.x + 14, y, rect.w - 28, 38)
+                    self._palette_items.append(PaletteItem(f"__story_select::{story_id}", label, br, story_id))
+                    active = self.story_id == story_id or (self.story_id is None and story_id == self._scene_story_ids()[0])
+                    pygame.draw.rect(self.screen, (76, 91, 112) if active else (43, 51, 65), br, border_radius=6)
+                    self.screen.blit(self.font_small.render(label[:28], True, (242, 240, 232)), (br.x + 10, br.y + 7))
+                    y += 44
+
+                graph = self._current_story()
+                if graph is not None:
+                    br = pygame.Rect(rect.x + 18, y, (rect.w - 42)//2, 34)
+                    br2 = pygame.Rect(br.right + 6, y, br.w, 34)
+                    self._palette_items.append(PaletteItem("__story_add_dialogue", "Add dialogue", br, None))
+                    self._palette_items.append(PaletteItem("__story_graph", "Graph", br2, None))
+                    for b, label in ((br, "+ Dialogue"), (br2, "Advanced graph")):
+                        pygame.draw.rect(self.screen, (55, 66, 82), b, border_radius=6)
+                        text_s = self.font_small.render(label, True, (235, 238, 232))
+                        self.screen.blit(text_s, text_s.get_rect(center=b.center))
+                    y += 44
+                    for node_id, node in graph.nodes.items():
+                        if str(node.get("type", "")) != "dialogue":
+                            continue
+                        lines = [v for v in node.get("lines", []) if isinstance(v, dict)]
+                        preview = str(lines[0].get("text", "")) if lines else "(empty)"
+                        br = pygame.Rect(rect.x + 14, y, rect.w - 28, 54)
+                        self._palette_items.append(PaletteItem(f"__story_dialogue::{node_id}", node_id, br, node_id))
+                        pygame.draw.rect(self.screen, (43, 51, 65), br, border_radius=6)
+                        self.screen.blit(self.font_small.render(node_id, True, (242, 240, 232)), (br.x + 9, br.y + 5))
+                        self.screen.blit(self.font_small.render(preview[:34], True, (173, 184, 199)), (br.x + 9, br.y + 28))
+                        y += 60
+
+                self._draw_sidebar_help(y + 8, [
+                    "Choose a pawn, then click empty room space to place it.",
+                    "Drag a placed pawn to reposition it.",
+                    "Dialogue speaker choices come from pawns in this room.",
+                ])
+
         else:
             if self.selected_object is None or not (0 <= self.selected_object < len(self.scene.objects)):
                 self._draw_sidebar_help(y, ["Click an object to select it.", "Drag to move.", "Delete removes it.", "Arrow keys nudge."])
@@ -1937,6 +2027,20 @@ class ExplorationSceneEditor:
                 if self.mode == "terrain": self.terrain_brush = str(item.value)
                 elif self.mode == "elevation": self.elevation_brush = int(item.value)
                 elif self.mode == "objects": self.asset_brush = str(item.value)
+                elif self.mode == "story":
+                    if item.key == "__story_room": self._choose_story_room()
+                    elif item.key == "__story_new_pawn": self._new_story_pawn()
+                    elif item.key.startswith("__story_pawn::"):
+                        self.story_pawn_brush = str(item.value)
+                        self.asset_brush = self.story_pawn_brush
+                        self.status = f"Pawn brush: {self.project_registry.pawn_labels.get(self.story_pawn_brush, self.story_pawn_brush)}"
+                    elif item.key == "__story_new": self._new_story_for_room()
+                    elif item.key.startswith("__story_select::"):
+                        self.story_id = str(item.value)
+                        self.status = f"Story: {self.story_id}"
+                    elif item.key == "__story_add_dialogue": self._new_dialogue_node()
+                    elif item.key == "__story_graph": self._open_story_graph()
+                    elif item.key.startswith("__story_dialogue::"): self._edit_dialogue_node(str(item.value))
                 elif self.mode == "audio":
                     if item.key == "__music_import": self._import_music_dialog()
                     elif item.key == "__music_preview":
@@ -1982,7 +2086,7 @@ class ExplorationSceneEditor:
     def _toolbar_click(self, pos: tuple[int, int]) -> bool:
         if pos[1] >= self.TOP_H:
             return False
-        for i, key in enumerate(("terrain", "elevation", "objects", "select", "audio")):
+        for i, key in enumerate(("terrain", "elevation", "objects", "select", "audio", "story")):
             if pygame.Rect(12 + 140*i, 9, 130, 40).collidepoint(pos):
                 self.mode = key; self._palette_scroll = 0; return True
         return False
@@ -2087,6 +2191,17 @@ class ExplorationSceneEditor:
                             self._paint_tile(tile)
                 elif self.mode == "objects":
                     self.place_object(event.pos)
+                elif self.mode == "story":
+                    hit = self._object_hit(event.pos)
+                    if hit is not None and self.catalog.get(self.scene.objects[hit].asset).category == "actor":
+                        self.selected_object = hit
+                        obj = self.scene.objects[hit]
+                        wx, wy = self.screen_to_world(event.pos)
+                        self._drag_object_offset = (wx - obj.x, wy - obj.y)
+                        self._begin_change()
+                    elif self.story_pawn_brush:
+                        self.asset_brush = self.story_pawn_brush
+                        self.place_object(event.pos)
                 elif self.mode == "audio":
                     return True
                 else:
@@ -2187,6 +2302,7 @@ class ExplorationSceneEditor:
             elif event.key == pygame.K_3: self.mode = "objects"
             elif event.key == pygame.K_4: self.mode = "select"
             elif event.key == pygame.K_5: self.mode = "audio"
+            elif event.key == pygame.K_6: self.mode = "story"
             elif event.key == pygame.K_g: self.grid = not self.grid
             elif event.key == pygame.K_c: self.show_collision = not self.show_collision
             elif event.key == pygame.K_v: self.show_elevation = not self.show_elevation
