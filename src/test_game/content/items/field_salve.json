@@ -7,5 +7,8 @@
   "throwable_damage": 0,
   "droppable": true,
   "key_item": false,
-  "sprite_key": "field_salve"
+  "sprite_key": "field_salve",
+  "sprite_sheet_key": "item_sheet",
+  "sprite_sheet_index": 0,
+  "sprite_sheet_columns": 3
 }
