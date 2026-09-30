@@ -55,6 +55,8 @@ class DungeonBuilderEditor:
         self.preview_floor = None
         self.status = "Ready"
         self.dirty = False
+        self._close_application_requested = False
+        self._return_to_project_requested = False
         self.hits: list[Hit] = []
 
         self.screen: pygame.Surface | None = None
@@ -382,6 +384,8 @@ class DungeonBuilderEditor:
             width = 145 if tab != "Generation" else 165
             self._button(pygame.Rect(x, 12, width, 40), tab, "tab", tab, self.tab == tab)
             x += width + 8
+        if self.project_registry is not None:
+            self._button(pygame.Rect(self.screen.get_width() - 270, 12, 130, 40), "← Project", "project")
         self._button(pygame.Rect(self.screen.get_width() - 130, 12, 110, 40), "Save", "save")
 
         if self.tab == "Overview":
@@ -529,7 +533,9 @@ class DungeonBuilderEditor:
 
     def _handle_action(self, hit: Hit) -> None:
         action, value = hit.action, hit.value
-        if action == "tab":
+        if action == "project":
+            self._return_to_project_requested = True
+        elif action == "tab":
             self.tab = str(value)
         elif action == "save":
             self.save()
@@ -595,11 +601,14 @@ class DungeonBuilderEditor:
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         if event.type == pygame.QUIT:
+            self._close_application_requested = True
             return False
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for hit in reversed(self.hits):
                 if hit.rect.collidepoint(event.pos):
                     self._handle_action(hit)
+                    if self._return_to_project_requested:
+                        return False
                     break
         elif event.type == pygame.KEYDOWN:
             mods = pygame.key.get_mods()
@@ -629,7 +638,7 @@ class DungeonBuilderEditor:
         except OSError as exc:
             self.status = f"Playtest failed: {exc}"
 
-    def run(self) -> None:
+    def run(self) -> bool:
         pygame.init()
         pygame.display.set_caption("Mystery Engine — Dungeon Builder")
         self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
@@ -647,6 +656,7 @@ class DungeonBuilderEditor:
             self.draw()
             pygame.display.flip()
         pygame.quit()
+        return not self._close_application_requested
 
 
 def run_dungeon_builder(
