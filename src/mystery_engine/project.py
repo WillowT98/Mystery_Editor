@@ -8,7 +8,9 @@ import shutil
 from typing import Any
 
 from mystery_engine.core import (
+    AITactic,
     Character,
+    ItemDefinition,
     RangePattern,
     SkillDefinition,
     SkillRuntime,
@@ -119,6 +121,242 @@ class AttackDefinitionData:
             projectile_arc_px=self.projectile_arc_px,
             range_pattern=pattern,
         )
+
+
+@dataclass(frozen=True)
+class ItemDefinitionData:
+    id: str
+    name: str
+    description: str = ""
+    heal: int = 0
+    throwable_damage: int = 0
+    damage_type: str | None = None
+    droppable: bool = True
+    key_item: bool = False
+    sfx_cue: str | None = None
+    impact_sfx_cue: str | None = None
+    projectile_key: str | None = None
+    projectile_arc_px: float = 0.0
+    sprite_key: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ItemDefinitionData":
+        return cls(
+            id=str(data["id"]),
+            name=str(data.get("name") or data["id"]),
+            description=str(data.get("description") or ""),
+            heal=max(0, int(data.get("heal", 0))),
+            throwable_damage=max(0, int(data.get("throwable_damage", 0))),
+            damage_type=(str(data["damage_type"]) if data.get("damage_type") else None),
+            droppable=bool(data.get("droppable", True)),
+            key_item=bool(data.get("key_item", False)),
+            sfx_cue=(str(data["sfx_cue"]) if data.get("sfx_cue") else None),
+            impact_sfx_cue=(str(data["impact_sfx_cue"]) if data.get("impact_sfx_cue") else None),
+            projectile_key=(str(data["projectile_key"]) if data.get("projectile_key") else None),
+            projectile_arc_px=float(data.get("projectile_arc_px", 0.0)),
+            sprite_key=(str(data["sprite_key"]) if data.get("sprite_key") else None),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "format": 1,
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "heal": self.heal,
+            "throwable_damage": self.throwable_damage,
+            "droppable": self.droppable,
+            "key_item": self.key_item,
+        }
+        if self.damage_type:
+            data["damage_type"] = self.damage_type
+        if self.sfx_cue:
+            data["sfx_cue"] = self.sfx_cue
+        if self.impact_sfx_cue:
+            data["impact_sfx_cue"] = self.impact_sfx_cue
+        if self.projectile_key:
+            data["projectile_key"] = self.projectile_key
+        if self.projectile_arc_px:
+            data["projectile_arc_px"] = self.projectile_arc_px
+        if self.sprite_key:
+            data["sprite_key"] = self.sprite_key
+        return data
+
+    def to_item_definition(self) -> ItemDefinition:
+        return ItemDefinition(
+            id=self.id,
+            name=self.name,
+            description=self.description,
+            heal=self.heal,
+            throwable_damage=self.throwable_damage,
+            damage_type=self.damage_type,
+            droppable=self.droppable,
+            key_item=self.key_item,
+            sfx_cue=self.sfx_cue,
+            impact_sfx_cue=self.impact_sfx_cue,
+            projectile_key=self.projectile_key,
+            projectile_arc_px=self.projectile_arc_px,
+            sprite_key=self.sprite_key,
+        )
+
+
+@dataclass(frozen=True)
+class PlayableCharacterDefinitionData:
+    id: str
+    pawn_id: str
+    max_hp: int
+    attack: int
+    defense: int
+    attacks: tuple[str, ...] = ()
+    resistances: dict[str, float] = field(default_factory=dict)
+    resources: dict[str, int] = field(default_factory=dict)
+    ai_tactic: str = "follow"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "PlayableCharacterDefinitionData":
+        stats = dict(data.get("stats", {}))
+        return cls(
+            id=str(data["id"]),
+            pawn_id=str(data.get("pawn") or data["id"]),
+            max_hp=max(1, int(stats.get("max_hp", data.get("max_hp", 1)))),
+            attack=max(0, int(stats.get("attack", data.get("attack", 0)))),
+            defense=max(0, int(stats.get("defense", data.get("defense", 0)))),
+            attacks=tuple(str(v) for v in data.get("attacks", [])),
+            resistances={str(k): max(0.0, float(v)) for k, v in dict(data.get("resistances", {})).items()},
+            resources={str(k): max(0, int(v)) for k, v in dict(data.get("resources", {})).items()},
+            ai_tactic=str(data.get("ai_tactic", "follow")).lower(),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "format": 1,
+            "id": self.id,
+            "pawn": self.pawn_id,
+            "stats": {
+                "max_hp": self.max_hp,
+                "attack": self.attack,
+                "defense": self.defense,
+            },
+            "attacks": list(self.attacks),
+            "resistances": dict(sorted(self.resistances.items())),
+            "resources": dict(sorted(self.resources.items())),
+            "ai_tactic": self.ai_tactic,
+        }
+
+    def make_character(
+        self,
+        pawn: "PawnDefinitionData",
+        attack_catalog: dict[str, SkillDefinition],
+        *,
+        leader: bool = False,
+    ) -> Character:
+        skills = [
+            SkillRuntime.from_definition(attack_catalog[attack_id])
+            for attack_id in self.attacks
+        ]
+        tactic_map = {
+            "follow": AITactic.FOLLOW,
+            "attack": AITactic.ATTACK,
+            "protect": AITactic.PROTECT,
+            "conserve": AITactic.CONSERVE,
+        }
+        metadata = {"sprite_key": pawn.sprite_key}
+        if pawn.portrait_key:
+            metadata["portrait_key"] = pawn.portrait_key
+        return Character(
+            id=self.id,
+            name=pawn.name,
+            stats=Stats(max_hp=self.max_hp, attack=self.attack, defense=self.defense),
+            skills=skills,
+            resources=dict(self.resources),
+            resistances=dict(self.resistances),
+            party_member=True,
+            leader=leader,
+            ai_tactic=tactic_map.get(self.ai_tactic, AITactic.FOLLOW),
+            metadata=metadata,
+        )
+
+
+@dataclass(frozen=True)
+class GameSettingsData:
+    title: str
+    version: str = "0.1.0"
+    starting_scene: str | None = None
+    starting_marker: str | None = None
+    default_dungeon: str | None = None
+    bag_capacity: int = 20
+    storage_capacity: int = 40
+    starting_carried_money: int = 0
+    starting_stored_money: int = 0
+    defeat_money_loss_fraction: float = 0.5
+    defeat_item_loss_chance: float = 0.3
+    starting_party: tuple[str, ...] = ()
+    leader: str | None = None
+    starting_items: dict[str, int] = field(default_factory=dict)
+    starting_storage: dict[str, int] = field(default_factory=dict)
+    starting_flags: dict[str, bool] = field(default_factory=dict)
+    starting_variables: dict[str, Any] = field(default_factory=dict)
+    dungeon_result_stories: dict[str, str] = field(default_factory=dict)
+    sfx_event_cues: dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def from_manifest(cls, manifest: dict[str, Any], fallback_name: str) -> "GameSettingsData":
+        game = dict(manifest.get("game") or {})
+        start = dict(game.get("start") or {})
+        defeat = dict(game.get("defeat") or {})
+        inventory = dict(game.get("inventory") or {})
+        return cls(
+            title=str(game.get("title") or manifest.get("name") or fallback_name),
+            version=str(game.get("version", "0.1.0")),
+            starting_scene=(str(start["scene"]) if start.get("scene") else None),
+            starting_marker=(str(start["marker"]) if start.get("marker") else None),
+            default_dungeon=(str(game["default_dungeon"]) if game.get("default_dungeon") else (
+                str(manifest["default_dungeon"]) if manifest.get("default_dungeon") else None
+            )),
+            bag_capacity=max(1, int(inventory.get("bag_capacity", 20))),
+            storage_capacity=max(1, int(inventory.get("storage_capacity", 40))),
+            starting_carried_money=max(0, int(inventory.get("carried_money", 0))),
+            starting_stored_money=max(0, int(inventory.get("stored_money", 0))),
+            defeat_money_loss_fraction=max(0.0, min(1.0, float(defeat.get("money_loss_fraction", 0.5)))),
+            defeat_item_loss_chance=max(0.0, min(1.0, float(defeat.get("item_loss_chance", 0.3)))),
+            starting_party=tuple(str(v) for v in start.get("party", [])),
+            leader=(str(start["leader"]) if start.get("leader") else None),
+            starting_items={str(k): max(0, int(v)) for k, v in dict(start.get("items", {})).items()},
+            starting_storage={str(k): max(0, int(v)) for k, v in dict(start.get("storage", {})).items()},
+            starting_flags={str(k): bool(v) for k, v in dict(start.get("flags", {})).items()},
+            starting_variables=dict(start.get("variables", {})),
+            dungeon_result_stories={str(k): str(v) for k, v in dict(game.get("dungeon_result_stories", {})).items() if v},
+            sfx_event_cues={str(k): str(v) for k, v in dict(game.get("sfx_event_cues", {})).items() if v},
+        )
+
+    def to_manifest_game(self) -> dict[str, Any]:
+        return {
+            "title": self.title,
+            "version": self.version,
+            "default_dungeon": self.default_dungeon,
+            "inventory": {
+                "bag_capacity": self.bag_capacity,
+                "storage_capacity": self.storage_capacity,
+                "carried_money": self.starting_carried_money,
+                "stored_money": self.starting_stored_money,
+            },
+            "defeat": {
+                "money_loss_fraction": self.defeat_money_loss_fraction,
+                "item_loss_chance": self.defeat_item_loss_chance,
+            },
+            "start": {
+                "scene": self.starting_scene,
+                "marker": self.starting_marker,
+                "party": list(self.starting_party),
+                "leader": self.leader,
+                "items": dict(sorted(self.starting_items.items())),
+                "storage": dict(sorted(self.starting_storage.items())),
+                "flags": dict(sorted(self.starting_flags.items())),
+                "variables": self.starting_variables,
+            },
+            "dungeon_result_stories": dict(sorted(self.dungeon_result_stories.items())),
+            "sfx_event_cues": dict(sorted(self.sfx_event_cues.items())),
+        }
 
 
 @dataclass(frozen=True)
@@ -252,13 +490,16 @@ class ProjectRegistry:
         content = dict(self.manifest.get("content", {}))
         self.attack_dir = self.game_root / str(content.get("attacks", "content/attacks"))
         self.enemy_dir = self.game_root / str(content.get("enemies", "content/enemies"))
+        self.item_dir = self.game_root / str(content.get("items", "content/items"))
+        self.character_dir = self.game_root / str(content.get("characters", "content/characters"))
         self.pawn_dir = self.game_root / str(content.get("pawns", "content/pawns"))
         self.dungeon_dir = self.game_root / str(content.get("dungeons", "dungeons"))
         self.scene_dir = self.game_root / str(content.get("scenes", "scenes"))
         self.story_dir = self.game_root / str(content.get("stories", "stories"))
         self.asset_root = self.game_root / str(content.get("assets", "assets"))
         for directory in (
-            self.attack_dir, self.enemy_dir, self.pawn_dir, self.dungeon_dir,
+            self.attack_dir, self.enemy_dir, self.item_dir, self.character_dir,
+            self.pawn_dir, self.dungeon_dir,
             self.scene_dir, self.story_dir, self.asset_root,
         ):
             directory.mkdir(parents=True, exist_ok=True)
@@ -278,6 +519,8 @@ class ProjectRegistry:
             "content": {
                 "attacks": "content/attacks",
                 "enemies": "content/enemies",
+                "items": "content/items",
+                "characters": "content/characters",
                 "pawns": "content/pawns",
                 "dungeons": "dungeons",
                 "scenes": "scenes",
@@ -296,9 +539,22 @@ class ProjectRegistry:
         return str(self.manifest.get("name") or self.project_id)
 
     @property
+    def game_settings(self) -> GameSettingsData:
+        return GameSettingsData.from_manifest(self.manifest, self.game_root.name)
+
+    def save_game_settings(self, settings: GameSettingsData) -> None:
+        self.manifest["name"] = settings.title
+        self.manifest["default_dungeon"] = settings.default_dungeon
+        self.manifest["game"] = settings.to_manifest_game()
+        self.manifest_path.write_text(
+            json.dumps(self.manifest, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        self.manifest = self._load_manifest()
+
+    @property
     def default_dungeon_id(self) -> str | None:
-        value = self.manifest.get("default_dungeon")
-        return str(value) if value else None
+        return self.game_settings.default_dungeon
 
     @property
     def damage_types(self) -> list[str]:
@@ -308,6 +564,9 @@ class ProjectRegistry:
         self.attacks_data: dict[str, AttackDefinitionData] = {}
         self.attacks: dict[str, SkillDefinition] = {}
         self.enemies: dict[str, EnemyDefinitionData] = {}
+        self.items_data: dict[str, ItemDefinitionData] = {}
+        self.items: dict[str, ItemDefinition] = {}
+        self.characters: dict[str, PlayableCharacterDefinitionData] = {}
         self.pawns: dict[str, PawnDefinitionData] = {}
 
         if self.attack_dir.exists():
@@ -320,6 +579,17 @@ class ProjectRegistry:
             for path in sorted(self.enemy_dir.glob("*.json")):
                 data = EnemyDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
                 self.enemies[data.id] = data
+
+        if self.item_dir.exists():
+            for path in sorted(self.item_dir.glob("*.json")):
+                data = ItemDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                self.items_data[data.id] = data
+                self.items[data.id] = data.to_item_definition()
+
+        if self.character_dir.exists():
+            for path in sorted(self.character_dir.glob("*.json")):
+                data = PlayableCharacterDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                self.characters[data.id] = data
 
         if self.pawn_dir.exists():
             for path in sorted(self.pawn_dir.glob("*.json")):
@@ -337,6 +607,46 @@ class ProjectRegistry:
     @property
     def pawn_labels(self) -> dict[str, str]:
         return {key: value.name for key, value in sorted(self.pawns.items())}
+
+    @property
+    def item_labels(self) -> dict[str, str]:
+        return {key: value.name for key, value in sorted(self.items_data.items())}
+
+    @property
+    def character_labels(self) -> dict[str, str]:
+        labels: dict[str, str] = {}
+        for key, character in sorted(self.characters.items()):
+            pawn = self.pawns.get(character.pawn_id)
+            labels[key] = pawn.name if pawn is not None else key
+        return labels
+
+    def save_item(self, data: ItemDefinitionData) -> Path:
+        self.item_dir.mkdir(parents=True, exist_ok=True)
+        path = self.item_dir / f"{data.id}.json"
+        path.write_text(json.dumps(data.to_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        self.reload()
+        return path
+
+    def item(self, item_id: str) -> ItemDefinition:
+        try:
+            return self.items[item_id]
+        except KeyError as exc:
+            raise KeyError(f"Unknown item: {item_id}") from exc
+
+    def save_character(self, data: PlayableCharacterDefinitionData) -> Path:
+        self.character_dir.mkdir(parents=True, exist_ok=True)
+        path = self.character_dir / f"{data.id}.json"
+        path.write_text(json.dumps(data.to_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        self.reload()
+        return path
+
+    def make_character(self, character_id: str, *, leader: bool = False) -> Character:
+        try:
+            definition = self.characters[character_id]
+        except KeyError as exc:
+            raise KeyError(f"Unknown playable character: {character_id}") from exc
+        pawn = self.pawn(definition.pawn_id)
+        return definition.make_character(pawn, self.attacks, leader=leader)
 
     def save_pawn(self, data: PawnDefinitionData) -> Path:
         self.pawn_dir.mkdir(parents=True, exist_ok=True)
