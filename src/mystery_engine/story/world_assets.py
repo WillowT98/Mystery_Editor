@@ -381,7 +381,10 @@ def build_exploration_map(
         actors=actors,
         interactables=interactables,
         markers=markers,
-        blocked_terrain=frozenset(scene.blocked_terrain),
+        blocked_terrain=frozenset(
+            set(scene.blocked_terrain)
+            | {key for key, style in dict(terrain_styles or {}).items() if bool(style.get("blocked", False))}
+        ),
         music=scene.music,
         music_volume=scene.music_volume,
         ambience_cue=scene.ambience_cue,
