@@ -968,7 +968,7 @@ class ProjectEditor:
     the same authoring process and return here when closed.
     """
 
-    SECTIONS = ("Scenes", "Stories", "Pawns", "Dungeons", "Enemies", "Attacks", "Assets")
+    SECTIONS = ("Game", "Scenes", "Stories", "Pawns", "Characters", "Dungeons", "Enemies", "Attacks", "Items", "Assets")
 
     def __init__(self, registry: ProjectRegistry, world_assets, project_root: Path, item_labels: dict[str, str] | None = None) -> None:
         self.registry = registry
@@ -985,18 +985,24 @@ class ProjectEditor:
 
     def _refresh(self) -> None:
         self.registry.reload()
-        if self.section == "Scenes":
+        if self.section == "Game":
+            labels = {"settings": self.registry.game_settings.title}
+        elif self.section == "Scenes":
             labels = self.registry.scene_labels()
         elif self.section == "Stories":
             labels = self.registry.story_labels()
         elif self.section == "Pawns":
             labels = self.registry.pawn_labels
+        elif self.section == "Characters":
+            labels = self.registry.character_labels
         elif self.section == "Dungeons":
             labels = self.registry.dungeon_labels()
         elif self.section == "Enemies":
             labels = self.registry.enemy_labels
         elif self.section == "Attacks":
             labels = self.registry.attack_labels
+        elif self.section == "Items":
+            labels = self.registry.item_labels
         else:
             labels = {key: key for key in self.registry.asset_keys("characters", {".png"})}
         self.items = list(labels.items())
@@ -1038,7 +1044,10 @@ class ProjectEditor:
         self.screen.blit(status, (x0, self.screen.get_height()-30))
 
     def _new(self) -> None:
-        if self.section == "Pawns":
+        if self.section == "Game":
+            edit_game_settings_dialog(self.registry)
+            self.status = "Game settings updated"
+        elif self.section == "Pawns":
             created = edit_pawn_dialog(self.registry)
             self.status = f"Created {created}" if created else "Cancelled"
         elif self.section == "Stories":
@@ -1053,6 +1062,12 @@ class ProjectEditor:
             self.status = f"Created {created}" if created else "Cancelled"
         elif self.section == "Attacks":
             created = edit_attack_dialog(self.registry)
+            self.status = f"Created {created}" if created else "Cancelled"
+        elif self.section == "Characters":
+            created = edit_character_dialog(self.registry)
+            self.status = f"Created {created}" if created else "Cancelled"
+        elif self.section == "Items":
+            created = edit_item_dialog(self.registry)
             self.status = f"Created {created}" if created else "Cancelled"
         elif self.section == "Dungeons":
             name = simpledialog.askstring("New dungeon", "Dungeon name:")
@@ -1082,7 +1097,9 @@ class ProjectEditor:
         if not self.items:
             return
         item_id = self.items[self.selected][0]
-        if self.section == "Pawns":
+        if self.section == "Game":
+            edit_game_settings_dialog(self.registry)
+        elif self.section == "Pawns":
             edit_pawn_dialog(self.registry, item_id)
         elif self.section == "Stories":
             graph = self.registry.load_story(item_id)
@@ -1114,13 +1131,17 @@ class ProjectEditor:
             edit_enemy_dialog(self.registry, item_id)
         elif self.section == "Attacks":
             edit_attack_dialog(self.registry, item_id)
+        elif self.section == "Characters":
+            edit_character_dialog(self.registry, item_id)
+        elif self.section == "Items":
+            edit_item_dialog(self.registry, item_id)
         elif self.section == "Dungeons":
             from mystery_engine.editor.dungeon_builder import DungeonBuilderEditor
             path = self.registry.dungeon_path(item_id)
             definition = self.registry.load_dungeon(item_id)
             editor = DungeonBuilderEditor(
                 definition, path, self.registry.asset_root,
-                self.registry.enemy_labels, self.item_labels,
+                self.registry.enemy_labels, self.registry.item_labels,
                 project_root=self.project_root, project_registry=self.registry,
             )
             editor.run()
@@ -1194,4 +1215,5 @@ def run_project_editor(
     project_root: Path,
     item_labels: dict[str, str] | None = None,
 ) -> None:
-    ProjectEditor(ProjectRegistry.load(game_root), world_assets, project_root, item_labels).run()
+    registry = ProjectRegistry.load(game_root)
+    ProjectEditor(registry, world_assets, project_root, registry.item_labels).run()
