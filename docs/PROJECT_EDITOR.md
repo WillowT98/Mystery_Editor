@@ -135,6 +135,8 @@ interaction radius, and color key.
 
 ### Pawn animation sets
 
+Pawns can also choose a **Dialogue voice cue** from the semantic SFX catalog. That cue is used for typewriter text blips whenever the pawn speaks; individual dialogue lines may override it when a scene needs a different tone.
+
 Pawns can now own named frame-animation clips. Open a Pawn and use **Animation
 sets → Edit…** to add, edit, or remove clips. Each clip defines:
 
