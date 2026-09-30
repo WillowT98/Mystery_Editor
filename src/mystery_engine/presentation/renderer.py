@@ -10,7 +10,7 @@ from mystery_engine.config import EngineConfig
 from mystery_engine.core import Character, GridPos
 from mystery_engine.dungeon import DungeonFloor, ExplorationMemory, TileKind
 from mystery_engine.story import DialogueController, ExplorationMap
-from mystery_engine.core.autotile import autotile_asset, dungeon_walkable_mask, elevation_cliff_assets, oriented_neighbor_mask
+from mystery_engine.core.autotile import autotile_asset, dungeon_walkable_mask, elevation_cliff_assets, elevation_higher_mask, oriented_neighbor_mask
 from mystery_engine.ui import MenuController
 
 
@@ -599,6 +599,12 @@ class Renderer:
         for ty in range(min_ty, max_ty):
             for tx in range(min_tx, max_tx):
                 if terrain.terrain_at(tx, ty) == "void":
+                    continue
+                kind = terrain.terrain_at(tx, ty)
+                mask = elevation_higher_mask(terrain, tx, ty)
+                custom = self._load_surface(f"terrain/{kind}/cliff_{mask:03d}.png", (tile, tile)) if mask else None
+                if custom is not None:
+                    self.canvas.blit(custom, (tx * tile - camera_ix, ty * tile - camera_iy))
                     continue
                 for asset in elevation_cliff_assets(terrain, tx, ty):
                     sprite = self._load_surface(asset, (tile, tile))
