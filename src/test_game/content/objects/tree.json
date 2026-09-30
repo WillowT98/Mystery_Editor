@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "id": "tree",
+  "name": "Tree",
+  "category": "scenery",
+  "sprite_key": "tree",
+  "size": [
+    196,
+    230
+  ],
+  "anchor": "bottom_center",
+  "collider_enabled": true,
+  "collision": [
+    -27,
+    -58,
+    54,
+    58
+  ],
+  "collision_radius": 0,
+  "draw_behind_actors": false,
+  "runtime_visible": true
+}
