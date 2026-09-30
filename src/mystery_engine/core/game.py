@@ -108,6 +108,7 @@ class MysteryGame:
         self.active_projectile: ProjectileAnimation | None = None
         self._pending_dungeon_result: DungeonResult | None = None
         self._trigger_region_inside: dict[tuple[str, str], bool] = {}
+        self._scene_entry_fired: set[tuple[str, str]] = set()
         self.story_runner = StoryGraphRunner(StoryRuntimeContext(
             story=self.state.story,
             dialogue=self.dialogue,
@@ -174,6 +175,9 @@ class MysteryGame:
                     for event in events:
                         self.input.dungeon.feed_locked(event)
             else:
+                if self.mode is GameMode.EXPLORATION:
+                    self._process_scene_enter_triggers()
+                    self._process_region_triggers()
                 if frame.menu:
                     self._open_gameplay_menu()
                 elif frame.cancel:
@@ -334,13 +338,17 @@ class MysteryGame:
 
     def _process_scene_enter_triggers(self) -> None:
         world = self.exploration
-        if world is None:
+        if world is None or self.story_runner.active or self.dialogue.active or self.menu.active:
             return
-        self._trigger_region_inside = {
-            key: value for key, value in self._trigger_region_inside.items() if key[0] != world.id
-        }
         for trigger in world.triggers:
-            if trigger.kind == "on_scene_enter" and self._fire_trigger(trigger):
+            key = (world.id, trigger.id)
+            if trigger.kind != "on_scene_enter" or key in self._scene_entry_fired:
+                continue
+            # A scene-enter condition is evaluated for this visit. If false, the
+            # trigger does not suddenly fire later merely because a flag changes
+            # while the player remains in the room.
+            self._scene_entry_fired.add(key)
+            if self._fire_trigger(trigger):
                 break
 
     def _process_region_triggers(self) -> None:
@@ -358,8 +366,17 @@ class MysteryGame:
             key = (world.id, trigger.id)
             inside = trigger.region.contains_point(leader.position.x, leader.position.y)
             was_inside = self._trigger_region_inside.get(key, False)
-            self._trigger_region_inside[key] = inside
-            if inside and not was_inside and self._fire_trigger(trigger):
+            if not inside:
+                self._trigger_region_inside[key] = False
+                continue
+            if was_inside:
+                continue
+            if self.story_runner.active or self.dialogue.active or self.menu.active:
+                # Preserve the edge until control returns, so a trigger entered
+                # during another scene-enter cutscene is not lost.
+                continue
+            self._trigger_region_inside[key] = True
+            if self._fire_trigger(trigger):
                 break
 
     def change_exploration_scene(self, scene_path: Path, target_door_id: str | None = None) -> None:
@@ -431,6 +448,8 @@ class MysteryGame:
             actor.facing = facing
 
         self.exploration = new_world
+        self._scene_entry_fired.clear()
+        self._trigger_region_inside.clear()
         self.state.world.current_scene = new_world.id
         self.mode = GameMode.EXPLORATION
         self.menu.close()
@@ -657,6 +676,8 @@ class MysteryGame:
 
         self.state = state
         self.dungeon = None
+        self._scene_entry_fired.clear()
+        self._trigger_region_inside.clear()
         self.mode = GameMode.EXPLORATION
         self.dialogue = DialogueController()
         self.menu.close()
