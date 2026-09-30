@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "id": "fox",
+  "name": "Fox",
+  "sprite_key": "fox",
+  "portrait_key": "fox",
+  "radius": 28,
+  "color_key": "fox"
+}
