@@ -1095,6 +1095,35 @@ class ProjectRegistry:
         graph.save(path)
         return graph, path
 
+    def import_terrain_autotiles(self, terrain_id: str, source_dir: Path) -> int:
+        source_dir = Path(source_dir).resolve()
+        if not source_dir.is_dir():
+            raise NotADirectoryError(source_dir)
+        destination = self.asset_root / "terrain" / terrain_id
+        destination.mkdir(parents=True, exist_ok=True)
+        copied = 0
+        for path in source_dir.iterdir():
+            if not path.is_file() or path.suffix.lower() != ".png":
+                continue
+            stem = path.stem.lower()
+            mask_text = None
+            if stem.isdigit():
+                mask_text = stem
+            elif stem.startswith("auto_") and stem[5:].isdigit():
+                mask_text = stem[5:]
+            elif stem.endswith(tuple(f"_{i:03d}" for i in range(256))):
+                tail = stem.rsplit("_", 1)[-1]
+                if tail.isdigit():
+                    mask_text = tail
+            if mask_text is None:
+                continue
+            mask = int(mask_text)
+            if not 0 <= mask <= 255:
+                continue
+            shutil.copy2(path, destination / f"auto_{mask:03d}.png")
+            copied += 1
+        return copied
+
     def import_asset(
         self,
         source: Path,
