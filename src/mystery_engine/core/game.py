@@ -400,7 +400,7 @@ class MysteryGame:
         self.definition.on_dungeon_result(self, result, lost_money=lost_money, lost_items=lost_items)
 
     def save_snapshot(self, path: Path | None = None) -> Path:
-        path = path or Path("saves") / "test-save.json"
+        path = path or Path("saves") / f"{self.definition.game_id}-save.json"
         self.save_manager.dump(self.state, path)
         self._play_event_sfx("save")
         self.add_message(f"Saved snapshot to {path}.")
@@ -453,7 +453,7 @@ class MysteryGame:
             self._finish_or_defer_dungeon_result(DungeonResult.DEFEAT)
             return
 
-        # Stairs are intentionally automatic in the test vertical slice.
+        # Reaching stairs advances automatically; dungeon definitions decide the floor count.
         if self.state.leader.grid_pos == self.dungeon.floor.stairs_pos:
             if self.dungeon.floor_number >= self.definition.dungeon_floor_count:
                 self.return_to_exploration(DungeonResult.SUCCESS)
