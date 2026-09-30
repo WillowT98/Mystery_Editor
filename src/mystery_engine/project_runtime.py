@@ -276,6 +276,14 @@ class ProjectGameDefinition:
         lost_money: int = 0,
         lost_items: list[str] | None = None,
     ) -> None:
+        # Dungeon-result stories can reference these values through normal story
+        # variable substitution, keeping result handling data-driven.
+        game.state.story.variables["dungeon_result"] = result.name.lower()
+        game.state.story.variables["dungeon_lost_money"] = lost_money
+        game.state.story.variables["dungeon_lost_items"] = (
+            ", ".join(lost_items or []) if lost_items else "nothing from the bag"
+        )
+
         story_id = self.project_registry.game_settings.dungeon_result_stories.get(result.name.lower())
         if story_id:
             game.run_story(story_id)
