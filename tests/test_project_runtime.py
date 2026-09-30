@@ -863,3 +863,26 @@ def test_story_play_animation_waits_for_one_shot_completion(tmp_path):
     actor.update_animation(0.6)
     assert handle.update(0.0) is True
     assert actor.animation_name == "idle"
+
+
+def test_gameplay_story_conditions_survive_save_load_runtime_rebuild(tmp_path):
+    from mystery_engine.story import evaluate_condition
+
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    game.exploration = game.definition.create_exploration(game)
+    game._play_event_sfx = lambda *_args, **_kwargs: None
+    game._sync_exploration_music = lambda: None
+    game.story_actions("give_item", {"item": "field_salve", "quantity": 1, "location": "bag"})
+
+    save_path = tmp_path / "condition-save.json"
+    assert game.save_snapshot(save_path) == save_path
+    assert game.load_snapshot(save_path) is True
+
+    resolver = game.story_runner.context.evaluate_gameplay_condition
+    assert callable(resolver)
+    assert evaluate_condition(
+        {"kind": "has_item", "item": "field_salve", "location": "bag", "value": 1},
+        game.state.story,
+        resolver,
+    ) is True
