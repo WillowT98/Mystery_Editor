@@ -1,8 +1,8 @@
 {
   "format": 1,
   "id": "test_dungeon_abandoned",
-  "name": "Test Dungeon — Retreat",
-  "scene": "test_clearing",
+  "name": "Ancient Ruins — Retreat",
+  "scene": "hidden_valley",
   "entries": {
     "default": "dialogue"
   },
@@ -11,10 +11,15 @@
       "type": "dialogue",
       "lines": [
         {
-          "id": "line_001",
+          "id": "da001",
+          "speaker": "Fox",
+          "text": "\"I'm calling this before I learn anything else about my organs.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "da002",
           "pawn": "mara",
-          "text": "We'll call that one a tactical retreat.",
-          "expression": "neutral"
+          "text": "Sensibly done. A familiar who retreats is much easier to teach than a familiar who dies proving a point."
         }
       ],
       "next": "end"
@@ -24,15 +29,6 @@
     }
   },
   "editor": {
-    "positions": {
-      "dialogue": [
-        180,
-        180
-      ],
-      "end": [
-        560,
-        180
-      ]
-    }
+    "positions": {}
   }
 }
