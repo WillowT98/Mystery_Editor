@@ -110,14 +110,8 @@ The scene stores the stable `target_dungeon` ID rather than a Python action
 callback. It may also store a per-instance `sprite_override`.
 
 At runtime, a generic dungeon entrance selects that dungeon definition and begins
-the expedition. The old hard-coded test entrance remains as a compatibility
-asset for existing scenes.
-
-## Compatibility
-
-`run_editor.py` and `run_dungeon_editor.py` still work and now load the same
-project registry. The recommended workflow is `run_project_editor.py`.
-
+the expedition. Dungeon entrances are project data; no game-specific Python
+callback is required.
 
 ## Room-first story authoring
 
@@ -175,8 +169,7 @@ editor discover the stories relevant to the visible scene.
 
 ## Game setup without Python
 
-The project editor now also owns the high-level setup that previously lived in
-`game_definition.py`.
+The project editor owns project-wide runtime setup directly in `project.json`.
 
 ### Game
 
