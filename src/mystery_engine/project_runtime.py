@@ -1,0 +1,218 @@
+from __future__ import annotations
+
+from pathlib import Path
+import os
+from typing import TYPE_CHECKING
+
+from mystery_engine.core import DungeonResult, PersistentGameState, StoryState, Wallet
+from mystery_engine.core.inventory import Inventory
+from mystery_engine.project import ProjectRegistry
+from mystery_engine.story import (
+    ExplorationMap,
+    RectObstacle,
+    WorldAssetCatalog,
+    WorldAssetDefinition,
+    build_exploration_map,
+    load_exploration_scene,
+)
+
+if TYPE_CHECKING:
+    from mystery_engine.core.game import MysteryGame
+
+
+SYSTEM_WORLD_ASSETS = WorldAssetCatalog(assets={
+    "dungeon_entrance": WorldAssetDefinition(
+        id="dungeon_entrance",
+        category="dungeon",
+        sprite_key=None,
+        display_name="Dungeon entrance",
+        size=(192, 150),
+        collision=RectObstacle(-88, -136, 176, 58),
+        label="Dungeon entrance",
+    ),
+    "scene_door": WorldAssetDefinition(
+        id="scene_door",
+        category="portal",
+        sprite_key=None,
+        display_name="Scene door",
+        size=(72, 56),
+        collision=None,
+        label="Door",
+        runtime_visible=False,
+    ),
+    "story_marker": WorldAssetDefinition(
+        id="story_marker",
+        category="marker",
+        sprite_key=None,
+        display_name="Story marker",
+        size=(48, 48),
+        collision=None,
+        runtime_visible=False,
+    ),
+})
+
+
+class ProjectGameDefinition:
+    """Generic runtime adapter for any editor-authored project."""
+
+    exploration_tile_size = 64
+
+    def __init__(self, project_root: Path) -> None:
+        self.project_registry = ProjectRegistry.load(project_root)
+        settings = self.project_registry.game_settings
+        self.game_id = self.project_registry.project_id
+        self.game_version = settings.version
+        self.title = settings.title
+        self.asset_root = self.project_registry.asset_root
+        self.sfx_catalog_path = self.asset_root / "sfx_cues.json"
+        self.story_root = self.project_registry.story_dir
+        self.scene_root = self.project_registry.scene_dir
+        self.defeat_money_loss_fraction = settings.defeat_money_loss_fraction
+        self.defeat_item_loss_chance = settings.defeat_item_loss_chance
+        self.sfx_event_cues = dict(settings.sfx_event_cues)
+
+        override = os.environ.get("MYSTERY_DUNGEON_PATH")
+        if override:
+            from mystery_engine.dungeon import DungeonDefinition
+            self.active_dungeon_id = Path(override).stem
+            self.dungeon_definition = DungeonDefinition.load(Path(override))
+        elif settings.default_dungeon:
+            self.active_dungeon_id = settings.default_dungeon
+            self.dungeon_definition = self.project_registry.load_dungeon(settings.default_dungeon)
+        else:
+            self.active_dungeon_id = ""
+            self.dungeon_definition = None
+        self.dungeon_floor_count = self.dungeon_definition.floor_count if self.dungeon_definition else 0
+
+    def select_dungeon(self, dungeon_id: str) -> None:
+        self.dungeon_definition = self.project_registry.load_dungeon(dungeon_id)
+        self.active_dungeon_id = dungeon_id
+        self.dungeon_floor_count = self.dungeon_definition.floor_count
+
+    def resolve_story_pawn(self, pawn_id: str) -> tuple[str, str | None]:
+        return self.project_registry.resolve_story_pawn(pawn_id)
+
+    def create_state(self) -> PersistentGameState:
+        settings = self.project_registry.game_settings
+        if not settings.starting_party:
+            raise RuntimeError("Set at least one starting party member in Game Settings before running.")
+        leader_id = settings.leader or settings.starting_party[0]
+        party = [
+            self.project_registry.make_character(character_id, leader=(character_id == leader_id))
+            for character_id in settings.starting_party
+        ]
+        bag = Inventory(capacity=settings.bag_capacity)
+        for item_id, quantity in settings.starting_items.items():
+            if quantity > 0:
+                bag.add(self.project_registry.item(item_id), quantity)
+        storage = Inventory(capacity=settings.storage_capacity)
+        for item_id, quantity in settings.starting_storage.items():
+            if quantity > 0:
+                storage.add(self.project_registry.item(item_id), quantity)
+        return PersistentGameState(
+            game_id=self.game_id,
+            game_version=self.game_version,
+            party=party,
+            bag=bag,
+            storage=storage,
+            wallet=Wallet(carried=settings.starting_carried_money, stored=settings.starting_stored_money),
+            story=StoryState(flags=dict(settings.starting_flags), variables=dict(settings.starting_variables)),
+        )
+
+    def create_exploration(self, game: "MysteryGame") -> ExplorationMap:
+        override = os.environ.get("MYSTERY_SCENE_PATH")
+        settings = self.project_registry.game_settings
+        if override:
+            path = Path(override)
+        elif settings.starting_scene:
+            try:
+                path = self.project_registry.scene_paths()[settings.starting_scene]
+            except KeyError as exc:
+                raise RuntimeError(f"Unknown starting scene: {settings.starting_scene}") from exc
+        else:
+            scenes = self.project_registry.scene_paths()
+            if not scenes:
+                raise RuntimeError("Create a scene and choose it as the starting scene before running.")
+            path = next(iter(scenes.values()))
+        world = self.create_exploration_scene(game, path)
+        if settings.starting_marker:
+            try:
+                target = world.target_position(settings.starting_marker)
+                actor = world.actor(game.state.leader.id)
+                actor.position.x, actor.position.y = target.x, target.y
+            except KeyError:
+                pass
+        return world
+
+    def create_exploration_scene(self, game: "MysteryGame", scene_path: Path) -> ExplorationMap:
+        scene_path = Path(scene_path).resolve()
+        scene = load_exploration_scene(scene_path)
+
+        def portal_transition(placed):
+            def transition() -> None:
+                if not placed.target_scene:
+                    game.add_message("This scene door is not linked yet.")
+                    return
+                target = Path(placed.target_scene)
+                if not target.is_absolute():
+                    target = scene_path.parent / target
+                if not target.exists():
+                    game.add_message(f"Linked scene does not exist: {target.name}")
+                    return
+                game.change_exploration_scene(target, placed.target_door)
+            return transition
+
+        def dungeon_transition(placed):
+            def transition() -> None:
+                if not placed.target_dungeon:
+                    game.add_message("This dungeon entrance is not linked yet.")
+                    return
+                self.select_dungeon(placed.target_dungeon)
+                game.enter_dungeon()
+            return transition
+
+        def story_transition(placed):
+            def transition() -> None:
+                if placed.target_story:
+                    game.run_story(placed.target_story)
+            return transition
+
+        return build_exploration_map(
+            scene,
+            self.project_registry.world_asset_catalog(SYSTEM_WORLD_ASSETS),
+            {},
+            portal_transition_factory=portal_transition,
+            dungeon_transition_factory=dungeon_transition,
+            story_transition_factory=story_transition,
+            terrain_styles=self.project_registry.terrain_runtime(),
+        )
+
+    def create_dungeon_floor(self, game: "MysteryGame", floor_number: int):
+        if self.dungeon_definition is None:
+            raise RuntimeError("No dungeon is selected.")
+        return self.dungeon_definition.build_floor(
+            floor_number,
+            game.rng,
+            lambda enemy_id, identifier: self.project_registry.make_enemy(enemy_id, identifier),
+            self.project_registry.item,
+            enemy_modifier=self.project_registry.apply_spawn_modifiers,
+        )
+
+    def on_dungeon_result(
+        self,
+        game: "MysteryGame",
+        result: DungeonResult,
+        *,
+        lost_money: int = 0,
+        lost_items: list[str] | None = None,
+    ) -> None:
+        story_id = self.project_registry.game_settings.dungeon_result_stories.get(result.name.lower())
+        if story_id:
+            game.run_story(story_id)
+        else:
+            game.add_message(result.value.replace("_", " ").title())
+
+
+def build_project_game(project_root: Path):
+    from mystery_engine.core.game import MysteryGame
+    return MysteryGame(ProjectGameDefinition(project_root))
