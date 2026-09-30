@@ -109,6 +109,7 @@ class MysteryGame:
         self._pending_dungeon_result: DungeonResult | None = None
         self._trigger_region_inside: dict[tuple[str, str], bool] = {}
         self._scene_entry_fired: set[tuple[str, str]] = set()
+        self._dialogue_blip_characters = 0
         self.story_runner = StoryGraphRunner(StoryRuntimeContext(
             story=self.state.story,
             dialogue=self.dialogue,
@@ -116,6 +117,7 @@ class MysteryGame:
             run_action=self.story_actions,
             load_graph=self._load_story_graph,
             resolve_pawn=getattr(self.definition, "resolve_story_pawn", None),
+            resolve_pawn_voice=getattr(self.definition, "resolve_story_pawn_voice", None),
             evaluate_gameplay_condition=self.evaluate_gameplay_condition,
             on_finish=self._story_finished,
             rng=self.rng,
@@ -157,6 +159,7 @@ class MysteryGame:
             if self.exploration is not None and self.exploration.camera_shake_time > 0:
                 self.exploration.camera_shake_time = max(0.0, self.exploration.camera_shake_time - dt)
             self.story_runner.update(dt)
+            self._update_dialogue_reveal(dt)
             if self.exploration is not None:
                 sprinting_ids = set()
                 if (
@@ -349,6 +352,22 @@ class MysteryGame:
         else:
             self.return_to_exploration(result)
 
+    def _update_dialogue_reveal(self, dt: float) -> None:
+        line = self.dialogue.current
+        if line is None:
+            self._dialogue_blip_characters = 0
+            return
+        revealed = self.dialogue.update(dt)
+        if not revealed:
+            return
+        self._dialogue_blip_characters += sum(1 for ch in revealed if ch.isalnum())
+        if self._dialogue_blip_characters < 2:
+            return
+        self._dialogue_blip_characters %= 2
+        cue = line.voice_cue or self._cue("dialogue_blip")
+        if cue:
+            self.audio.play_sfx(cue)
+
     def _play_dialogue_reaction(self) -> None:
         line = self.dialogue.current
         if line is None or not line.expression or line.expression == "neutral":
@@ -356,6 +375,7 @@ class MysteryGame:
         self.audio.play_sfx(f"reactions.{line.expression}")
 
     def say(self, lines: list[DialogueLine], on_complete=None) -> None:
+        self._dialogue_blip_characters = 0
         self.dialogue.start(DialogueSequence(lines, on_complete=on_complete))
         self._play_dialogue_reaction()
 
@@ -789,6 +809,7 @@ class MysteryGame:
             run_action=self.story_actions,
             load_graph=self._load_story_graph,
             resolve_pawn=getattr(self.definition, "resolve_story_pawn", None),
+            resolve_pawn_voice=getattr(self.definition, "resolve_story_pawn_voice", None),
             evaluate_gameplay_condition=self.evaluate_gameplay_condition,
             on_finish=self._story_finished,
             rng=self.rng,
@@ -1253,8 +1274,13 @@ class MysteryGame:
     def _handle_dialogue(self, events: list[pygame.event.Event]) -> None:
         for event in events:
             if event.type == pygame.KEYDOWN and not getattr(event, "repeat", False) and event.key == pygame.K_SPACE:
+                if not self.dialogue.fully_revealed:
+                    self.dialogue.reveal_all()
+                    self._dialogue_blip_characters = 0
+                    continue
                 self._play_event_sfx("text_advance")
                 self.dialogue.advance()
+                self._dialogue_blip_characters = 0
                 self._play_dialogue_reaction()
 
     # ---------- menu actions ----------
