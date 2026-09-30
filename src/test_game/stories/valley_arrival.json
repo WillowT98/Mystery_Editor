@@ -48,6 +48,39 @@
           "id": "v007",
           "pawn": "mara",
           "text": "Part of it. The rest can wait until you aren't swaying."
+        },
+        {
+          "id": "v008",
+          "speaker": "Fox",
+          "text": "\"Mara... if I wake up tomorrow and realize I can't do this, what happens?\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v009",
+          "pawn": "mara",
+          "text": "Then we deal with that truth. I will not turn the bond into a cage because changing it is inconvenient."
+        },
+        {
+          "id": "v010",
+          "pawn": "mara",
+          "text": "And I owe you an apology. I knew the bond might change you. I did not know it would seize your shape that hard, that quickly. I should have said more clearly how much I did not know."
+        },
+        {
+          "id": "v011",
+          "speaker": "Fox",
+          "text": "\"Don't decide what I can handle for me. Tell me when you don't know. Let me choose with the uncertainty included.\"",
+          "voice_cue": "dialogue.tone_2"
+        },
+        {
+          "id": "v012",
+          "pawn": "mara",
+          "text": "I promise."
+        },
+        {
+          "id": "v013",
+          "speaker": "Fox",
+          "text": "The promise settles somewhere beside the new awareness of her, not comfortable exactly, but solid enough to lean on.",
+          "voice_cue": "dialogue.tone_2"
         }
       ],
       "next": "exhausted"
