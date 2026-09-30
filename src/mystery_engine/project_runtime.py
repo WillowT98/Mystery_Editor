@@ -51,6 +51,26 @@ SYSTEM_WORLD_ASSETS = WorldAssetCatalog(assets={
         collision=None,
         runtime_visible=False,
     ),
+    "item_storage": WorldAssetDefinition(
+        id="item_storage",
+        category="interactable",
+        sprite_key="item_storage",
+        display_name="Item storage",
+        size=(72, 64),
+        collision=RectObstacle(-30, -38, 60, 38),
+        label="Item storage",
+        action_id="storage.items",
+    ),
+    "money_storage": WorldAssetDefinition(
+        id="money_storage",
+        category="interactable",
+        sprite_key="money_storage",
+        display_name="Money storage",
+        size=(72, 64),
+        collision=RectObstacle(-30, -38, 60, 38),
+        label="Money storage",
+        action_id="storage.money",
+    ),
 })
 
 
@@ -236,10 +256,14 @@ class ProjectGameDefinition:
                     game.run_story(placed.target_story)
             return transition
 
+        system_interactions = {
+            "storage.items": game.open_item_storage,
+            "storage.money": game.open_money_storage,
+        }
         world = build_exploration_map(
             scene,
             self.project_registry.world_asset_catalog(SYSTEM_WORLD_ASSETS),
-            {},
+            system_interactions,
             portal_transition_factory=portal_transition,
             dungeon_transition_factory=dungeon_transition,
             story_transition_factory=story_transition,
