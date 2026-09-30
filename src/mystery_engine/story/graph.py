@@ -193,7 +193,11 @@ class StoryGraph:
         return result
 
 
-def evaluate_condition(condition: object, story: StoryState) -> bool:
+def evaluate_condition(
+    condition: object,
+    story: StoryState,
+    resolver: Callable[[dict[str, Any]], bool | None] | None = None,
+) -> bool:
     if condition is None:
         return True
     if isinstance(condition, bool):
@@ -202,11 +206,11 @@ def evaluate_condition(condition: object, story: StoryState) -> bool:
         return bool(condition)
 
     if "all" in condition:
-        return all(evaluate_condition(v, story) for v in condition.get("all", []))
+        return all(evaluate_condition(v, story, resolver) for v in condition.get("all", []))
     if "any" in condition:
-        return any(evaluate_condition(v, story) for v in condition.get("any", []))
+        return any(evaluate_condition(v, story, resolver) for v in condition.get("any", []))
     if "not" in condition:
-        return not evaluate_condition(condition.get("not"), story)
+        return not evaluate_condition(condition.get("not"), story, resolver)
 
     kind = str(condition.get("kind", "flag"))
     name = str(condition.get("name", ""))
@@ -220,6 +224,10 @@ def evaluate_condition(condition: object, story: StoryState) -> bool:
     elif kind == "literal":
         actual = condition.get("actual")
     else:
+        if resolver is not None:
+            resolved = resolver(condition)
+            if resolved is not None:
+                return bool(resolved)
         actual = story.variables.get(name)
 
     try:
@@ -276,6 +284,7 @@ class StoryRuntimeContext:
     run_action: Callable[[str, dict[str, Any]], StoryActionHandle | None]
     load_graph: Callable[[str], StoryGraph] | None = None
     resolve_pawn: Callable[[str], tuple[str, str | None]] | None = None
+    evaluate_gameplay_condition: Callable[[dict[str, Any]], bool | None] | None = None
     on_finish: Callable[[str | None], None] | None = None
     rng: Random = field(default_factory=Random)
 
@@ -407,7 +416,7 @@ class StoryGraphRunner:
                             continue
                         condition = raw.get("condition")
                         mode = str(raw.get("condition_mode", "hidden"))
-                        allowed = evaluate_condition(condition, self.context.story)
+                        allowed = evaluate_condition(condition, self.context.story, self.context.evaluate_gameplay_condition)
                         if not allowed and mode == "hidden":
                             continue
                         options.append(ChoiceOption(
@@ -429,7 +438,7 @@ class StoryGraphRunner:
                 return
 
             if node_type == "condition":
-                result = evaluate_condition(node.get("condition"), self.context.story)
+                result = evaluate_condition(node.get("condition"), self.context.story, self.context.evaluate_gameplay_condition)
                 self._goto(cursor, node.get("true") if result else node.get("false"))
                 continue
 
@@ -438,7 +447,7 @@ class StoryGraphRunner:
                 for raw in node.get("branches", []) or []:
                     if isinstance(raw, str):
                         candidates.append((raw, 1.0))
-                    elif isinstance(raw, dict) and raw.get("target") and evaluate_condition(raw.get("condition"), self.context.story):
+                    elif isinstance(raw, dict) and raw.get("target") and evaluate_condition(raw.get("condition"), self.context.story, self.context.evaluate_gameplay_condition):
                         candidates.append((str(raw["target"]), max(0.0, float(raw.get("weight", 1.0)))))
                 if not candidates or sum(weight for _target, weight in candidates) <= 0:
                     self._goto(cursor, node.get("next"))
@@ -518,6 +527,7 @@ class StoryGraphRunner:
                         run_action=self.context.run_action,
                         load_graph=self.context.load_graph,
                         resolve_pawn=self.context.resolve_pawn,
+                        evaluate_gameplay_condition=self.context.evaluate_gameplay_condition,
                         rng=self.context.rng,
                     )
                     child = StoryGraphRunner(child_context)

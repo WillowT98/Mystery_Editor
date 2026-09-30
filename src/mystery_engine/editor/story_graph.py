@@ -53,6 +53,13 @@ class StoryGraphEditor:
         "Scene": ("action", {"action": "change_scene", "params": {"scene": "scene.json", "marker": "arrival"}, "wait": True}),
         "Dungeon": ("action", {"action": "enter_dungeon", "params": {"floor": 1}, "wait": True}),
         "Message": ("action", {"action": "message", "params": {"text": "Message"}, "wait": False}),
+        "Give item": ("action", {"action": "give_item", "params": {"item": "", "quantity": 1, "location": "bag"}, "wait": False}),
+        "Remove item": ("action", {"action": "remove_item", "params": {"item": "", "quantity": 1, "location": "bag"}, "wait": False}),
+        "Give money": ("action", {"action": "give_money", "params": {"amount": 100, "location": "carried"}, "wait": False}),
+        "Remove money": ("action", {"action": "remove_money", "params": {"amount": 100, "location": "carried"}, "wait": False}),
+        "Heal party": ("action", {"action": "heal_party", "params": {"amount": "full"}, "wait": False}),
+        "Restore charges": ("action", {"action": "restore_skill_charges", "params": {"amount": "full"}, "wait": False}),
+        "Restore party": ("action", {"action": "restore_party", "params": {}, "wait": False}),
         "Custom": ("action", {"action": "custom_action", "params": {}, "wait": True}),
     }
 
@@ -157,6 +164,81 @@ class StoryGraphEditor:
         ],
         "enter_dungeon": [("floor", "Starting floor", "int", 1)],
         "message": [("text", "Message", "text", "")],
+        "give_item": [
+            ("item", "Item", "item"),
+            ("quantity", "Quantity", "int", 1),
+            ("location", "Destination", "inventory_location", "bag"),
+        ],
+        "remove_item": [
+            ("item", "Item", "item"),
+            ("quantity", "Quantity", "int", 1),
+            ("location", "Source", "inventory_location", "bag"),
+        ],
+        "give_money": [
+            ("amount", "Amount", "int", 0),
+            ("location", "Destination", "money_location", "carried"),
+        ],
+        "remove_money": [
+            ("amount", "Amount", "int", 0),
+            ("location", "Source", "money_location", "carried"),
+        ],
+        "heal_party": [
+            ("character", "Character (blank = whole party)", "character"),
+            ("amount", "HP amount or full", "text", "full"),
+        ],
+        "restore_skill_charges": [
+            ("character", "Character (blank = whole party)", "character"),
+            ("skill", "Skill (blank = all)", "skill"),
+            ("amount", "Charges or full", "text", "full"),
+        ],
+        "restore_party": [
+            ("character", "Character (blank = whole party)", "character"),
+        ],
+    }
+
+    CONDITION_KINDS = {
+        "flag": [
+            ("name", "Flag", "text", ""),
+            ("op", "Comparison", "comparison", "=="),
+            ("value", "Value", "value", True),
+        ],
+        "variable": [
+            ("name", "Variable", "text", ""),
+            ("op", "Comparison", "comparison", "=="),
+            ("value", "Value", "value", 0),
+        ],
+        "has_item": [
+            ("item", "Item", "item"),
+            ("location", "Where", "item_condition_location", "bag"),
+            ("op", "Comparison", "comparison", ">="),
+            ("value", "Quantity", "int", 1),
+        ],
+        "item_count": [
+            ("item", "Item", "item"),
+            ("location", "Where", "item_condition_location", "bag"),
+            ("op", "Comparison", "comparison", ">="),
+            ("value", "Quantity", "int", 1),
+        ],
+        "has_money": [
+            ("location", "Where", "money_condition_location", "carried"),
+            ("op", "Comparison", "comparison", ">="),
+            ("value", "Amount", "int", 0),
+        ],
+        "party_contains": [
+            ("character", "Character", "character"),
+        ],
+        "party_hp": [
+            ("character", "Character", "character"),
+            ("mode", "Measure", "hp_mode", "current"),
+            ("op", "Comparison", "comparison", ">="),
+            ("value", "HP / percent", "float", 1),
+        ],
+        "skill_charges": [
+            ("character", "Character", "character"),
+            ("skill", "Skill", "skill"),
+            ("op", "Comparison", "comparison", ">="),
+            ("value", "Charges", "int", 1),
+        ],
     }
 
     EFFECT_TYPES = {
@@ -267,6 +349,24 @@ class StoryGraphEditor:
     def _structured_choices(self, field_type: str) -> list[str]:
         if field_type == "direction":
             return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+        if field_type == "comparison":
+            return ["==", "!=", ">", ">=", "<", "<="]
+        if field_type == "inventory_location":
+            return ["bag", "storage"]
+        if field_type == "item_condition_location":
+            return ["bag", "storage", "either"]
+        if field_type == "money_location":
+            return ["carried", "stored"]
+        if field_type == "money_condition_location":
+            return ["carried", "stored", "total"]
+        if field_type == "hp_mode":
+            return ["current", "missing", "percent"]
+        if field_type == "item" and self.project_registry is not None:
+            return sorted(getattr(self.project_registry, "items", {}))
+        if field_type == "character" and self.project_registry is not None:
+            return sorted(getattr(self.project_registry, "characters", {}))
+        if field_type == "skill" and self.project_registry is not None:
+            return sorted(getattr(self.project_registry, "attacks", {}))
         scene = self._scene_context()
         if field_type in {"actor", "target", "object"} and scene is not None:
             ids = [obj.id for obj in scene.objects]
@@ -411,6 +511,99 @@ class StoryGraphEditor:
             }
             if next_var.get().strip():
                 result["next"] = next_var.get().strip()
+            win.destroy()
+
+        buttons = ttk.Frame(outer)
+        buttons.grid(row=4, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        ttk.Button(buttons, text="Cancel", command=win.destroy).pack(side="right", padx=4)
+        ttk.Button(buttons, text="Save", command=save).pack(side="right", padx=4)
+        win.transient(root)
+        win.grab_set()
+        root.wait_window(win)
+        root.destroy()
+        return result
+
+    def _edit_condition_structured(self, node: dict) -> dict | None:
+        import tkinter as tk
+        from tkinter import ttk, messagebox
+
+        condition = dict(node.get("condition") or {"kind": "flag", "name": "flag_name", "op": "==", "value": True})
+        root = self._root()
+        win = tk.Toplevel(root)
+        win.title("Edit story condition")
+        win.geometry("620x560")
+        result: dict | None = None
+
+        outer = ttk.Frame(win, padding=12)
+        outer.pack(fill="both", expand=True)
+        kind_var = tk.StringVar(value=str(condition.get("kind", "flag")))
+        true_var = tk.StringVar(value=str(node.get("true", "")))
+        false_var = tk.StringVar(value=str(node.get("false", "")))
+        field_vars: dict[str, tuple[tk.Variable, str]] = {}
+
+        ttk.Label(outer, text="Condition kind").grid(row=0, column=0, sticky="w", pady=4)
+        kind_box = ttk.Combobox(
+            outer,
+            textvariable=kind_var,
+            values=list(self.CONDITION_KINDS),
+            state="readonly",
+        )
+        kind_box.grid(row=0, column=1, sticky="ew", pady=4)
+
+        fields = ttk.LabelFrame(outer, text="Condition", padding=10)
+        fields.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=8)
+
+        def redraw(*_args):
+            for child in fields.winfo_children():
+                child.destroy()
+            field_vars.clear()
+            for row, spec in enumerate(self.CONDITION_KINDS.get(kind_var.get(), [])):
+                key, label, field_type, *default_tail = spec
+                default = default_tail[0] if default_tail else ""
+                current = condition.get(key, default)
+                ttk.Label(fields, text=label).grid(row=row, column=0, sticky="w", padx=(0, 10), pady=4)
+                if field_type == "bool":
+                    var = tk.BooleanVar(value=bool(current))
+                    widget = ttk.Checkbutton(fields, variable=var)
+                else:
+                    var = tk.StringVar(value="" if current is None else str(current))
+                    choices = self._structured_choices(field_type)
+                    widget = (
+                        ttk.Combobox(fields, textvariable=var, values=choices, width=34)
+                        if choices else ttk.Entry(fields, textvariable=var, width=38)
+                    )
+                widget.grid(row=row, column=1, sticky="ew", pady=4)
+                field_vars[key] = (var, field_type)
+            fields.columnconfigure(1, weight=1)
+
+        kind_box.bind("<<ComboboxSelected>>", redraw)
+        redraw()
+
+        ttk.Label(outer, text="True branch").grid(row=2, column=0, sticky="w", pady=4)
+        ttk.Combobox(outer, textvariable=true_var, values=[""] + sorted(self.graph.nodes)).grid(row=2, column=1, sticky="ew", pady=4)
+        ttk.Label(outer, text="False branch").grid(row=3, column=0, sticky="w", pady=4)
+        ttk.Combobox(outer, textvariable=false_var, values=[""] + sorted(self.graph.nodes)).grid(row=3, column=1, sticky="ew", pady=4)
+        outer.columnconfigure(1, weight=1)
+        outer.rowconfigure(1, weight=1)
+
+        def save():
+            nonlocal result
+            try:
+                built = {"kind": kind_var.get()}
+                for key, (var, field_type) in field_vars.items():
+                    raw = str(var.get()) if field_type != "bool" else ("true" if bool(var.get()) else "false")
+                    value = self._coerce_structured_value(raw, field_type)
+                    if isinstance(value, str) and not value and key not in {"name"}:
+                        continue
+                    built[key] = value
+            except (TypeError, ValueError) as exc:
+                messagebox.showerror("Invalid value", str(exc), parent=win)
+                return
+            result = {"type": "condition", "condition": built}
+            if true_var.get().strip():
+                result["true"] = true_var.get().strip()
+            if false_var.get().strip():
+                result["false"] = false_var.get().strip()
             win.destroy()
 
         buttons = ttk.Frame(outer)
@@ -640,6 +833,8 @@ class StoryGraphEditor:
             edited = self._edit_action_structured(current)
         elif kind == "effect":
             edited = self._edit_effect_structured(current)
+        elif kind == "condition":
+            edited = self._edit_condition_structured(current)
         else:
             edited = self._edit_json(f"Edit node: {self.selected}", current)
         if edited is not None:
@@ -881,6 +1076,8 @@ class StoryGraphEditor:
                 edit_label = "Edit Action"
             elif selected_kind == "effect":
                 edit_label = "Edit Effects"
+            elif selected_kind == "condition":
+                edit_label = "Edit Condition"
             else:
                 edit_label = "Edit JSON"
             for label, action in [(edit_label, "edit"), ("Rename", "rename"), ("Set default entry", "entry"), ("Connect…", "connect"), ("Delete", "delete")]:
@@ -888,7 +1085,7 @@ class StoryGraphEditor:
                 y += 40
             if (
                 (selected_kind == "action" and action_id in self.STRUCTURED_ACTIONS)
-                or selected_kind == "effect"
+                or selected_kind in {"effect", "condition"}
             ):
                 self._button(pygame.Rect(r.x + 16, y, r.w - 32, 30), "Advanced JSON…", "advanced_json")
                 y += 36

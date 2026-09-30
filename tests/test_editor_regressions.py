@@ -103,3 +103,19 @@ def test_story_editor_keeps_json_escape_hatch_for_structured_nodes():
     assert "Edit Action" in source
     assert "Edit Effects" in source
     assert "Advanced JSON…" in source
+
+
+def test_story_editor_exposes_gameplay_actions_and_conditions():
+    actions = StoryGraphEditor.STRUCTURED_ACTIONS
+    for action in (
+        "give_item", "remove_item", "give_money", "remove_money",
+        "heal_party", "restore_skill_charges", "restore_party",
+    ):
+        assert action in actions
+
+    conditions = StoryGraphEditor.CONDITION_KINDS
+    for condition in (
+        "has_item", "item_count", "has_money",
+        "party_contains", "party_hp", "skill_charges",
+    ):
+        assert condition in conditions

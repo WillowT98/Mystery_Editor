@@ -668,3 +668,98 @@ def test_once_region_trigger_does_not_refire_after_reentry(tmp_path):
 
     assert fired == [("threshold_story", "default")]
     assert game.state.story.flag("__trigger_once__:start:threshold") is True
+
+
+def test_generic_gameplay_story_actions_modify_inventory_money_and_party():
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    action = game.story_actions
+
+    game.state.bag.stacks.clear()
+    game.state.storage.stacks.clear()
+    game.state.wallet.carried = 25
+    game.state.wallet.stored = 10
+
+    action("give_item", {"item": "field_salve", "quantity": 2, "location": "bag"})
+    assert next(stack for stack in game.state.bag.stacks if stack.item.id == "field_salve").quantity == 2
+
+    action("give_item", {"item": "throwing_stone", "quantity": 3, "location": "storage"})
+    assert next(stack for stack in game.state.storage.stacks if stack.item.id == "throwing_stone").quantity == 3
+
+    action("remove_item", {"item": "field_salve", "quantity": 1, "location": "bag"})
+    assert next(stack for stack in game.state.bag.stacks if stack.item.id == "field_salve").quantity == 1
+
+    action("give_money", {"amount": 75, "location": "carried"})
+    action("give_money", {"amount": 40, "location": "stored"})
+    assert game.state.wallet.carried == 100
+    assert game.state.wallet.stored == 50
+
+    action("remove_money", {"amount": 30, "location": "carried"})
+    action("remove_money", {"amount": 20, "location": "stored"})
+    assert game.state.wallet.carried == 70
+    assert game.state.wallet.stored == 30
+
+    member = game.state.party[0]
+    member.stats.current_hp = 1
+    for skill in member.skills:
+        if skill.charges is not None:
+            skill.charges = 0
+
+    action("heal_party", {"character": member.id, "amount": 5})
+    assert member.stats.current_hp == min(member.stats.max_hp, 6)
+
+    action("restore_skill_charges", {"character": member.id, "amount": "full"})
+    for skill in member.skills:
+        if skill.definition.max_charges is not None:
+            assert skill.charges == skill.definition.max_charges
+
+    member.stats.current_hp = 1
+    action("restore_party", {"character": member.id})
+    assert member.stats.current_hp == member.stats.max_hp
+
+
+def test_gameplay_story_conditions_query_inventory_money_party_and_hp():
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    game.state.bag.stacks.clear()
+    game.state.storage.stacks.clear()
+    game.state.wallet.carried = 125
+    game.state.wallet.stored = 400
+
+    game.story_actions("give_item", {"item": "field_salve", "quantity": 2, "location": "bag"})
+    game.story_actions("give_item", {"item": "field_salve", "quantity": 3, "location": "storage"})
+    member = game.state.party[0]
+    member.stats.current_hp = max(1, member.stats.max_hp // 2)
+
+    assert game.evaluate_gameplay_condition({
+        "kind": "has_item", "item": "field_salve", "location": "bag", "value": 2
+    }) is True
+    assert game.evaluate_gameplay_condition({
+        "kind": "item_count", "item": "field_salve", "location": "either", "op": "==", "value": 5
+    }) is True
+    assert game.evaluate_gameplay_condition({
+        "kind": "has_money", "location": "total", "value": 500
+    }) is True
+    assert game.evaluate_gameplay_condition({
+        "kind": "party_contains", "character": member.id
+    }) is True
+    assert game.evaluate_gameplay_condition({
+        "kind": "party_hp", "character": member.id, "mode": "missing", "op": ">", "value": 0
+    }) is True
+
+
+def test_gameplay_conditions_work_inside_boolean_story_conditions():
+    from mystery_engine.story import evaluate_condition
+
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    game.state.bag.stacks.clear()
+    game.story_actions("give_item", {"item": "field_salve", "quantity": 1})
+
+    condition = {
+        "all": [
+            {"kind": "has_item", "item": "field_salve", "value": 1},
+            {"not": {"kind": "has_money", "location": "carried", "value": 999999}},
+        ]
+    }
+    assert evaluate_condition(condition, game.state.story, game.evaluate_gameplay_condition) is True
