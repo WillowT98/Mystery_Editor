@@ -1332,6 +1332,17 @@ class ProjectRegistry:
             deduped[entry.key] = entry
         return [deduped[key] for key in sorted(deduped)]
 
+    def localize_scene(self, scene):
+        from mystery_engine.story import ExplorationSceneData
+        localized = ExplorationSceneData.from_dict(scene.to_dict())
+        for obj in localized.objects:
+            if obj.label:
+                obj.label = self.text(
+                    f"scene.{localized.id}.object.{obj.id}.label",
+                    obj.label,
+                )
+        return localized
+
     def localize_story(self, graph: StoryGraph) -> StoryGraph:
         localized = StoryGraph.from_dict(graph.to_dict(), source_path=graph.source_path)
         localized.name = self.text(f"story.{graph.id}.name", graph.name or graph.id)
