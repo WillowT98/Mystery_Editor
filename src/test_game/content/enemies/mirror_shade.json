@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "id": "mirror_shade",
+  "name": "Mirror Shade",
+  "stats": {
+    "max_hp": 18,
+    "attack": 4,
+    "defense": 2
+  },
+  "sprite_key": "mirror_shade",
+  "attacks": [
+    "mirror_shade_shard_volley",
+    "mirror_shade_reflected_lunge"
+  ],
+  "resistances": {
+    "physical": 0.7,
+    "arcane": 1.3
+  }
+}
