@@ -142,6 +142,43 @@ class DungeonBuilderEditor:
             self.preview_floor = None
             self.status = f"Preview error: {exc}"
 
+    def _switch_dungeon(self, dungeon_id: str) -> None:
+        if self.project_registry is None:
+            return
+        if self.dirty:
+            self.save()
+        self.definition = self.project_registry.load_dungeon(dungeon_id)
+        self.path = self.project_registry.dungeon_path(dungeon_id)
+        self.floor_number = 1
+        self.seed = 1
+        self.dirty = False
+        self._regenerate_preview()
+        self.status = f"Opened {self.definition.name}"
+
+    def _choose_dungeon(self) -> None:
+        if self.project_registry is None:
+            return
+        from .project_editor import choose_catalog_id
+        chosen = choose_catalog_id(
+            "Choose dungeon",
+            self.project_registry.dungeon_labels(),
+            self.definition.id,
+        )
+        if chosen and chosen != self.definition.id:
+            self._switch_dungeon(chosen)
+
+    def _new_dungeon(self) -> None:
+        if self.project_registry is None:
+            return
+        name = self._ask_text("New dungeon", "Dungeon name", "New Dungeon")
+        if not name:
+            return
+        floors = self._ask_int("New dungeon", "Number of floors", 3, 1)
+        if floors is None:
+            return
+        dungeon, _path = self.project_registry.create_dungeon(name, floors=floors)
+        self._switch_dungeon(dungeon.id)
+
     def _edit_generation_value(self, key: str) -> None:
         current = int(self.definition.generation.get(key, 0))
         value = self._ask_int("Generation", key.replace("_", " ").title(), current, 1)
@@ -350,6 +387,9 @@ class DungeonBuilderEditor:
 
     def _draw_overview(self) -> None:
         y = 105
+        if self.project_registry is not None:
+            y = self._field(y, "Current dungeon", f"{self.definition.name}  ▼", "choose_dungeon")
+            self._button(pygame.Rect(700, 97, 170, 38), "+ New dungeon", "new_dungeon")
         y = self._field(y, "Dungeon ID", self.definition.id, "edit_text", "id")
         y = self._field(y, "Display name", self.definition.name, "edit_text", "name")
         y = self._field(y, "Floor count", str(self.definition.floor_count), "edit_int", "floor_count")
@@ -471,6 +511,10 @@ class DungeonBuilderEditor:
             self.tab = str(value)
         elif action == "save":
             self.save()
+        elif action == "choose_dungeon":
+            self._choose_dungeon()
+        elif action == "new_dungeon":
+            self._new_dungeon()
         elif action == "cycle_generator":
             self._cycle_generator()
         elif action == "edit_generation":
