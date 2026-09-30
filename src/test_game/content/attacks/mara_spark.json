@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "id": "mara_spark",
+  "name": "Spark",
+  "description": "Send a bolt of lightning down a straight line.",
+  "target": "enemy",
+  "range": 10,
+  "power": 5,
+  "heal": 0,
+  "damage_type": "lightning",
+  "max_charges": 10,
+  "accuracy": 1,
+  "range_pattern": "line",
+  "sfx_cue": "magic.bolt_launch",
+  "impact_sfx_cue": "magic.bolt_impact",
+  "projectile_key": "spark"
+}
