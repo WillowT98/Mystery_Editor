@@ -61,7 +61,7 @@ class SceneDataTests(unittest.TestCase):
         scene = ExplorationSceneData.blank("collision_override", 6, 5)
         scene.objects.append(
             SceneObjectData(
-                "gate", "dungeon_gate", 192, 192,
+                "gate", "dungeon_entrance", 192, 192,
                 collision=RectObstacle(-70, -120, 140, 46),
             )
         )
