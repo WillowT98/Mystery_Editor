@@ -795,14 +795,30 @@ class ProjectEditor:
         if self.section == "Pawns":
             edit_pawn_dialog(self.registry, item_id)
         elif self.section == "Stories":
-            from mystery_engine.editor.story_graph import StoryGraphEditor
             graph = self.registry.load_story(item_id)
-            editor = StoryGraphEditor(
-                graph, self.registry.story_path(item_id),
-                project_root=self.project_root,
-                project_registry=self.registry,
-            )
-            editor.run()
+            if graph.scene_id and graph.scene_id in self.registry.scene_paths():
+                from mystery_engine.editor.app import ExplorationSceneEditor
+                from mystery_engine.story import load_exploration_scene
+                path = self.registry.scene_paths()[graph.scene_id]
+                editor = ExplorationSceneEditor(
+                    load_exploration_scene(path),
+                    path,
+                    self.registry.world_asset_catalog(self.world_assets),
+                    self.registry.asset_root,
+                    project_root=self.project_root,
+                    project_registry=self.registry,
+                )
+                editor.mode = "story"
+                editor.story_id = item_id
+                editor.run()
+            else:
+                from mystery_engine.editor.story_graph import StoryGraphEditor
+                editor = StoryGraphEditor(
+                    graph, self.registry.story_path(item_id),
+                    project_root=self.project_root,
+                    project_registry=self.registry,
+                )
+                editor.run()
             self._reinit_display()
         elif self.section == "Enemies":
             edit_enemy_dialog(self.registry, item_id)
