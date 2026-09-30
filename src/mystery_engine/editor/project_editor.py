@@ -583,6 +583,7 @@ def edit_terrain_dialog(registry: ProjectRegistry, terrain_id: str | None = None
     name_var = tk.StringVar(value=current.name if current else "")
     mode_var = tk.StringVar(value=current.mode if current else "single")
     blocked_var = tk.BooleanVar(value=current.blocked if current else False)
+    transparent_var = tk.BooleanVar(value=current.transparent if current else False)
     color_var = tk.StringVar(value=current.fallback_color if current else "#526f49")
     sprite_keys = list(current.sprite_keys if current else ())
 
@@ -604,6 +605,7 @@ def edit_terrain_dialog(registry: ProjectRegistry, terrain_id: str | None = None
     blocked_row = tk.Frame(outer); blocked_row.pack(fill="x", pady=4)
     tk.Label(blocked_row, text="", width=20).pack(side="left")
     tk.Checkbutton(blocked_row, text="Blocks movement", variable=blocked_var).pack(side="left")
+    tk.Checkbutton(blocked_row, text="Transparent / show scene background", variable=transparent_var).pack(side="left", padx=(18, 0))
 
     row("Fallback color", color_var)
 
@@ -714,6 +716,7 @@ def edit_terrain_dialog(registry: ProjectRegistry, terrain_id: str | None = None
                 sprite_keys=tuple(sprite_keys),
                 blocked=bool(blocked_var.get()),
                 fallback_color=color_var.get().strip() or "#526f49",
+                transparent=bool(transparent_var.get()),
             )
             registry.save_terrain(data)
         except Exception as exc:
