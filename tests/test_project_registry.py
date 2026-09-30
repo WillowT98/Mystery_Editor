@@ -190,10 +190,13 @@ def test_project_registry_saves_pawns_and_merges_world_asset_catalog(tmp_path):
         portrait_key="willow_portrait",
         radius=30,
         color_key="willow",
+        voice_cue="dialogue.willow",
     ))
 
     assert registry.pawn_labels["willow"] == "Willow"
     assert registry.resolve_story_pawn("willow") == ("Willow", "willow_portrait")
+    assert registry.resolve_story_pawn_voice("willow") == "dialogue.willow"
+    assert ProjectRegistry.load(registry.game_root).pawns["willow"].voice_cue == "dialogue.willow"
 
     merged = registry.world_asset_catalog(WorldAssetCatalog(assets={}))
     pawn_asset = merged.get("willow")
