@@ -116,6 +116,9 @@ class SceneObjectData:
     # Generic dungeon-entrance metadata. This is a stable dungeon ID, not a
     # game-specific Python callback.
     target_dungeon: str | None = None
+    # Generic story interaction metadata. Actor/interactable instances can launch
+    # a project story graph without a game-specific Python callback.
+    target_story: str | None = None
     # Optional per-instance sprite key. Used by dungeon entrances and other
     # authorable interactables without creating a new global asset definition.
     sprite_override: str | None = None
@@ -137,6 +140,7 @@ class SceneObjectData:
             portal_mode=("one_way" if str(data.get("portal_mode", "two_way")).lower() == "one_way" else "two_way"),
             sound_cues={str(k): str(v) for k, v in dict(data.get("sound_cues", {})).items() if v},
             target_dungeon=(str(data["target_dungeon"]) if data.get("target_dungeon") else None),
+            target_story=(str(data["target_story"]) if data.get("target_story") else None),
             sprite_override=(str(data["sprite_override"]) if data.get("sprite_override") else None),
         )
 
@@ -162,6 +166,8 @@ class SceneObjectData:
             data["sound_cues"] = dict(sorted(self.sound_cues.items()))
         if self.target_dungeon:
             data["target_dungeon"] = self.target_dungeon
+        if self.target_story:
+            data["target_story"] = self.target_story
         if self.sprite_override:
             data["sprite_override"] = self.sprite_override
         return data
@@ -263,6 +269,7 @@ def build_exploration_map(
     interactions: InteractionRegistry | None = None,
     portal_transition_factory: Callable[[SceneObjectData], Callable[[], None]] | None = None,
     dungeon_transition_factory: Callable[[SceneObjectData], Callable[[], None]] | None = None,
+    story_transition_factory: Callable[[SceneObjectData], Callable[[], None]] | None = None,
 ) -> ExplorationMap:
     interactions = interactions or {}
     scenery: list[ExplorationScenery] = []
@@ -275,6 +282,8 @@ def build_exploration_map(
         pos = Vec2(placed.x, placed.y)
         action_id = placed.action or definition.action_id
         interaction = interactions.get(action_id) if action_id else None
+        if placed.target_story and story_transition_factory is not None:
+            interaction = story_transition_factory(placed)
         collision = placed.collision if placed.collision is not None else definition.collision
 
         if definition.category == "scenery":
