@@ -171,3 +171,68 @@ game-specific Python callback.
 Story graphs can now include `name` and `scene` metadata. The scene binding
 lets the advanced graph editor playtest in the correct room and lets the room
 editor discover the stories relevant to the visible scene.
+
+
+## Game setup without Python
+
+The project editor now also owns the high-level setup that previously lived in
+`game_definition.py`.
+
+### Game
+
+The **Game** section edits project-wide settings stored in `project.json`:
+
+- title and game version;
+- starting exploration scene and optional marker;
+- default dungeon;
+- bag and storage capacity;
+- starting carried/stored money;
+- defeat money/item-loss percentages;
+- starting party and leader;
+- starting inventory;
+- starting story flags.
+
+The runtime reads these values when constructing a new game state.
+
+### Playable characters
+
+The **Characters** section turns a reusable Pawn into a playable/combat
+character. A character definition contains:
+
+- stable character ID and referenced pawn;
+- HP, Attack, and Defense;
+- reusable attacks;
+- damage resistances/vulnerabilities;
+- companion AI tactic.
+
+Game Settings chooses which character IDs form the starting party and which one
+is the leader. The pawn continues to own the visible name, exploration sprite,
+and dialogue portrait, so changing presentation does not duplicate combat data.
+
+### Items
+
+The **Items** section is now backed by `content/items/*.json`. Ordinary items
+no longer need to be added to `content.py`.
+
+The item editor supports:
+
+- name and description;
+- healing amount;
+- throwable damage and damage type;
+- droppable/key-item behavior;
+- ground sprite import;
+- projectile sheet and arc;
+- use/impact SFX cues.
+
+Imported item/projectile art is copied into the project, just like other
+authoring assets.
+
+Dungeon item pools use the same project item registry. The dungeon editor can
+choose an existing item or create a new one directly from the Items tab.
+
+### Runtime boundary
+
+The test game's runtime now constructs its starting party, inventory, wallet,
+story flags, default dungeon, and starting room from project data. Python remains
+available for genuinely custom engine/game mechanics and legacy bespoke
+interactions, but ordinary game setup no longer requires editing it.
