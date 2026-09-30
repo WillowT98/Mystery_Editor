@@ -1245,18 +1245,28 @@ class ExplorationSceneEditor:
             if style is not None:
                 if style.mode == "autotile":
                     mask = oriented_neighbor_mask(proxy, tx, ty, kind)
-                    return self._scaled_surface(f"terrain/{kind}/auto_{mask:03d}.png", (draw_size, draw_size))
+                    custom = self._scaled_surface(f"terrain/{kind}/auto_{mask:03d}.png", (draw_size, draw_size))
+                    if custom is not None:
+                        return custom
                 if style.sprite_keys:
                     index = 0
                     if style.mode == "variants":
                         index = ((tx * 73856093) ^ (ty * 19349663)) % len(style.sprite_keys)
-                    return self._scaled_surface(f"terrain/{style.sprite_keys[index]}.png", (draw_size, draw_size))
+                    custom = self._scaled_surface(f"terrain/{style.sprite_keys[index]}.png", (draw_size, draw_size))
+                    if custom is not None:
+                        return custom
         if kind in ("grass", "upper_grass"):
             variant = ((tx * 73856093) ^ (ty * 19349663)) % 5
             return self._scaled_surface(f"tiles/grass_{variant}.png", (draw_size, draw_size)) or self._scaled_surface("tiles/grass_0.png", (draw_size, draw_size))
         if kind in ("path", "water"):
             mask = oriented_neighbor_mask(proxy, tx, ty, kind)
-            return self._scaled_surface(autotile_asset(kind, mask), (draw_size, draw_size))
+            return (
+                self._scaled_surface(autotile_asset(kind, mask), (draw_size, draw_size))
+                or self._scaled_surface(
+                    "tiles/path_center.png" if kind == "path" else "tiles/water_center.png",
+                    (draw_size, draw_size),
+                )
+            )
         return None
 
     # ---------- rendering ----------
