@@ -37,7 +37,8 @@ class StoryGraphEditor:
         "Teleport": ("action", {"action": "teleport_actor", "params": {"actor": "mara", "target": "marker_id"}, "wait": True}),
         "Actor state": ("action", {"action": "set_actor_state", "params": {"actor": "actor_id", "enabled": True}, "wait": True}),
         "Object state": ("action", {"action": "set_object_state", "params": {"object": "object_id", "enabled": True}, "wait": True}),
-        "Animation": ("action", {"action": "animation", "params": {"actor": "actor_id", "animation": "idle"}, "wait": True}),
+        "Animation": ("action", {"action": "play_animation", "params": {"actor": "actor_id", "animation": "idle", "return_to_idle": True}, "wait": True}),
+        "Reset animation": ("action", {"action": "reset_animation", "params": {"actor": "actor_id"}, "wait": False}),
         "Effect": ("action", {"action": "effect", "params": {"target": "actor_id", "effect": "surprise"}, "wait": True}),
         "Camera": ("action", {"action": "camera_pan", "params": {"target": "marker_id", "duration": 0.5}, "wait": True}),
         "Camera follow": ("action", {"action": "camera_follow", "params": {"target": "actor_id"}, "wait": False}),
@@ -104,6 +105,15 @@ class StoryGraphEditor:
         "set_object_state": [
             ("object", "Object", "object"),
             ("enabled", "Enabled", "bool", True),
+        ],
+        "play_animation": [
+            ("actor", "Actor", "actor"),
+            ("animation", "Animation", "animation"),
+            ("loop", "Loop override", "optional_bool"),
+            ("return_to_idle", "Return to idle", "bool", True),
+        ],
+        "reset_animation": [
+            ("actor", "Actor", "actor"),
         ],
         "camera_pan": [
             ("target", "Target marker / actor", "target"),
@@ -351,6 +361,8 @@ class StoryGraphEditor:
             return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
         if field_type == "comparison":
             return ["==", "!=", ">", ">=", "<", "<="]
+        if field_type == "optional_bool":
+            return ["", "true", "false"]
         if field_type == "inventory_location":
             return ["bag", "storage"]
         if field_type == "item_condition_location":
@@ -361,6 +373,11 @@ class StoryGraphEditor:
             return ["carried", "stored", "total"]
         if field_type == "hp_mode":
             return ["current", "missing", "percent"]
+        if field_type == "animation" and self.project_registry is not None:
+            names = set()
+            for pawn in getattr(self.project_registry, "pawns", {}).values():
+                names.update(getattr(pawn, "animations", {}).keys())
+            return sorted(names)
         if field_type == "item" and self.project_registry is not None:
             return sorted(getattr(self.project_registry, "items", {}))
         if field_type == "character" and self.project_registry is not None:
@@ -398,6 +415,10 @@ class StoryGraphEditor:
         value = raw.strip()
         if field_type == "optional_float":
             return None if not value else float(value)
+        if field_type == "optional_bool":
+            if not value:
+                return None
+            return value.lower() in {"1", "true", "yes", "on"}
         if field_type == "float":
             return float(value)
         if field_type == "int":
