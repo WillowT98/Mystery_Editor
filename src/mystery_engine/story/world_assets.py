@@ -197,6 +197,8 @@ class ExplorationSceneData:
     music_volume: float = 1.0
     ambience_cue: str | None = None
     ambience_volume: float = 1.0
+    background_key: str | None = None
+    background_mode: str = "stretch"
 
     @property
     def width(self) -> int:
@@ -241,6 +243,8 @@ class ExplorationSceneData:
             music_volume=max(0.0, min(1.0, float(data.get("music_volume", 1.0)))),
             ambience_cue=(str(data["ambience_cue"]) if data.get("ambience_cue") else None),
             ambience_volume=max(0.0, min(1.0, float(data.get("ambience_volume", 1.0)))),
+            background_key=(str(data["background_key"]) if data.get("background_key") else None),
+            background_mode=("tile" if str(data.get("background_mode", "stretch")).lower() == "tile" else "stretch"),
         )
 
     def to_dict(self) -> dict:
@@ -264,6 +268,9 @@ class ExplorationSceneData:
             data["ambience_cue"] = self.ambience_cue
         if self.ambience_volume != 1.0:
             data["ambience_volume"] = round(max(0.0, min(1.0, self.ambience_volume)), 3)
+        if self.background_key:
+            data["background_key"] = self.background_key
+            data["background_mode"] = self.background_mode
         return data
 
 
@@ -277,6 +284,7 @@ def build_exploration_map(
     portal_transition_factory: Callable[[SceneObjectData], Callable[[], None]] | None = None,
     dungeon_transition_factory: Callable[[SceneObjectData], Callable[[], None]] | None = None,
     story_transition_factory: Callable[[SceneObjectData], Callable[[], None]] | None = None,
+    terrain_styles: Mapping[str, Mapping[str, object]] | None = None,
 ) -> ExplorationMap:
     interactions = interactions or {}
     scenery: list[ExplorationScenery] = []
@@ -378,4 +386,7 @@ def build_exploration_map(
         music_volume=scene.music_volume,
         ambience_cue=scene.ambience_cue,
         ambience_volume=scene.ambience_volume,
+        terrain_styles=dict(terrain_styles or {}),
+        background_key=scene.background_key,
+        background_mode=scene.background_mode,
     )
