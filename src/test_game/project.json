@@ -14,7 +14,8 @@
     "items": "content/items",
     "characters": "content/characters",
     "objects": "content/objects",
-    "terrain": "content/terrain"
+    "terrain": "content/terrain",
+    "locales": "locales"
   },
   "damage_types": [
     "physical",
@@ -73,6 +74,16 @@
       "save": "ui.save",
       "basic_hit": "combat.light_hit",
       "defeat": "combat.defeat"
+    }
+  },
+  "localization": {
+    "source_locale": "en-US",
+    "default_locale": "en-US",
+    "supported_locales": [
+      "en-US"
+    ],
+    "locale_names": {
+      "en-US": "English (US)"
     }
   }
 }
