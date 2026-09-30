@@ -221,12 +221,16 @@ class DungeonBuilderEditor:
 
     def _add_rule(self, kind: str) -> None:
         catalog = self.enemy_labels if kind == "enemy" else self.item_labels
-        if kind == "enemy" and self.project_registry is not None:
+        if self.project_registry is not None and kind in {"enemy", "item"}:
             from .project_editor import choose_catalog_id
             self.project_registry.reload()
-            self.enemy_labels = self.project_registry.enemy_labels
-            catalog = self.enemy_labels
-            content_id = choose_catalog_id("Choose enemy", catalog)
+            if kind == "enemy":
+                self.enemy_labels = self.project_registry.enemy_labels
+                catalog = self.enemy_labels
+            else:
+                self.item_labels = self.project_registry.item_labels
+                catalog = self.item_labels
+            content_id = choose_catalog_id(f"Choose {kind}", catalog)
         else:
             if not catalog:
                 self.status = f"No {kind} catalog entries"
@@ -263,6 +267,20 @@ class DungeonBuilderEditor:
         self.definition.enemies.append(rule)
         edit_spawn_rule_dialog(self.project_registry, rule)
         self._changed(f"Created and added {self.enemy_labels.get(created, created)}")
+
+    def _new_item(self) -> None:
+        if self.project_registry is None:
+            self.status = "Project registry is unavailable"
+            return
+        from .project_editor import edit_item_dialog
+        created = edit_item_dialog(self.project_registry)
+        if not created:
+            return
+        self.project_registry.reload()
+        self.item_labels = self.project_registry.item_labels
+        rule = SpawnRule(content_id=created, floors="all", weight=50.0, min_per_floor=0, max_per_floor=4)
+        self.definition.items.append(rule)
+        self._changed(f"Created and added {self.item_labels.get(created, created)}")
 
     def _add_generation_profile_rule(self) -> None:
         choices = "\n".join(
@@ -448,8 +466,12 @@ class DungeonBuilderEditor:
         rules = self.definition.enemies if kind == "enemy" else self.definition.items
         catalog = self.enemy_labels if kind == "enemy" else self.item_labels
         self._button(pygame.Rect(48, 92, 180, 40), f"+ Add {kind}", "add_rule", kind)
-        if kind == "enemy" and self.project_registry is not None:
-            self._button(pygame.Rect(238, 92, 190, 40), "+ New enemy", "new_enemy")
+        if self.project_registry is not None and kind in {"enemy", "item"}:
+            self._button(
+                pygame.Rect(238, 92, 190, 40),
+                f"+ New {kind}",
+                "new_enemy" if kind == "enemy" else "new_item",
+            )
         y = 150
         for i, rule in enumerate(rules):
             rect = pygame.Rect(48, y, 720, 72)
@@ -541,6 +563,8 @@ class DungeonBuilderEditor:
                 self._changed(f"Removed generation profile {removed.get('profile', 'default')}")
         elif action == "new_enemy":
             self._new_enemy()
+        elif action == "new_item":
+            self._new_item()
         elif action == "add_rule":
             self._add_rule(str(value))
         elif action == "edit_rule":
