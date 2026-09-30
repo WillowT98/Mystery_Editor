@@ -574,12 +574,15 @@ class ProjectGameDefinition:
         for member in game.state.party:
             if any(actor.id == member.id for actor in world.actors):
                 continue
+            character_def = self.project_registry.characters.get(member.id)
+            pawn = self.project_registry.pawns.get(character_def.pawn_id) if character_def is not None else None
             world.actors.append(ExplorationActor(
                 id=member.id,
                 name=member.name,
                 position=Vec2(world.width / 2, world.height / 2),
-                radius=28.0,
-                sprite_key=member.metadata.get("sprite_key", member.id),
+                radius=(pawn.radius if pawn is not None else 28.0),
+                sprite_key=member.metadata.get("sprite_key", pawn.sprite_key if pawn is not None else member.id),
+                animations=({str(k): dict(v) for k, v in pawn.animations.items()} if pawn is not None else {}),
             ))
 
         saved_scene_state = game.state.world.scenes.get(world.id)
