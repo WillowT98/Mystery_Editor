@@ -357,3 +357,21 @@ Terrain is rendered above the background. PNG alpha works normally, and the
 default **Background Only** terrain type is transparent, making it possible to
 build rooms directly over a painted backdrop while retaining the normal object,
 pawn, collider, story, and marker systems.
+
+
+## Localization
+
+The project editor now includes a **Localization** section. Source-language text
+continues to be authored in the normal item, attack, pawn, object, dungeon, and
+story editors; translations are maintained separately by stable string ID.
+
+The localization workspace provides language management, searchable source and
+translation text, translator context, missing/stale tracking, source-change
+hashes, default-language selection, and CSV/XLIFF import/export.
+
+Games with multiple configured languages expose **System → Language** at
+runtime, and development runs may select a locale with
+`run_game.py --project <folder> --locale <locale>`.
+
+See `docs/LOCALIZATION.md` for the file format, stable-ID behavior,
+translation workflow, and current limitations.
