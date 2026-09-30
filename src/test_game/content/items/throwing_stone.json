@@ -10,5 +10,8 @@
   "key_item": false,
   "projectile_key": "stone",
   "projectile_arc_px": 24,
-  "sprite_key": "throwing_stone"
+  "sprite_key": "throwing_stone",
+  "sprite_sheet_key": "item_sheet",
+  "sprite_sheet_index": 1,
+  "sprite_sheet_columns": 3
 }

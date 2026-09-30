@@ -79,6 +79,8 @@ class StoryGraphEditor:
         self.connect_source: str | None = None
         self.status = "Ready"
         self.dirty = False
+        self._close_application_requested = False
+        self._return_to_project_requested = False
         self._button_hits: list[tuple[pygame.Rect, str, object]] = []
 
     # ---------- dialogs ----------
@@ -440,6 +442,9 @@ class StoryGraphEditor:
         room_label = f"Room: {self.graph.scene_id}" if self.graph.scene_id else "Room: unbound"
         self.screen.blit(self.font_small.render(room_label, True, (150, 164, 184)), (r.x + 16, y)); y += 34
 
+        if self.project_registry is not None:
+            self._button(pygame.Rect(r.x + 16, y, r.w - 32, 34), "← Back to Project", "project")
+            y += 42
         for label, action in [("Save", "save"), ("Validate", "validate"), ("Playtest", "playtest")]:
             self._button(pygame.Rect(r.x + 16, y, 96, 34), label, action)
             y += 42
@@ -469,6 +474,7 @@ class StoryGraphEditor:
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         if event.type == pygame.QUIT:
+            self._close_application_requested = True
             return False
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 3 and self.canvas.collidepoint(event.pos):
@@ -480,7 +486,7 @@ class StoryGraphEditor:
             for rect, action, value in reversed(self._button_hits):
                 if rect.collidepoint(event.pos):
                     self._handle_button(action, value)
-                    return True
+                    return not self._return_to_project_requested
             for hit in reversed(self.node_hits):
                 if hit.rect.collidepoint(event.pos):
                     if self.connect_source and self.connect_source != hit.node_id:
@@ -526,7 +532,9 @@ class StoryGraphEditor:
         return True
 
     def _handle_button(self, action: str, value=None) -> None:
-        if action == "add":
+        if action == "project":
+            self._return_to_project_requested = True
+        elif action == "add":
             self.add_node(str(value))
         elif action == "action_template":
             self.add_action_template(str(value))
@@ -566,7 +574,7 @@ class StoryGraphEditor:
         except OSError as exc:
             self.status = f"Playtest failed: {exc}"
 
-    def run(self) -> None:
+    def run(self) -> bool:
         pygame.init()
         pygame.display.set_caption("Mystery Engine — Story Graph Editor")
         self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
@@ -584,6 +592,7 @@ class StoryGraphEditor:
             self.draw()
             pygame.display.flip()
         pygame.quit()
+        return not self._close_application_requested
 
 
 def run_story_editor(

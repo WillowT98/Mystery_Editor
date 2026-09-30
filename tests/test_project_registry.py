@@ -394,3 +394,24 @@ def test_scene_background_round_trip():
     loaded = ExplorationSceneData.from_dict(source.to_dict())
     assert loaded.background_key == "painted_room_bg"
     assert loaded.background_mode == "tile"
+
+
+
+def test_item_sprite_sheet_metadata_round_trip(tmp_path):
+    registry = _registry(tmp_path)
+    registry.save_item(ItemDefinitionData(
+        id="potion",
+        name="Potion",
+        sprite_key="potion_labelled",
+        sprite_sheet_key="clean_items",
+        sprite_sheet_index=2,
+        sprite_sheet_columns=4,
+    ))
+    loaded = registry.items_data["potion"]
+    runtime = registry.item("potion")
+    assert loaded.sprite_sheet_key == "clean_items"
+    assert loaded.sprite_sheet_index == 2
+    assert loaded.sprite_sheet_columns == 4
+    assert runtime.sprite_sheet_key == "clean_items"
+    assert runtime.sprite_sheet_index == 2
+    assert runtime.sprite_sheet_columns == 4

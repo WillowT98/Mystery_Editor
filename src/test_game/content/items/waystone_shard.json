@@ -7,5 +7,8 @@
   "throwable_damage": 0,
   "droppable": false,
   "key_item": true,
-  "sprite_key": "waystone_shard"
+  "sprite_key": "waystone_shard",
+  "sprite_sheet_key": "item_sheet",
+  "sprite_sheet_index": 2,
+  "sprite_sheet_columns": 3
 }

@@ -19,6 +19,9 @@ class ItemDefinition:
     projectile_key: str | None = None
     projectile_arc_px: float = 0.0
     sprite_key: str | None = None
+    sprite_sheet_key: str | None = None
+    sprite_sheet_index: int = 0
+    sprite_sheet_columns: int = 1
 
 
 @dataclass

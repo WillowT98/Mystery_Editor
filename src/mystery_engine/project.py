@@ -146,6 +146,9 @@ class ItemDefinitionData:
     projectile_key: str | None = None
     projectile_arc_px: float = 0.0
     sprite_key: str | None = None
+    sprite_sheet_key: str | None = None
+    sprite_sheet_index: int = 0
+    sprite_sheet_columns: int = 1
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ItemDefinitionData":
@@ -163,6 +166,9 @@ class ItemDefinitionData:
             projectile_key=(str(data["projectile_key"]) if data.get("projectile_key") else None),
             projectile_arc_px=float(data.get("projectile_arc_px", 0.0)),
             sprite_key=(str(data["sprite_key"]) if data.get("sprite_key") else None),
+            sprite_sheet_key=(str(data["sprite_sheet_key"]) if data.get("sprite_sheet_key") else None),
+            sprite_sheet_index=max(0, int(data.get("sprite_sheet_index", 0))),
+            sprite_sheet_columns=max(1, int(data.get("sprite_sheet_columns", 1))),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -188,6 +194,10 @@ class ItemDefinitionData:
             data["projectile_arc_px"] = self.projectile_arc_px
         if self.sprite_key:
             data["sprite_key"] = self.sprite_key
+        if self.sprite_sheet_key:
+            data["sprite_sheet_key"] = self.sprite_sheet_key
+            data["sprite_sheet_index"] = self.sprite_sheet_index
+            data["sprite_sheet_columns"] = self.sprite_sheet_columns
         return data
 
     def to_item_definition(self) -> ItemDefinition:
@@ -205,6 +215,9 @@ class ItemDefinitionData:
             projectile_key=self.projectile_key,
             projectile_arc_px=self.projectile_arc_px,
             sprite_key=self.sprite_key,
+            sprite_sheet_key=self.sprite_sheet_key,
+            sprite_sheet_index=self.sprite_sheet_index,
+            sprite_sheet_columns=self.sprite_sheet_columns,
         )
 
 

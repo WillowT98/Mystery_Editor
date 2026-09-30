@@ -83,6 +83,8 @@ class ExplorationSceneEditor:
         self.hover_tile: tuple[int, int] | None = None
         self.status = "Ready"
         self.dirty = False
+        self._close_application_requested = False
+        self._return_to_project_requested = False
 
         self.history = SnapshotHistory()
         self._stroke_before: dict | None = None
@@ -1170,7 +1172,9 @@ class ExplorationSceneEditor:
             project_root=self.project_root,
             project_registry=self.project_registry,
         )
-        editor.run()
+        if not editor.run():
+            self._close_application_requested = True
+            return
         pygame.init()
         pygame.display.set_caption("Mystery Engine — Exploration Scene Editor")
         self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
@@ -1245,18 +1249,28 @@ class ExplorationSceneEditor:
             if style is not None:
                 if style.mode == "autotile":
                     mask = oriented_neighbor_mask(proxy, tx, ty, kind)
-                    return self._scaled_surface(f"terrain/{kind}/auto_{mask:03d}.png", (draw_size, draw_size))
+                    custom = self._scaled_surface(f"terrain/{kind}/auto_{mask:03d}.png", (draw_size, draw_size))
+                    if custom is not None:
+                        return custom
                 if style.sprite_keys:
                     index = 0
                     if style.mode == "variants":
                         index = ((tx * 73856093) ^ (ty * 19349663)) % len(style.sprite_keys)
-                    return self._scaled_surface(f"terrain/{style.sprite_keys[index]}.png", (draw_size, draw_size))
+                    custom = self._scaled_surface(f"terrain/{style.sprite_keys[index]}.png", (draw_size, draw_size))
+                    if custom is not None:
+                        return custom
         if kind in ("grass", "upper_grass"):
             variant = ((tx * 73856093) ^ (ty * 19349663)) % 5
             return self._scaled_surface(f"tiles/grass_{variant}.png", (draw_size, draw_size)) or self._scaled_surface("tiles/grass_0.png", (draw_size, draw_size))
         if kind in ("path", "water"):
             mask = oriented_neighbor_mask(proxy, tx, ty, kind)
-            return self._scaled_surface(autotile_asset(kind, mask), (draw_size, draw_size))
+            return (
+                self._scaled_surface(autotile_asset(kind, mask), (draw_size, draw_size))
+                or self._scaled_surface(
+                    "tiles/path_center.png" if kind == "path" else "tiles/water_center.png",
+                    (draw_size, draw_size),
+                )
+            )
         return None
 
     # ---------- rendering ----------
@@ -1289,6 +1303,10 @@ class ExplorationSceneEditor:
             self.screen.blit(self.font.render(label, True, (245, 242, 232)), (rect.x + 10, rect.y + 9))
             x += 118
         save_rect = pygame.Rect(self.screen.get_width() - self.SIDE_W - 110, 9, 96, 40)
+        if self.project_registry is not None:
+            back_rect = pygame.Rect(save_rect.x - 126, 9, 116, 40)
+            pygame.draw.rect(self.screen, (50, 70, 88), back_rect, border_radius=7)
+            self.screen.blit(self.font.render("← Project", True, (245, 242, 232)), (back_rect.x + 10, back_rect.y + 9))
         pygame.draw.rect(self.screen, (116, 94, 47), save_rect, border_radius=7)
         self.screen.blit(self.font.render("Ctrl+S", True, (255, 248, 222)), (save_rect.x + 13, save_rect.y + 9))
 
@@ -2184,7 +2202,9 @@ class ExplorationSceneEditor:
                 project_root=self.project_root,
                 project_registry=self.project_registry,
             )
-            editor.run()
+            if not editor.run():
+                self._close_application_requested = True
+                return
             pygame.init()
             pygame.display.set_caption("Mystery Engine — Exploration Scene Editor")
             self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
@@ -2420,6 +2440,12 @@ class ExplorationSceneEditor:
     def _toolbar_click(self, pos: tuple[int, int]) -> bool:
         if pos[1] >= self.TOP_H:
             return False
+        if self.project_registry is not None and self.screen is not None:
+            save_rect = pygame.Rect(self.screen.get_width() - self.SIDE_W - 110, 9, 96, 40)
+            back_rect = pygame.Rect(save_rect.x - 126, 9, 116, 40)
+            if back_rect.collidepoint(pos):
+                self._return_to_project_requested = True
+                return True
         for i, key in enumerate(("terrain", "elevation", "objects", "select", "audio", "story")):
             if pygame.Rect(12 + 118*i, 9, 112, 40).collidepoint(pos):
                 self.mode = key; self._palette_scroll = 0; return True
@@ -2446,9 +2472,10 @@ class ExplorationSceneEditor:
         self.camera_y = max(0.0, min(max_y, self.camera_y))
 
     def handle_event(self, event: pygame.event.Event) -> bool:
-        mods = pygame.key.get_mods()
         if event.type == pygame.QUIT:
+            self._close_application_requested = True
             return False
+        mods = pygame.key.get_mods()
         if event.type == pygame.VIDEORESIZE:
             self._clamp_camera()
         elif event.type == pygame.MOUSEMOTION:
@@ -2706,7 +2733,7 @@ class ExplorationSceneEditor:
 
     # ---------- lifecycle ----------
 
-    def run(self, *, screenshot: Path | None = None) -> None:
+    def run(self, *, screenshot: Path | None = None) -> bool:
         pygame.init()
         pygame.display.set_caption("Mystery Engine — Exploration Scene Editor")
         self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
@@ -2719,20 +2746,25 @@ class ExplorationSceneEditor:
         # A screenshot mode is useful both for tests and for showing the editor
         # without requiring user interaction.
         if screenshot is not None:
-            self.draw(); pygame.display.flip(); pygame.image.save(self.screen, str(screenshot)); pygame.quit(); return
+            self.draw(); pygame.display.flip(); pygame.image.save(self.screen, str(screenshot)); pygame.quit(); return True
 
         running = True
         while running:
             dt = min(0.05, clock.tick(60) / 1000.0)
             for event in pygame.event.get():
                 running = self.handle_event(event)
+                if self._return_to_project_requested or self._close_application_requested:
+                    running = False
                 if not running: break
+            if not running:
+                break
             self._keyboard_pan(dt)
             self.draw()
             pygame.display.flip()
         self._stop_music_preview()
         self._stop_sfx_preview()
         pygame.quit()
+        return not self._close_application_requested
 
 
 def run_editor(

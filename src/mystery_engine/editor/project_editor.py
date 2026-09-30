@@ -358,6 +358,12 @@ def edit_item_dialog(registry: ProjectRegistry, item_id: str | None = None) -> s
 
     tk.Button(projectile_row, text="Import…", command=import_projectile).pack(side="left", padx=(6, 0))
     entry_row("Projectile arc px", "arc", current.projectile_arc_px if current else 0)
+
+    tk.Label(outer, text="Optional sprite sheet", anchor="w", font=("TkDefaultFont", 10, "bold")).pack(fill="x", pady=(10, 3))
+    entry_row("Sheet key", "sheet_key", current.sprite_sheet_key or "" if current else "")
+    entry_row("Sheet frame index", "sheet_index", current.sprite_sheet_index if current else 0)
+    entry_row("Sheet columns", "sheet_columns", current.sprite_sheet_columns if current else 1)
+
     entry_row("Use SFX cue", "sfx", current.sfx_cue or "" if current else "")
     entry_row("Impact SFX cue", "impact_sfx", current.impact_sfx_cue or "" if current else "")
 
@@ -380,6 +386,9 @@ def edit_item_dialog(registry: ProjectRegistry, item_id: str | None = None) -> s
                 projectile_key=projectile_var.get().strip() or None,
                 projectile_arc_px=float(fields["arc"].get() or 0),
                 sprite_key=sprite_var.get().strip() or None,
+                sprite_sheet_key=fields["sheet_key"].get().strip() or None,
+                sprite_sheet_index=max(0, int(fields["sheet_index"].get() or 0)),
+                sprite_sheet_columns=max(1, int(fields["sheet_columns"].get() or 1)),
             )
             registry.save_item(data)
         except Exception as exc:
@@ -1629,6 +1638,7 @@ class ProjectEditor:
         self.items: list[tuple[str, str]] = []
         self.status = "Ready"
         self.file_menu_open = False
+        self.exit_requested = False
 
     def _switch_project(self, registry: ProjectRegistry) -> None:
         self.registry = registry
@@ -1903,7 +1913,9 @@ class ProjectEditor:
                 )
                 editor.mode = "story"
                 editor.story_id = item_id
-                editor.run()
+                if not editor.run():
+                    self.exit_requested = True
+                    return
             else:
                 from mystery_engine.editor.story_graph import StoryGraphEditor
                 editor = StoryGraphEditor(
@@ -1911,7 +1923,9 @@ class ProjectEditor:
                     project_root=self.project_root,
                     project_registry=self.registry,
                 )
-                editor.run()
+                if not editor.run():
+                    self.exit_requested = True
+                    return
             self._reinit_display()
         elif self.section == "Enemies":
             edit_enemy_dialog(self.registry, item_id)
@@ -1934,7 +1948,9 @@ class ProjectEditor:
                 self.registry.enemy_labels, self.registry.item_labels,
                 project_root=self.project_root, project_registry=self.registry,
             )
-            editor.run()
+            if not editor.run():
+                self.exit_requested = True
+                return
             self._reinit_display()
         elif self.section == "Scenes":
             from mystery_engine.editor.app import ExplorationSceneEditor
@@ -1945,7 +1961,9 @@ class ProjectEditor:
                 self.registry.world_asset_catalog(self.world_assets), self.registry.asset_root,
                 project_root=self.project_root, project_registry=self.registry,
             )
-            editor.run()
+            if not editor.run():
+                self.exit_requested = True
+                return
             self._reinit_display()
         self._refresh()
 
@@ -2017,6 +2035,11 @@ class ProjectEditor:
                         self.selected = max(0, self.selected-1)
                     elif event.key == pygame.K_DOWN:
                         self.selected = min(max(0, len(self.items)-1), self.selected+1)
+                if self.exit_requested:
+                    running = False
+                    break
+            if not running:
+                break
             self.draw()
             pygame.display.flip()
         pygame.quit()
