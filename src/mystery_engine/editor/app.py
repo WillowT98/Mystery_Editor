@@ -2445,6 +2445,230 @@ class ExplorationSceneEditor:
         except Exception as exc:
             self.status = f"Could not import storage sprite: {exc}"
 
+    def _available_trigger_story_ids(self) -> list[str]:
+        if self.project_registry is None:
+            return []
+        return list(self.project_registry.story_paths().keys())
+
+    def _prompt_trigger_story(self, title: str, initial: str | None = None) -> str | None:
+        if self.project_registry is None:
+            return None
+        stories = self._available_trigger_story_ids()
+        if not stories:
+            self.status = "Create a story before adding a trigger."
+            return None
+        default = initial or self.story_id or (self._scene_story_ids()[0] if self._scene_story_ids() else stories[0])
+        try:
+            import tkinter as tk
+            from tkinter import simpledialog
+            root = tk.Tk(); root.withdraw(); root.attributes("-topmost", True)
+            value = simpledialog.askstring(
+                title,
+                "Story ID:\n" + ", ".join(stories[:12]) + ("…" if len(stories) > 12 else ""),
+                initialvalue=default,
+                parent=root,
+            )
+            root.destroy()
+        except Exception as exc:
+            self.status = f"Could not choose story: {exc}"
+            return None
+        if not value:
+            return None
+        story_id = value.strip()
+        if story_id not in stories:
+            self.status = f"Unknown story: {story_id}"
+            return None
+        return story_id
+
+    def _unique_trigger_id(self, prefix: str) -> str:
+        used = {trigger.id for trigger in self.scene.triggers}
+        if prefix not in used:
+            return prefix
+        index = 2
+        while f"{prefix}_{index}" in used:
+            index += 1
+        return f"{prefix}_{index}"
+
+    def _add_scene_enter_trigger(self) -> None:
+        story = self._prompt_trigger_story("Scene-enter trigger")
+        if not story:
+            return
+        before = self.history.snapshot(self.scene)
+        trigger = SceneTriggerData(
+            id=self._unique_trigger_id("scene_enter"),
+            kind="on_scene_enter",
+            story=story,
+            once=True,
+        )
+        self.scene.triggers.append(trigger)
+        self.history.remember(before)
+        self.selected_trigger = len(self.scene.triggers) - 1
+        self.dirty = True
+        self.status = f"Added scene-enter trigger for {story}"
+
+    def _begin_region_trigger(self, *, replace_index: int | None = None) -> None:
+        initial = None
+        if replace_index is not None and 0 <= replace_index < len(self.scene.triggers):
+            initial = self.scene.triggers[replace_index].story
+        story = self._prompt_trigger_story("Region trigger", initial)
+        if not story:
+            return
+        trigger_id = (
+            self.scene.triggers[replace_index].id
+            if replace_index is not None and 0 <= replace_index < len(self.scene.triggers)
+            else self._unique_trigger_id("region_trigger")
+        )
+        self._pending_region_trigger = (trigger_id, story)
+        self._trigger_drag_start = None
+        self.status = "Drag the trigger rectangle on the canvas."
+
+    def _finish_region_trigger(self, pos: tuple[int, int]) -> None:
+        if self._pending_region_trigger is None or self._trigger_drag_start is None:
+            return
+        end_x, end_y = self.screen_to_world(pos)
+        start_x, start_y = self._trigger_drag_start
+        left, top = min(start_x, end_x), min(start_y, end_y)
+        width, height = abs(end_x - start_x), abs(end_y - start_y)
+        trigger_id, story = self._pending_region_trigger
+        self._trigger_drag_start = None
+        self._pending_region_trigger = None
+        if width < 8 or height < 8:
+            self.status = "Trigger region was too small; drag a larger rectangle."
+            return
+
+        before = self.history.snapshot(self.scene)
+        existing_index = next((i for i, trigger in enumerate(self.scene.triggers) if trigger.id == trigger_id), None)
+        if existing_index is not None:
+            trigger = self.scene.triggers[existing_index]
+            trigger.kind = "on_region_enter"
+            trigger.story = story
+            trigger.x, trigger.y, trigger.w, trigger.h = left, top, width, height
+            self.selected_trigger = existing_index
+        else:
+            self.scene.triggers.append(SceneTriggerData(
+                id=trigger_id,
+                kind="on_region_enter",
+                story=story,
+                once=True,
+                x=left,
+                y=top,
+                w=width,
+                h=height,
+            ))
+            self.selected_trigger = len(self.scene.triggers) - 1
+        self.history.remember(before)
+        self.dirty = True
+        self.status = f"Placed region trigger {trigger_id}"
+
+    def _trigger_hit(self, pos: tuple[int, int]) -> int | None:
+        wx, wy = self.screen_to_world(pos)
+        matches: list[tuple[float, int]] = []
+        for index, trigger in enumerate(self.scene.triggers):
+            if trigger.kind != "on_region_enter" or None in (trigger.x, trigger.y, trigger.w, trigger.h):
+                continue
+            left, top = float(trigger.x), float(trigger.y)
+            width, height = float(trigger.w), float(trigger.h)
+            if left <= wx <= left + width and top <= wy <= top + height:
+                area = width * height
+                matches.append((area, index))
+        return min(matches)[1] if matches else None
+
+    def _selected_trigger_data(self) -> SceneTriggerData | None:
+        if self.selected_trigger is None or not (0 <= self.selected_trigger < len(self.scene.triggers)):
+            return None
+        return self.scene.triggers[self.selected_trigger]
+
+    def _change_selected_trigger_story(self) -> None:
+        trigger = self._selected_trigger_data()
+        if trigger is None:
+            return
+        story = self._prompt_trigger_story("Change trigger story", trigger.story)
+        if not story or story == trigger.story:
+            return
+        before = self.history.snapshot(self.scene)
+        trigger.story = story
+        self.history.remember(before)
+        self.dirty = True
+        self.status = f"Trigger story: {story}"
+
+    def _toggle_selected_trigger_once(self) -> None:
+        trigger = self._selected_trigger_data()
+        if trigger is None:
+            return
+        before = self.history.snapshot(self.scene)
+        trigger.once = not trigger.once
+        self.history.remember(before)
+        self.dirty = True
+        self.status = "Trigger fires once" if trigger.once else "Trigger is repeatable"
+
+    def _toggle_selected_trigger_enabled(self) -> None:
+        trigger = self._selected_trigger_data()
+        if trigger is None:
+            return
+        before = self.history.snapshot(self.scene)
+        trigger.enabled = not trigger.enabled
+        self.history.remember(before)
+        self.dirty = True
+        self.status = "Trigger enabled" if trigger.enabled else "Trigger disabled"
+
+    def _edit_selected_trigger_condition(self) -> None:
+        trigger = self._selected_trigger_data()
+        if trigger is None:
+            return
+        try:
+            import tkinter as tk
+            from tkinter import simpledialog, messagebox
+            root = tk.Tk(); root.withdraw(); root.attributes("-topmost", True)
+            initial = json.dumps(trigger.condition, ensure_ascii=False) if trigger.condition else ""
+            raw = simpledialog.askstring(
+                "Trigger condition",
+                'Condition JSON (blank = always):\nExample: {"kind":"flag","name":"met_mara","op":"==","value":true}',
+                initialvalue=initial,
+                parent=root,
+            )
+            if raw is None:
+                root.destroy()
+                return
+            raw = raw.strip()
+            condition = None if not raw else json.loads(raw)
+            if condition is not None and not isinstance(condition, dict):
+                raise ValueError("Condition must be a JSON object.")
+            root.destroy()
+        except (ValueError, json.JSONDecodeError) as exc:
+            try:
+                messagebox.showerror("Invalid condition", str(exc), parent=root)
+                root.destroy()
+            except Exception:
+                pass
+            self.status = f"Invalid trigger condition: {exc}"
+            return
+        except Exception as exc:
+            self.status = f"Could not edit condition: {exc}"
+            return
+
+        before = self.history.snapshot(self.scene)
+        trigger.condition = condition
+        self.history.remember(before)
+        self.dirty = True
+        self.status = "Trigger condition updated"
+
+    def _redraw_selected_trigger(self) -> None:
+        trigger = self._selected_trigger_data()
+        if trigger is None or trigger.kind != "on_region_enter":
+            return
+        self._begin_region_trigger(replace_index=self.selected_trigger)
+
+    def _delete_selected_trigger(self) -> None:
+        trigger = self._selected_trigger_data()
+        if trigger is None:
+            return
+        before = self.history.snapshot(self.scene)
+        removed = self.scene.triggers.pop(self.selected_trigger)
+        self.history.remember(before)
+        self.selected_trigger = None
+        self.dirty = True
+        self.status = f"Deleted trigger {removed.id}"
+
     def _object_hit(self, pos: tuple[int, int]) -> int | None:
         wx, wy = self.screen_to_world(pos)
         best: tuple[float, int] | None = None
