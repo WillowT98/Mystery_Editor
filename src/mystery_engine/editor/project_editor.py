@@ -1077,7 +1077,17 @@ def edit_dialogue_node_dialog(registry: ProjectRegistry, scene, graph, node_id: 
 
         def accept() -> None:
             selected_pawn = by_display.get(pawn_var.get())
+            if current.get("id"):
+                line_id = str(current["id"])
+            else:
+                used = {str(value.get("id")) for value in working if isinstance(value, dict) and value.get("id")}
+                number = 1
+                line_id = f"line_{number:03d}"
+                while line_id in used:
+                    number += 1
+                    line_id = f"line_{number:03d}"
             line = {
+                "id": line_id,
                 "text": text_widget.get("1.0", "end").rstrip("\n"),
                 "expression": expression_var.get().strip() or "neutral",
             }
