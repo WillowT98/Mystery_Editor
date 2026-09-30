@@ -61,7 +61,11 @@
       },
       "variables": {}
     },
-    "dungeon_result_stories": {},
+    "dungeon_result_stories": {
+      "success": "test_dungeon_success",
+      "defeat": "test_dungeon_defeat",
+      "abandoned": "test_dungeon_abandoned"
+    },
     "sfx_event_cues": {
       "menu_open": "ui.menu_open",
       "menu_close": "ui.menu_close",
