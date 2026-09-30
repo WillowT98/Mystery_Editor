@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "id": "grass",
+  "name": "Grass",
+  "mode": "single",
+  "sprite_keys": [],
+  "blocked": false,
+  "fallback_color": "#6aa65d"
+}

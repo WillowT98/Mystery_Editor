@@ -288,3 +288,72 @@ ordinary dialogue/inspection objects can now be authored without Python.
 The existing Tree, Boulder, Flower Bush, Bush, Fence, Signpost, and Waystone are
 also present as project object definitions, so the shipped test project exercises
 the same data-backed path used by newly created objects.
+
+
+## Standalone projects and the File menu
+
+The game maker is no longer conceptually tied to `src/test_game`. The project
+window now has a **File** menu with:
+
+- **New Project…** — creates a self-contained game folder with `project.json`,
+  content directories, assets, and starter terrain definitions;
+- **Open Project…** — opens any folder containing a Mystery Engine
+  `project.json`;
+- **Run Project** — launches the currently open project through the generic
+  project runtime;
+- **Export…** — reserved in the UI for the later packaging pass. It currently
+  reports that export is not implemented rather than producing incomplete
+  builds.
+
+The generic runtime lives in the engine and loads the project's settings,
+characters, scenes, terrain, objects, dungeons, stories, items, enemies, and
+assets directly. A normal project therefore no longer needs its own Python
+package or `game_definition.py`.
+
+For development, projects may also be launched explicitly with:
+
+```bash
+python run_game.py --project /path/to/my_game
+python run_project_editor.py --project /path/to/my_game
+```
+
+## Custom terrain
+
+The project-level **Terrain** section defines reusable exploration terrain
+types. Terrain definitions support:
+
+- stable ID and display name;
+- one PNG tile (**single**);
+- several randomly selected PNG variants (**variants**);
+- 8-neighbor blob autotiling (**autotile**);
+- movement blocking;
+- fallback color;
+- transparent terrain that reveals the scene background.
+
+All imported terrain files are copied into the project. Autotile folders accept
+numbered PNGs such as `000.png` through `255.png` or
+`auto_000.png` through `auto_255.png`; missing masks gracefully use the
+terrain's fallback color.
+
+Terrain can also import an optional matching set of elevation/cliff masks. These
+are stored as `terrain/<terrain id>/cliff_###.png` and override the standard
+cliff artwork for that terrain while missing masks fall back to the engine's
+default cliff set.
+
+The scene editor's Terrain palette is populated from these project definitions,
+so newly created terrain is immediately paintable without restarting or editing
+Python.
+
+## Scene backgrounds
+
+Exploration scenes can now own an imported PNG background. In the Terrain panel,
+**Import / replace background…** copies an image into
+`assets/backgrounds/`. A background may be:
+
+- **stretch** — scaled across the scene's world dimensions; or
+- **tile** — repeated across the scene.
+
+Terrain is rendered above the background. PNG alpha works normally, and the
+default **Background Only** terrain type is transparent, making it possible to
+build rooms directly over a painted backdrop while retaining the normal object,
+pawn, collider, story, and marker systems.

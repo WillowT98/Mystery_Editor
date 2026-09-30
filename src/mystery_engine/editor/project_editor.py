@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
+import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
@@ -15,6 +17,7 @@ from mystery_engine.project import (
     PawnDefinitionData,
     PlayableCharacterDefinitionData,
     ProjectRegistry,
+    TerrainDefinitionData,
     WorldObjectDefinitionData,
     slugify,
 )
@@ -567,6 +570,167 @@ def edit_game_settings_dialog(registry: ProjectRegistry) -> bool:
     tk.Button(buttons,text="Save Game Settings",command=save).pack(side="right")
     root.mainloop()
     return bool(saved["ok"])
+
+
+def edit_terrain_dialog(registry: ProjectRegistry, terrain_id: str | None = None) -> str | None:
+    current = registry.terrain.get(terrain_id) if terrain_id else None
+    root = _root("Terrain Editor", "760x620")
+    result: dict[str, str | None] = {"id": None}
+    outer = tk.Frame(root)
+    outer.pack(fill="both", expand=True, padx=16, pady=12)
+
+    id_var = tk.StringVar(value=current.id if current else "")
+    name_var = tk.StringVar(value=current.name if current else "")
+    mode_var = tk.StringVar(value=current.mode if current else "single")
+    blocked_var = tk.BooleanVar(value=current.blocked if current else False)
+    transparent_var = tk.BooleanVar(value=current.transparent if current else False)
+    color_var = tk.StringVar(value=current.fallback_color if current else "#526f49")
+    sprite_keys = list(current.sprite_keys if current else ())
+
+    def row(label: str, var: tk.Variable) -> None:
+        frame = tk.Frame(outer); frame.pack(fill="x", pady=4)
+        tk.Label(frame, text=label, width=20, anchor="w").pack(side="left")
+        tk.Entry(frame, textvariable=var).pack(side="left", fill="x", expand=True)
+
+    row("ID", id_var)
+    row("Name", name_var)
+
+    mode_row = tk.Frame(outer); mode_row.pack(fill="x", pady=4)
+    tk.Label(mode_row, text="Render mode", width=20, anchor="w").pack(side="left")
+    ttk.Combobox(
+        mode_row, textvariable=mode_var,
+        values=["single", "variants", "autotile"], state="readonly",
+    ).pack(side="left", fill="x", expand=True)
+
+    blocked_row = tk.Frame(outer); blocked_row.pack(fill="x", pady=4)
+    tk.Label(blocked_row, text="", width=20).pack(side="left")
+    tk.Checkbutton(blocked_row, text="Blocks movement", variable=blocked_var).pack(side="left")
+    tk.Checkbutton(blocked_row, text="Transparent / show scene background", variable=transparent_var).pack(side="left", padx=(18, 0))
+
+    row("Fallback color", color_var)
+
+    tk.Label(
+        outer,
+        text="Terrain images",
+        anchor="w",
+        font=("TkDefaultFont", 10, "bold"),
+    ).pack(fill="x", pady=(14, 4))
+    image_box = tk.Listbox(outer, height=8, exportselection=False)
+    image_box.pack(fill="both", expand=True)
+
+    def refresh_images() -> None:
+        image_box.delete(0, "end")
+        if mode_var.get() == "autotile":
+            terrain_key = id_var.get().strip() or slugify(name_var.get(), "terrain")
+            folder = registry.asset_root / "terrain" / terrain_key
+            count = len(list(folder.glob("auto_*.png"))) if folder.exists() else 0
+            image_box.insert("end", f"{count} autotile masks imported to terrain/{terrain_key}/")
+        elif sprite_keys:
+            for key in sprite_keys:
+                image_box.insert("end", key)
+        else:
+            image_box.insert("end", "(no image yet; fallback color will be used)")
+
+    def import_images() -> None:
+        ident = id_var.get().strip() or slugify(name_var.get(), "terrain")
+        if mode_var.get() == "autotile":
+            chosen = filedialog.askdirectory(parent=root, title="Choose folder containing 000.png…255.png or auto_000.png…")
+            if not chosen:
+                return
+            try:
+                count = registry.import_terrain_autotiles(ident, Path(chosen))
+            except Exception as exc:
+                messagebox.showerror("Could not import autotiles", str(exc), parent=root)
+                return
+            messagebox.showinfo(
+                "Autotiles imported",
+                f"Copied {count} PNG masks. Missing masks will use the fallback color.",
+                parent=root,
+            )
+        else:
+            chosen = filedialog.askopenfilenames(
+                parent=root,
+                title="Choose terrain PNG" if mode_var.get() == "single" else "Choose terrain variants",
+                filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+            )
+            if not chosen:
+                return
+            if mode_var.get() == "single":
+                chosen = chosen[:1]
+                sprite_keys.clear()
+            start_index = len(sprite_keys)
+            for index, source in enumerate(chosen):
+                preferred = ident if mode_var.get() == "single" else f"{ident}_{start_index+index}"
+                try:
+                    key, _ = registry.import_asset(
+                        Path(source), "terrain", preferred_id=preferred, allowed_suffixes={".png"}
+                    )
+                except Exception as exc:
+                    messagebox.showerror("Could not import terrain", str(exc), parent=root)
+                    return
+                sprite_keys.append(key)
+        refresh_images()
+
+    tk.Button(outer, text="Import terrain image(s)…", command=import_images).pack(anchor="w", pady=(5, 3))
+
+    def import_cliffs() -> None:
+        ident = id_var.get().strip() or slugify(name_var.get(), "terrain")
+        chosen = filedialog.askdirectory(
+            parent=root,
+            title="Choose folder containing cliff masks 000.png…255.png or cliff_000.png…",
+        )
+        if not chosen:
+            return
+        try:
+            count = registry.import_terrain_cliffs(ident, Path(chosen))
+        except Exception as exc:
+            messagebox.showerror("Could not import cliff masks", str(exc), parent=root)
+            return
+        messagebox.showinfo(
+            "Cliff masks imported",
+            f"Copied {count} cliff masks for {ident}. Missing masks fall back to the engine cliff art.",
+            parent=root,
+        )
+
+    tk.Button(outer, text="Import elevation/cliff masks…", command=import_cliffs).pack(anchor="w", pady=(2, 3))
+    tk.Label(
+        outer,
+        text=(
+            "Single uses one tile everywhere. Variants randomly chooses among imported tiles. "
+            "Autotile uses 8-neighbor masks; import a folder containing masks 000–255. "
+            "Optional cliff masks use the same numbering and override the default elevation art. "
+            "All source files are copied into the project."
+        ),
+        justify="left", wraplength=700, fg="#555555",
+    ).pack(fill="x", pady=(3, 10))
+
+    def save() -> None:
+        try:
+            ident = id_var.get().strip() or slugify(name_var.get(), "terrain")
+            if current is not None and ident != current.id:
+                raise ValueError("Terrain IDs are stable after creation.")
+            data = TerrainDefinitionData(
+                id=ident,
+                name=name_var.get().strip() or ident,
+                mode=mode_var.get(),
+                sprite_keys=tuple(sprite_keys),
+                blocked=bool(blocked_var.get()),
+                fallback_color=color_var.get().strip() or "#526f49",
+                transparent=bool(transparent_var.get()),
+            )
+            registry.save_terrain(data)
+        except Exception as exc:
+            messagebox.showerror("Could not save terrain", str(exc), parent=root)
+            return
+        result["id"] = data.id
+        root.destroy()
+
+    buttons = tk.Frame(outer); buttons.pack(fill="x", pady=(12, 0))
+    tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8, 0))
+    tk.Button(buttons, text="Save Terrain", command=save).pack(side="right")
+    refresh_images()
+    root.mainloop()
+    return result["id"]
 
 
 def edit_world_object_dialog(registry: ProjectRegistry, object_id: str | None = None) -> str | None:
@@ -1123,7 +1287,7 @@ class ProjectEditor:
     the same authoring process and return here when closed.
     """
 
-    SECTIONS = ("Game", "Scenes", "Stories", "Pawns", "Characters", "Objects", "Dungeons", "Enemies", "Attacks", "Items", "Assets")
+    SECTIONS = ("Game", "Scenes", "Terrain", "Stories", "Pawns", "Characters", "Objects", "Dungeons", "Enemies", "Attacks", "Items", "Assets")
 
     def __init__(self, registry: ProjectRegistry, world_assets, project_root: Path, item_labels: dict[str, str] | None = None) -> None:
         self.registry = registry
@@ -1137,6 +1301,93 @@ class ProjectEditor:
         self.font_small = None
         self.items: list[tuple[str, str]] = []
         self.status = "Ready"
+        self.file_menu_open = False
+
+    def _switch_project(self, registry: ProjectRegistry) -> None:
+        self.registry = registry
+        self.item_labels = registry.item_labels
+        self.section = "Game"
+        self.selected = 0
+        self.file_menu_open = False
+        self._refresh()
+        pygame.display.set_caption(f"Mystery Engine — {registry.project_name}")
+        self.status = f"Opened {registry.project_name}"
+
+    def _new_project_file(self) -> None:
+        root = _root("New Game Project", "560x220")
+        result: dict[str, str | None] = {"parent": None, "name": None}
+        tk.Label(root, text="Create a new Mystery Engine project", font=("TkDefaultFont", 11, "bold")).pack(fill="x", padx=14, pady=(14, 8))
+        name_var = tk.StringVar(value="My Game")
+        row = tk.Frame(root); row.pack(fill="x", padx=14, pady=6)
+        tk.Label(row, text="Project name", width=16, anchor="w").pack(side="left")
+        tk.Entry(row, textvariable=name_var).pack(side="left", fill="x", expand=True)
+
+        def choose() -> None:
+            parent = filedialog.askdirectory(parent=root, title="Choose parent folder for the new project")
+            if not parent:
+                return
+            result["parent"] = parent
+            result["name"] = name_var.get().strip() or "My Game"
+            root.destroy()
+
+        buttons = tk.Frame(root); buttons.pack(fill="x", padx=14, pady=16)
+        tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8, 0))
+        tk.Button(buttons, text="Choose Folder & Create", command=choose).pack(side="right")
+        root.mainloop()
+        if not result["parent"]:
+            return
+        target = Path(result["parent"]) / slugify(result["name"] or "game", "game")
+        if target.exists() and any(target.iterdir()):
+            messagebox.showerror("Project folder exists", f"{target} already exists and is not empty.")
+            return
+        try:
+            registry = ProjectRegistry.create_project(target, result["name"] or "My Game")
+        except Exception as exc:
+            messagebox.showerror("Could not create project", str(exc))
+            return
+        self._switch_project(registry)
+
+    def _open_project_file(self) -> None:
+        chosen = filedialog.askdirectory(title="Open Mystery Engine Project")
+        if not chosen:
+            return
+        path = Path(chosen)
+        if not (path / "project.json").exists():
+            messagebox.showerror("Not a project", "The selected folder does not contain project.json.")
+            return
+        try:
+            registry = ProjectRegistry.load(path)
+        except Exception as exc:
+            messagebox.showerror("Could not open project", str(exc))
+            return
+        self._switch_project(registry)
+
+    def _run_project_file(self) -> None:
+        runner = self.project_root / "run_game.py"
+        if not runner.exists():
+            self.status = "Could not find run_game.py"
+            return
+        try:
+            subprocess.Popen([
+                sys.executable,
+                str(runner),
+                "--project",
+                str(self.registry.game_root),
+            ], cwd=str(self.project_root))
+            self.status = f"Running {self.registry.project_name}…"
+        except Exception as exc:
+            self.status = f"Could not run project: {exc}"
+
+    def _file_action(self, action: str) -> None:
+        if action == "new":
+            self._new_project_file()
+        elif action == "open":
+            self._open_project_file()
+        elif action == "run":
+            self._run_project_file()
+        elif action == "export":
+            self.status = "Export installers/builds will be added in the packaging pass."
+        self.file_menu_open = False
 
     def _refresh(self) -> None:
         self.registry.reload()
@@ -1144,6 +1395,8 @@ class ProjectEditor:
             labels = {"settings": self.registry.game_settings.title}
         elif self.section == "Scenes":
             labels = self.registry.scene_labels()
+        elif self.section == "Terrain":
+            labels = self.registry.terrain_labels
         elif self.section == "Stories":
             labels = self.registry.story_labels()
         elif self.section == "Pawns":
@@ -1174,8 +1427,10 @@ class ProjectEditor:
     def draw(self) -> None:
         self.screen.fill((19, 23, 30))
         pygame.draw.rect(self.screen, (29, 35, 45), (0, 0, 245, self.screen.get_height()))
+        file_rect = pygame.Rect(18, 16, 70, 38)
+        self._button(file_rect, "File", self.file_menu_open)
         title = self.font.render(self.registry.project_name, True, (247, 241, 222))
-        self.screen.blit(title, (20, 20))
+        self.screen.blit(title, (100, 22))
         for index, section in enumerate(self.SECTIONS):
             rect = pygame.Rect(18, 72 + index * 50, 209, 40)
             self._button(rect, section, self.section == section)
@@ -1197,6 +1452,21 @@ class ProjectEditor:
             y += 54
             if y > self.screen.get_height()-70:
                 break
+        if self.file_menu_open:
+            menu = pygame.Rect(18, 58, 250, 178)
+            pygame.draw.rect(self.screen, (31, 38, 49), menu, border_radius=7)
+            pygame.draw.rect(self.screen, (112, 123, 140), menu, 1, border_radius=7)
+            entries = [
+                ("new", "New Project…"),
+                ("open", "Open Project…"),
+                ("run", "Run Project"),
+                ("export", "Export…  (coming later)"),
+            ]
+            for index, (_key, label) in enumerate(entries):
+                row = pygame.Rect(menu.x + 6, menu.y + 6 + index * 41, menu.w - 12, 36)
+                pygame.draw.rect(self.screen, (48, 57, 71), row, border_radius=5)
+                self.screen.blit(self.font_small.render(label, True, (240, 239, 232)), (row.x + 10, row.y + 8))
+
         status = self.font_small.render(self.status, True, (190, 199, 211))
         self.screen.blit(status, (x0, self.screen.get_height()-30))
 
@@ -1206,6 +1476,9 @@ class ProjectEditor:
             self.status = "Game settings updated"
         elif self.section == "Pawns":
             created = edit_pawn_dialog(self.registry)
+            self.status = f"Created {created}" if created else "Cancelled"
+        elif self.section == "Terrain":
+            created = edit_terrain_dialog(self.registry)
             self.status = f"Created {created}" if created else "Cancelled"
         elif self.section == "Stories":
             scene_id = choose_catalog_id("Story room", self.registry.scene_labels())
@@ -1261,6 +1534,8 @@ class ProjectEditor:
             edit_game_settings_dialog(self.registry)
         elif self.section == "Pawns":
             edit_pawn_dialog(self.registry, item_id)
+        elif self.section == "Terrain":
+            edit_terrain_dialog(self.registry, item_id)
         elif self.section == "Stories":
             graph = self.registry.load_story(item_id)
             if graph.scene_id and graph.scene_id in self.registry.scene_paths():
@@ -1324,7 +1599,7 @@ class ProjectEditor:
     def _reinit_display(self) -> None:
         pygame.init()
         self.screen = pygame.display.set_mode((1500, 900), pygame.RESIZABLE)
-        pygame.display.set_caption("Mystery Engine — Project Editor")
+        pygame.display.set_caption(f"Mystery Engine — {self.registry.project_name}")
         self.font = pygame.font.Font(None, 30)
         self.font_small = pygame.font.Font(None, 23)
 
@@ -1339,6 +1614,22 @@ class ProjectEditor:
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if pygame.Rect(18, 16, 70, 38).collidepoint(event.pos):
+                        self.file_menu_open = not self.file_menu_open
+                        continue
+                    if self.file_menu_open:
+                        menu = pygame.Rect(18, 58, 250, 178)
+                        actions = ("new", "open", "run", "export")
+                        handled = False
+                        for index, action in enumerate(actions):
+                            row = pygame.Rect(menu.x + 6, menu.y + 6 + index * 41, menu.w - 12, 36)
+                            if row.collidepoint(event.pos):
+                                self._file_action(action)
+                                handled = True
+                                break
+                        if handled:
+                            continue
+                        self.file_menu_open = False
                     for index, section in enumerate(self.SECTIONS):
                         if pygame.Rect(18, 72 + index*50, 209, 40).collidepoint(event.pos):
                             self.section = section
@@ -1361,7 +1652,14 @@ class ProjectEditor:
                     if event.key == pygame.K_RETURN:
                         self._edit()
                     elif event.key == pygame.K_n and pygame.key.get_mods() & pygame.KMOD_CTRL:
-                        self._new()
+                        if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+                            self._new_project_file()
+                        else:
+                            self._new()
+                    elif event.key == pygame.K_o and pygame.key.get_mods() & pygame.KMOD_CTRL:
+                        self._open_project_file()
+                    elif event.key == pygame.K_r and pygame.key.get_mods() & pygame.KMOD_CTRL:
+                        self._run_project_file()
                     elif event.key == pygame.K_UP:
                         self.selected = max(0, self.selected-1)
                     elif event.key == pygame.K_DOWN:

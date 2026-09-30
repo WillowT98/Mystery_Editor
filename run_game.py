@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+import argparse
 import sys
 from pathlib import Path
 
@@ -9,11 +9,22 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from test_game.game_definition import build_game
-
 
 def main() -> None:
-    game = build_game()
+    parser = argparse.ArgumentParser(description="Run a Mystery Engine project")
+    parser.add_argument(
+        "--project",
+        type=Path,
+        help="Project folder containing project.json. Omit for the legacy test game.",
+    )
+    args = parser.parse_args()
+
+    if args.project is not None:
+        from mystery_engine.project_runtime import build_project_game
+        game = build_project_game(args.project)
+    else:
+        from test_game.game_definition import build_game
+        game = build_game()
     game.run()
 
 

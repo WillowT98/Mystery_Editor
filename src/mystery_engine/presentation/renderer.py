@@ -10,7 +10,7 @@ from mystery_engine.config import EngineConfig
 from mystery_engine.core import Character, GridPos
 from mystery_engine.dungeon import DungeonFloor, ExplorationMemory, TileKind
 from mystery_engine.story import DialogueController, ExplorationMap
-from mystery_engine.core.autotile import autotile_asset, dungeon_walkable_mask, elevation_cliff_assets, oriented_neighbor_mask
+from mystery_engine.core.autotile import autotile_asset, dungeon_walkable_mask, elevation_cliff_assets, elevation_higher_mask, oriented_neighbor_mask
 from mystery_engine.ui import MenuController
 
 
@@ -109,6 +109,7 @@ class Renderer:
         camera_iy = round(camera_y) + shake_y
 
         self.canvas.fill(self.bg, viewport)
+        self._draw_exploration_background(world, camera_ix, camera_iy, viewport)
         self._draw_exploration_terrain(world, camera_ix, camera_iy, viewport)
         self._draw_exploration_elevation_faces(world, camera_ix, camera_iy, viewport)
 
@@ -507,6 +508,39 @@ class Renderer:
 
     # ---------- helpers ----------
 
+    def _draw_exploration_background(self, world: ExplorationMap, camera_ix: int, camera_iy: int, viewport: pygame.Rect) -> None:
+        if not world.background_key:
+            return
+        surface = self._load_native_surface(f"backgrounds/{world.background_key}.png")
+        if surface is None:
+            return
+        if world.background_mode == "tile":
+            tw, th = surface.get_size()
+            for y in range(-camera_iy % th - th, viewport.h + th, th):
+                for x in range(-camera_ix % tw - tw, viewport.w + tw, tw):
+                    self.canvas.blit(surface, (x, y))
+            return
+        target_size = (max(1, round(world.width)), max(1, round(world.height)))
+        scaled = self._load_surface(f"backgrounds/{world.background_key}.png", target_size)
+        if scaled is None:
+            return
+        source = pygame.Rect(camera_ix, camera_iy, viewport.w, viewport.h)
+        self.canvas.blit(scaled, (0, 0), source)
+
+    def _terrain_style_sprite(self, world: ExplorationMap, terrain, tx: int, ty: int, kind: str, tile: int) -> pygame.Surface | None:
+        style = world.terrain_styles.get(kind)
+        if not style:
+            return None
+        mode = str(style.get("mode", "single"))
+        sprites = [str(v) for v in style.get("sprite_keys", [])]
+        if mode == "autotile":
+            mask = oriented_neighbor_mask(terrain, tx, ty, kind)
+            return self._load_surface(f"terrain/{kind}/auto_{mask:03d}.png", (tile, tile))
+        if not sprites:
+            return None
+        index = self._stable_variant(tx, ty, len(sprites)) if mode == "variants" else 0
+        return self._load_surface(f"terrain/{sprites[index]}.png", (tile, tile))
+
     def _draw_exploration_terrain(self, world: ExplorationMap, camera_ix: int, camera_iy: int, viewport: pygame.Rect) -> None:
         terrain = world.terrain
         tile = terrain.tile_size if terrain is not None else 64
@@ -527,19 +561,23 @@ class Renderer:
             for tx in range(min_tx, max_tx):
                 kind = terrain.terrain_at(tx, ty)
                 rect = pygame.Rect(tx * tile - camera_ix, ty * tile - camera_iy, tile, tile)
-                if kind in ("grass", "upper_grass"):
-                    weighted = (0, 0, 0, 2, 0, 1, 0, 4, 0, 3, 0, 2)
-                    variant = weighted[self._stable_variant(tx, ty, len(weighted))]
-                    sprite = self._load_surface(f"tiles/grass_{variant}.png", (tile, tile)) or self._load_surface("tiles/grass.png", (tile, tile))
-                elif kind in ("path", "water"):
-                    sprite = self._compose_blob_terrain_tile(terrain, tx, ty, kind, tile)
-                else:
-                    sprite = None
+                sprite = self._terrain_style_sprite(world, terrain, tx, ty, kind, tile)
+                if sprite is None:
+                    if kind in ("grass", "upper_grass"):
+                        weighted = (0, 0, 0, 2, 0, 1, 0, 4, 0, 3, 0, 2)
+                        variant = weighted[self._stable_variant(tx, ty, len(weighted))]
+                        sprite = self._load_surface(f"tiles/grass_{variant}.png", (tile, tile)) or self._load_surface("tiles/grass.png", (tile, tile))
+                    elif kind in ("path", "water"):
+                        sprite = self._compose_blob_terrain_tile(terrain, tx, ty, kind, tile)
 
                 if sprite is not None:
                     self.canvas.blit(sprite, rect)
                 else:
-                    fallback = {
+                    style = world.terrain_styles.get(kind, {})
+                    if bool(style.get("transparent", False)):
+                        continue
+                    configured = style.get("fallback_color")
+                    fallback = pygame.Color(str(configured)) if configured else {
                         "grass": pygame.Color("#6aa65d"),
                         "upper_grass": pygame.Color("#6aa65d"),
                         "path": pygame.Color("#b68c59"),
@@ -565,6 +603,12 @@ class Renderer:
         for ty in range(min_ty, max_ty):
             for tx in range(min_tx, max_tx):
                 if terrain.terrain_at(tx, ty) == "void":
+                    continue
+                kind = terrain.terrain_at(tx, ty)
+                mask = elevation_higher_mask(terrain, tx, ty)
+                custom = self._load_surface(f"terrain/{kind}/cliff_{mask:03d}.png", (tile, tile)) if mask else None
+                if custom is not None:
+                    self.canvas.blit(custom, (tx * tile - camera_ix, ty * tile - camera_iy))
                     continue
                 for asset in elevation_cliff_assets(terrain, tx, ty):
                     sprite = self._load_surface(asset, (tile, tile))

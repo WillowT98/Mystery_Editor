@@ -12,6 +12,7 @@ from mystery_engine.project import (
     PawnDefinitionData,
     PlayableCharacterDefinitionData,
     ProjectRegistry,
+    TerrainDefinitionData,
     WorldObjectDefinitionData,
 )
 from mystery_engine.story import RectObstacle, SceneObjectData, WorldAssetCatalog
@@ -24,6 +25,7 @@ def _registry(tmp_path: Path) -> ProjectRegistry:
     (game_root / "content" / "items").mkdir(parents=True)
     (game_root / "content" / "characters").mkdir(parents=True)
     (game_root / "content" / "objects").mkdir(parents=True)
+    (game_root / "content" / "terrain").mkdir(parents=True)
     (game_root / "content" / "pawns").mkdir(parents=True)
     (game_root / "dungeons").mkdir()
     (game_root / "scenes").mkdir()
@@ -40,6 +42,7 @@ def _registry(tmp_path: Path) -> ProjectRegistry:
             "items": "content/items",
             "characters": "content/characters",
             "objects": "content/objects",
+            "terrain": "content/terrain",
             "pawns": "content/pawns",
             "dungeons": "dungeons",
             "scenes": "scenes",
@@ -353,3 +356,41 @@ def test_custom_world_object_can_default_to_no_collider(tmp_path):
     definition = registry.world_asset_catalog(WorldAssetCatalog(assets={})).get("rug")
     assert definition.collision is None
     assert definition.collision_radius == 0.0
+
+
+def test_blank_project_creation_is_self_contained(tmp_path):
+    registry = ProjectRegistry.create_project(tmp_path / "fresh_game", "Fresh Game")
+    assert registry.manifest_path.exists()
+    assert registry.project_name == "Fresh Game"
+    assert {"grass", "void"}.issubset(registry.terrain)
+    assert registry.terrain["grass"].blocked is False
+    assert registry.terrain["void"].blocked is True
+    assert registry.scene_dir.exists()
+    assert registry.asset_root.exists()
+
+
+def test_project_registry_saves_custom_terrain(tmp_path):
+    registry = _registry(tmp_path)
+    registry.save_terrain(TerrainDefinitionData(
+        id="snow",
+        name="Snow",
+        mode="variants",
+        sprite_keys=("snow_0", "snow_1"),
+        blocked=False,
+        fallback_color="#ddeeff",
+    ))
+    loaded = registry.terrain["snow"]
+    assert loaded.name == "Snow"
+    assert loaded.mode == "variants"
+    assert loaded.sprite_keys == ("snow_0", "snow_1")
+    assert registry.terrain_runtime()["snow"]["fallback_color"] == "#ddeeff"
+
+
+def test_scene_background_round_trip():
+    from mystery_engine.story import ExplorationSceneData
+    source = ExplorationSceneData.blank("painted_room", 8, 6)
+    source.background_key = "painted_room_bg"
+    source.background_mode = "tile"
+    loaded = ExplorationSceneData.from_dict(source.to_dict())
+    assert loaded.background_key == "painted_room_bg"
+    assert loaded.background_mode == "tile"
