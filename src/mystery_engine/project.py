@@ -788,6 +788,35 @@ class ProjectRegistry:
         )
         self.manifest = self._load_manifest()
 
+    def set_source_locale(self, locale: str, label: str | None = None) -> None:
+        locale = locale.strip()
+        if not locale:
+            raise ValueError("Source locale cannot be blank.")
+        if locale == self.localization.source_locale:
+            if label:
+                self.localization.locale_names[locale] = label.strip()
+                self.save_localization_config()
+            return
+        if self.localization.has_translations():
+            raise ValueError(
+                "Change the source locale before adding translations, or clear target translations first."
+            )
+        old_source = self.localization.source_locale
+        if locale not in self.localization.supported_locales:
+            self.localization.supported_locales.insert(0, locale)
+        if old_source not in self.localization.supported_locales:
+            self.localization.supported_locales.append(old_source)
+        self.localization.source_locale = locale
+        if label and label.strip():
+            self.localization.locale_names[locale] = label.strip()
+        if self.localization.default_locale == old_source:
+            self.localization.default_locale = locale
+        self.localization.active_locale = locale
+        if old_source != locale and not self.localization.locale_path(old_source).exists():
+            self.localization.save_locale(old_source, {})
+        self.save_localization_config()
+        self.reload()
+
     def add_locale(self, locale: str, label: str | None = None) -> None:
         self.localization.add_locale(locale, label)
         self.save_localization_config()
