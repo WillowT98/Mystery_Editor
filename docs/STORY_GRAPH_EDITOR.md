@@ -103,8 +103,31 @@ Engine-native action IDs currently include:
 - `change_scene`
 - `enter_dungeon`
 - `message`
+- `play_animation` / `reset_animation`
 
 Movement is collision-aware and can fall back to teleporting after a timeout so a cutscene cannot be permanently blocked by an awkward actor position.
+
+### Actor animation actions
+
+`play_animation` plays one of the selected actor's pawn animation clips. The
+structured editor exposes Actor, Animation, optional loop override, Return to
+idle, and Wait for action to finish.
+
+One-shot clips integrate with the story runner's normal blocking behavior. With
+**Wait** enabled, the graph advances only after the clip reaches its final frame.
+With Wait disabled the animation continues while later nodes run, making it useful
+inside Parallel choreography. Looping clips begin immediately and do not block;
+use `reset_animation` when the performance should return to automatic
+idle/walk/run behavior.
+
+The runtime keeps automatic movement animation separate from explicit story
+animation overrides. A scripted `move_actor` therefore plays `walk` naturally
+unless a story has deliberately taken control with a named animation.
+
+Persistent scene state stores the actor's logical named animation override rather
+than a frame timestamp. This lets long-lived states such as `sleep` or
+`read_book` survive room revisits and save/load without attempting to resume at
+an arbitrary sub-frame.
 
 Action nodes have a `wait` field. When false, the action continues in the background while the graph advances. Background actions continue updating even after the root graph reaches an End node.
 
@@ -145,7 +168,7 @@ Use `join: "all"` to wait for every branch or `join: "any"` to continue when the
 
 The action vocabulary is semantic rather than hard-wired to editor classes. A game can register additional actions through `story_actions` or implement `run_story_action(game, action, params)`.
 
-The editor already includes templates for **Animation**, **Effect**, and **Custom** actions. Those IDs intentionally use this extension mechanism until project-specific sprite animation/effect systems are implemented. This means authored graphs do not need to be migrated when those renderers arrive.
+The editor still includes **Effect** and **Custom** extension templates for project-specific presentation systems. **Animation** is now an engine-native action backed by pawn animation sets, so ordinary character performance no longer requires a custom action.
 
 ## Validation
 
