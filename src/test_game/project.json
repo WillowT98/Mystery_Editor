@@ -1,7 +1,7 @@
 {
   "format": 1,
   "id": "fox_and_mara_test",
-  "name": "Fox & Mara — Mystery Engine Test",
+  "name": "Fox & Mara — The Familiar's Bargain",
   "default_dungeon": "test_dungeon",
   "content": {
     "attacks": "content/attacks",
@@ -27,13 +27,13 @@
     "plant"
   ],
   "game": {
-    "title": "Fox & Mara — Mystery Engine Test",
-    "version": "0.1.0",
+    "title": "Fox & Mara — The Familiar's Bargain",
+    "version": "0.2.0",
     "default_dungeon": "test_dungeon",
     "inventory": {
       "bag_capacity": 12,
       "storage_capacity": 40,
-      "carried_money": 100,
+      "carried_money": 0,
       "stored_money": 0
     },
     "defeat": {
@@ -41,7 +41,7 @@
       "item_loss_chance": 0.3
     },
     "start": {
-      "scene": "test_clearing",
+      "scene": "village_well",
       "marker": null,
       "party": [
         "fox",
@@ -49,12 +49,16 @@
       ],
       "leader": "fox",
       "items": {
-        "field_salve": 4,
-        "throwing_stone": 3,
-        "waystone_shard": 1
+        "field_salve": 1
       },
       "storage": {},
       "flags": {
+        "familiar_bound": false,
+        "fox_named": false,
+        "transformed": false,
+        "arrived_at_cottage": false,
+        "stewardship_amendment": false,
+        "ready_for_ruins": false,
         "completed_test_dungeon": false,
         "failed_test_dungeon": false,
         "entered_test_dungeon": false
@@ -77,7 +81,8 @@
       "item_get": "ui.item_get",
       "save": "ui.save",
       "basic_hit": "combat.light_hit",
-      "defeat": "combat.defeat"
+      "defeat": "combat.defeat",
+      "dialogue_blip": "dialogue.tone_1"
     }
   },
   "localization": {
