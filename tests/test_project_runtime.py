@@ -58,6 +58,8 @@ def test_generic_project_runtime_builds_state_and_scene(tmp_path):
         change_exploration_scene=lambda *_: None,
         run_story=lambda *_: None,
         enter_dungeon=lambda *_: None,
+        open_item_storage=lambda: None,
+        open_money_storage=lambda: None,
     )
     world = definition.create_exploration(fake_game)
 
