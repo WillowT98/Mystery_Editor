@@ -371,3 +371,51 @@ def test_legacy_save_without_world_data_still_loads(tmp_path):
     assert state.wallet.carried == 12
     assert state.story.flag("legacy")
     assert state.world.current_scene is None
+
+
+def test_game_load_snapshot_replaces_runtime_state_and_restores_location(tmp_path):
+    registry = ProjectRegistry.create_project(tmp_path / "game", "Load Game")
+    registry.save_pawn(PawnDefinitionData(
+        id="hero_pawn",
+        name="Hero",
+        sprite_key="hero",
+        portrait_key=None,
+    ))
+    registry.save_character(PlayableCharacterDefinitionData(
+        id="hero",
+        pawn_id="hero_pawn",
+        max_hp=30,
+        attack=5,
+        defense=3,
+    ))
+    scene = ExplorationSceneData.blank("start", 8, 8)
+    save_exploration_scene(scene, registry.scene_dir / "start.json")
+    registry.save_game_settings(GameSettingsData(
+        title="Load Game",
+        starting_scene="start",
+        starting_party=("hero",),
+        leader="hero",
+    ))
+
+    game = build_project_game(registry.game_root)
+    game.exploration = game.definition.create_exploration(game)
+    game._play_event_sfx = lambda *_args, **_kwargs: None
+    game._sync_exploration_music = lambda: None
+    hero = game.exploration.actor("hero")
+    hero.position.x = 222
+    hero.position.y = 333
+    hero.facing = Direction.N
+    game.state.wallet.carried = 77
+
+    save_path = tmp_path / "save.json"
+    assert game.save_snapshot(save_path) == save_path
+
+    hero.position.x = 10
+    hero.position.y = 20
+    game.state.wallet.carried = 0
+
+    assert game.load_snapshot(save_path) is True
+    restored = game.exploration.actor("hero")
+    assert (restored.position.x, restored.position.y) == (222, 333)
+    assert restored.facing is Direction.N
+    assert game.state.wallet.carried == 77
