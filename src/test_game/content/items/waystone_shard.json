@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "id": "waystone_shard",
+  "name": "Waystone Shard",
+  "description": "A test key item used to verify that protected items survive defeat.",
+  "heal": 0,
+  "throwable_damage": 0,
+  "droppable": false,
+  "key_item": true,
+  "sprite_key": "waystone_shard"
+}
