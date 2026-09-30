@@ -438,6 +438,54 @@ class EnemyDefinitionData:
 
 
 @dataclass(frozen=True)
+class TerrainDefinitionData:
+    id: str
+    name: str
+    mode: str = "single"  # single | variants | autotile
+    sprite_keys: tuple[str, ...] = ()
+    blocked: bool = False
+    fallback_color: str = "#526f49"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TerrainDefinitionData":
+        mode = str(data.get("mode", "single")).lower()
+        if mode not in {"single", "variants", "autotile"}:
+            mode = "single"
+        sprites = data.get("sprite_keys", [])
+        if isinstance(sprites, str):
+            sprites = [sprites]
+        return cls(
+            id=str(data["id"]),
+            name=str(data.get("name") or data["id"]),
+            mode=mode,
+            sprite_keys=tuple(str(v) for v in sprites),
+            blocked=bool(data.get("blocked", False)),
+            fallback_color=str(data.get("fallback_color", "#526f49")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "format": 1,
+            "id": self.id,
+            "name": self.name,
+            "mode": self.mode,
+            "sprite_keys": list(self.sprite_keys),
+            "blocked": self.blocked,
+            "fallback_color": self.fallback_color,
+        }
+
+    def runtime_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "mode": self.mode,
+            "sprite_keys": list(self.sprite_keys),
+            "blocked": self.blocked,
+            "fallback_color": self.fallback_color,
+        }
+
+
+@dataclass(frozen=True)
 class WorldObjectDefinitionData:
     id: str
     name: str
@@ -610,6 +658,7 @@ class ProjectRegistry:
         self.item_dir = self.game_root / str(content.get("items", "content/items"))
         self.character_dir = self.game_root / str(content.get("characters", "content/characters"))
         self.object_dir = self.game_root / str(content.get("objects", "content/objects"))
+        self.terrain_dir = self.game_root / str(content.get("terrain", "content/terrain"))
         self.pawn_dir = self.game_root / str(content.get("pawns", "content/pawns"))
         self.dungeon_dir = self.game_root / str(content.get("dungeons", "dungeons"))
         self.scene_dir = self.game_root / str(content.get("scenes", "scenes"))
@@ -617,11 +666,51 @@ class ProjectRegistry:
         self.asset_root = self.game_root / str(content.get("assets", "assets"))
         for directory in (
             self.attack_dir, self.enemy_dir, self.item_dir, self.character_dir,
-            self.object_dir, self.pawn_dir, self.dungeon_dir,
+            self.object_dir, self.terrain_dir, self.pawn_dir, self.dungeon_dir,
             self.scene_dir, self.story_dir, self.asset_root,
         ):
             directory.mkdir(parents=True, exist_ok=True)
         self.reload()
+
+    @classmethod
+    def create_project(cls, game_root: Path, name: str) -> "ProjectRegistry":
+        root = Path(game_root).resolve()
+        root.mkdir(parents=True, exist_ok=True)
+        project_id = slugify(name, root.name or "game")
+        manifest = {
+            "format": 1,
+            "id": project_id,
+            "name": name.strip() or project_id,
+            "content": {
+                "attacks": "content/attacks",
+                "enemies": "content/enemies",
+                "items": "content/items",
+                "characters": "content/characters",
+                "objects": "content/objects",
+                "terrain": "content/terrain",
+                "pawns": "content/pawns",
+                "dungeons": "dungeons",
+                "scenes": "scenes",
+                "stories": "stories",
+                "assets": "assets",
+            },
+            "damage_types": ["physical"],
+            "game": {
+                "title": name.strip() or project_id,
+                "version": "0.1.0",
+                "default_dungeon": None,
+                "inventory": {"bag_capacity": 20, "storage_capacity": 40, "carried_money": 0, "stored_money": 0},
+                "defeat": {"money_loss_fraction": 0.5, "item_loss_chance": 0.3},
+                "start": {"scene": None, "marker": None, "party": [], "leader": None, "items": {}, "storage": {}, "flags": {}, "variables": {}},
+                "dungeon_result_stories": {},
+                "sfx_event_cues": {},
+            },
+        }
+        (root / "project.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        registry = cls(root)
+        registry.save_terrain(TerrainDefinitionData("grass", "Grass", "single", (), False, "#6aa65d"))
+        registry.save_terrain(TerrainDefinitionData("void", "Void", "single", (), True, "#0c0f17"))
+        return registry
 
     @classmethod
     def load(cls, game_root: Path) -> "ProjectRegistry":
@@ -640,6 +729,7 @@ class ProjectRegistry:
                 "items": "content/items",
                 "characters": "content/characters",
                 "objects": "content/objects",
+                "terrain": "content/terrain",
                 "pawns": "content/pawns",
                 "dungeons": "dungeons",
                 "scenes": "scenes",
@@ -687,6 +777,7 @@ class ProjectRegistry:
         self.items: dict[str, ItemDefinition] = {}
         self.characters: dict[str, PlayableCharacterDefinitionData] = {}
         self.objects: dict[str, WorldObjectDefinitionData] = {}
+        self.terrain: dict[str, TerrainDefinitionData] = {}
         self.pawns: dict[str, PawnDefinitionData] = {}
 
         if self.attack_dir.exists():
@@ -716,6 +807,11 @@ class ProjectRegistry:
                 data = WorldObjectDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
                 self.objects[data.id] = data
 
+        if self.terrain_dir.exists():
+            for path in sorted(self.terrain_dir.glob("*.json")):
+                data = TerrainDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
+                self.terrain[data.id] = data
+
         if self.pawn_dir.exists():
             for path in sorted(self.pawn_dir.glob("*.json")):
                 data = PawnDefinitionData.from_dict(json.loads(path.read_text(encoding="utf-8")))
@@ -736,6 +832,20 @@ class ProjectRegistry:
     @property
     def object_labels(self) -> dict[str, str]:
         return {key: value.name for key, value in sorted(self.objects.items())}
+
+    @property
+    def terrain_labels(self) -> dict[str, str]:
+        return {key: value.name for key, value in sorted(self.terrain.items())}
+
+    def save_terrain(self, data: TerrainDefinitionData) -> Path:
+        self.terrain_dir.mkdir(parents=True, exist_ok=True)
+        path = self.terrain_dir / f"{data.id}.json"
+        path.write_text(json.dumps(data.to_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        self.reload()
+        return path
+
+    def terrain_runtime(self) -> dict[str, dict[str, Any]]:
+        return {key: value.runtime_dict() for key, value in self.terrain.items()}
 
     def save_object(self, data: WorldObjectDefinitionData) -> Path:
         self.object_dir.mkdir(parents=True, exist_ok=True)
