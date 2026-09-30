@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING
 from mystery_engine.core import (
     AITactic,
     Direction,
+    DungeonActorState,
+    DungeonGroundItemState,
     DungeonResult,
+    DungeonState,
     PersistentGameState,
     PersistentWorldState,
     SceneActorState,
@@ -17,6 +20,8 @@ from mystery_engine.core import (
     Wallet,
 )
 from mystery_engine.core.inventory import Inventory
+from mystery_engine.dungeon.floor import DungeonFloor, GroundItem
+from mystery_engine.dungeon.tiles import Tile, TileKind
 from mystery_engine.project import ProjectRegistry
 from mystery_engine.core import Vec2
 from mystery_engine.story import (
@@ -303,7 +308,166 @@ class ProjectGameDefinition:
                 for scene_id, scene_data in dict(world_data.get("scenes") or {}).items()
             },
         )
+
+        dungeon_data = payload.get("dungeon")
+        state.dungeon = self._load_dungeon_state(dungeon_data) if isinstance(dungeon_data, dict) else None
         return state
+
+    @staticmethod
+    def _load_dungeon_actor_state(data: dict) -> DungeonActorState:
+        position = data.get("position")
+        stats = dict(data.get("stats") or {})
+        return DungeonActorState(
+            id=str(data.get("id", "")),
+            definition_id=(str(data["definition_id"]) if data.get("definition_id") else None),
+            name=str(data.get("name", data.get("id", ""))),
+            hostile=bool(data.get("hostile", False)),
+            x=(int(position[0]) if isinstance(position, list) and len(position) >= 2 else None),
+            y=(int(position[1]) if isinstance(position, list) and len(position) >= 2 else None),
+            facing=str(data.get("facing", "S")).upper(),
+            incapacitated=bool(data.get("incapacitated", False)),
+            max_hp=max(1, int(stats.get("max_hp", 1))),
+            current_hp=max(0, int(stats.get("current_hp", stats.get("max_hp", 1)))),
+            attack=max(0, int(stats.get("attack", 0))),
+            defense=max(0, int(stats.get("defense", 0))),
+            resources={str(k): int(v) for k, v in dict(data.get("resources") or {}).items()},
+            resistances={str(k): float(v) for k, v in dict(data.get("resistances") or {}).items()},
+            skill_charges={
+                str(k): (None if v is None else max(0, int(v)))
+                for k, v in dict(data.get("skill_charges") or {}).items()
+            },
+            skill_ids=[str(v) for v in data.get("skill_ids", [])],
+            metadata=dict(data.get("metadata") or {}),
+        )
+
+    @classmethod
+    def _load_dungeon_state(cls, data: dict) -> DungeonState:
+        memory = dict(data.get("memory") or {})
+        player_spawn = data.get("player_spawn")
+        stairs_pos = data.get("stairs_pos")
+        return DungeonState(
+            dungeon_id=str(data.get("dungeon_id", "")),
+            floor_number=max(1, int(data.get("floor_number", 1))),
+            width=max(1, int(data.get("width", 1))),
+            height=max(1, int(data.get("height", 1))),
+            tiles=[
+                [dict(tile) for tile in row]
+                for row in data.get("tiles", [])
+            ],
+            rooms=[[int(v) for v in room] for room in data.get("rooms", [])],
+            player_spawn=(
+                (int(player_spawn[0]), int(player_spawn[1]))
+                if isinstance(player_spawn, list) and len(player_spawn) >= 2 else None
+            ),
+            stairs_pos=(
+                (int(stairs_pos[0]), int(stairs_pos[1]))
+                if isinstance(stairs_pos, list) and len(stairs_pos) >= 2 else None
+            ),
+            tileset=str(data.get("tileset", "dungeon")),
+            music=(str(data["music"]) if data.get("music") else None),
+            music_volume=float(data.get("music_volume", 1.0)),
+            dungeon_name=str(data.get("dungeon_name", "Dungeon")),
+            generation_profile=str(data.get("generation_profile", "default")),
+            actors=[cls._load_dungeon_actor_state(row) for row in data.get("actors", [])],
+            ground_items=[
+                DungeonGroundItemState(
+                    item_id=str(row.get("item_id", "")),
+                    x=int(row.get("x", 0)),
+                    y=int(row.get("y", 0)),
+                )
+                for row in data.get("ground_items", [])
+            ],
+            discovered=[
+                (int(pos[0]), int(pos[1]))
+                for pos in memory.get("discovered", [])
+                if isinstance(pos, list) and len(pos) >= 2
+            ],
+            visible=[
+                (int(pos[0]), int(pos[1]))
+                for pos in memory.get("visible", [])
+                if isinstance(pos, list) and len(pos) >= 2
+            ],
+            turn_count=max(0, int(data.get("turn_count", 0))),
+            rng_state=data.get("rng_state"),
+        )
+
+    def restore_dungeon_floor(self, saved: DungeonState, party: list) -> DungeonFloor:
+        """Rebuild an exact saved floor without consulting the dungeon RNG."""
+        if saved.dungeon_id not in self.project_registry.dungeon_paths():
+            raise ValueError(f"Save references unknown dungeon: {saved.dungeon_id}")
+        self.select_dungeon(saved.dungeon_id)
+
+        rows: list[list[Tile]] = []
+        for y in range(saved.height):
+            source_row = saved.tiles[y] if y < len(saved.tiles) else []
+            row: list[Tile] = []
+            for x in range(saved.width):
+                raw = source_row[x] if x < len(source_row) else {}
+                kind_name = str(raw.get("kind", "WALL")).upper()
+                kind = TileKind.__members__.get(kind_name, TileKind.WALL)
+                row.append(Tile(
+                    kind=kind,
+                    walkable=bool(raw.get("walkable", kind is not TileKind.WALL)),
+                    blocks_sight=bool(raw.get("blocks_sight", kind is TileKind.WALL)),
+                    terrain=str(raw.get("terrain", "normal")),
+                ))
+            rows.append(row)
+
+        floor = DungeonFloor(
+            width=saved.width,
+            height=saved.height,
+            tiles=rows,
+            rooms=[tuple(room) for room in saved.rooms],
+            player_spawn=(GridPos(*saved.player_spawn) if saved.player_spawn else None),
+            stairs_pos=(GridPos(*saved.stairs_pos) if saved.stairs_pos else None),
+            tileset=saved.tileset,
+            music=saved.music,
+            music_volume=saved.music_volume,
+            dungeon_name=saved.dungeon_name,
+            generation_profile=saved.generation_profile,
+        )
+
+        party_by_id = {member.id: member for member in party}
+        for actor_state in saved.actors:
+            if actor_state.id in party_by_id:
+                actor = party_by_id[actor_state.id]
+            else:
+                if not actor_state.definition_id:
+                    raise ValueError(f"Saved enemy {actor_state.id} has no definition ID.")
+                actor = self.project_registry.make_enemy(actor_state.definition_id, actor_state.id)
+                existing = {skill.definition.id for skill in actor.skills}
+                for skill_id in actor_state.skill_ids:
+                    if skill_id not in existing and skill_id in self.project_registry.attacks:
+                        from mystery_engine.core import SkillRuntime
+                        actor.skills.append(SkillRuntime.from_definition(self.project_registry.attack_skill(skill_id)))
+                        existing.add(skill_id)
+
+            actor.name = actor_state.name
+            actor.hostile = actor_state.hostile
+            actor.grid_pos = (
+                GridPos(actor_state.x, actor_state.y)
+                if actor_state.x is not None and actor_state.y is not None else None
+            )
+            actor.facing = getattr(Direction, actor_state.facing, Direction.S)
+            actor.incapacitated = actor_state.incapacitated
+            actor.stats.max_hp = actor_state.max_hp
+            actor.stats.current_hp = min(actor_state.max_hp, actor_state.current_hp)
+            actor.stats.attack = actor_state.attack
+            actor.stats.defense = actor_state.defense
+            actor.resources = dict(actor_state.resources)
+            actor.resistances = dict(actor_state.resistances)
+            actor.metadata = dict(actor_state.metadata)
+            for skill in actor.skills:
+                if skill.definition.id in actor_state.skill_charges:
+                    skill.charges = actor_state.skill_charges[skill.definition.id]
+            floor.entities.append(actor)
+
+        for item in saved.ground_items:
+            if item.item_id in self.project_registry.items:
+                floor.ground_items.append(
+                    GroundItem(self.project_registry.item(item.item_id), GridPos(item.x, item.y))
+                )
+        return floor
 
     @staticmethod
     def _load_scene_actor_state(data: dict) -> SceneActorState:
