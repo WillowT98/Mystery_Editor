@@ -146,8 +146,10 @@ class Renderer:
                 sx, sy = round(actor.position.x) - camera_ix, round(actor.position.y) - camera_iy
                 sprite_key = actor.sprite_key or actor.id
                 suffix = self._facing_suffix(actor.facing)
-                walk_frame = self._exploration_walk_frame(actor.id, actor.position.x, actor.position.y, now)
-                sprite = self._load_character_walk_frame(sprite_key, suffix, walk_frame, (84, 84))
+                sprite = self._load_actor_animation_frame(actor, suffix, (84, 84))
+                if sprite is None:
+                    walk_frame = self._exploration_walk_frame(actor.id, actor.position.x, actor.position.y, now)
+                    sprite = self._load_character_walk_frame(sprite_key, suffix, walk_frame, (84, 84))
                 if sprite is None:
                     sprite = self._load_character_sprite(sprite_key, suffix, (84, 84))
                 if sprite is None:
@@ -784,6 +786,52 @@ class Renderer:
 
     def _has_character_walk_sheet(self, sprite_key: str) -> bool:
         return self._load_native_surface(f"characters/{sprite_key}_walk.png") is not None
+
+    def _load_actor_animation_frame(self, actor, suffix: str, size: tuple[int, int]) -> pygame.Surface | None:
+        clip = actor.animation_clip() if hasattr(actor, "animation_clip") else None
+        if not clip:
+            return None
+        sheet_key = str(clip.get("sheet") or actor.sprite_key or actor.id)
+        path = str(clip.get("path") or f"characters/{sheet_key}.png")
+        columns = max(1, int(clip.get("columns", 1)))
+        rows = max(1, int(clip.get("rows", 1)))
+        directions = [str(v).lower() for v in clip.get("directions", ["s"])]
+        direction = suffix if suffix in directions else (directions[0] if directions else "s")
+        row = directions.index(direction) if direction in directions else 0
+        row = min(rows - 1, row)
+        frames = [int(v) for v in clip.get("frames", list(range(columns)))]
+        if not frames:
+            frames = [0]
+        fps = max(0.01, float(clip.get("fps", 8.0)))
+        loop = bool(clip.get("loop", True)) if actor.animation_loop_override is None else bool(actor.animation_loop_override)
+        elapsed_index = int(max(0.0, actor.animation_elapsed) * fps)
+        if loop:
+            frame_index = frames[elapsed_index % len(frames)]
+        else:
+            frame_index = frames[min(len(frames) - 1, elapsed_index)]
+        frame_index %= columns
+
+        cache_key = (f"{path}#{actor.animation_name}:{direction}:{frame_index}/{columns}x{rows}", size)
+        if cache_key in self._surface_cache:
+            return self._surface_cache[cache_key]
+        sheet = self._load_native_surface(path)
+        if sheet is None:
+            self._surface_cache[cache_key] = None
+            return None
+
+        x0 = round(frame_index * sheet.get_width() / columns)
+        x1 = round((frame_index + 1) * sheet.get_width() / columns)
+        y0 = round(row * sheet.get_height() / rows)
+        y1 = round((row + 1) * sheet.get_height() / rows)
+        frame = pygame.Surface((max(1, x1 - x0), max(1, y1 - y0)), pygame.SRCALPHA)
+        frame.blit(sheet, (0, 0), pygame.Rect(x0, y0, x1 - x0, y1 - y0))
+        bounds = frame.get_bounding_rect()
+        if bounds.width > 0 and bounds.height > 0:
+            frame = frame.subsurface(bounds).copy()
+        if frame.get_size() != size:
+            frame = pygame.transform.scale(frame, size)
+        self._surface_cache[cache_key] = frame
+        return frame
 
     def _load_character_walk_frame(
         self,
