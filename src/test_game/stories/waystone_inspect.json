@@ -13,7 +13,8 @@
         {
           "speaker": "Waystone",
           "text": "A plain marker has been driven into the clearing. Someone has written: TEST AREA.",
-          "expression": "neutral"
+          "expression": "neutral",
+          "id": "line_001"
         }
       ],
       "next": "end"
