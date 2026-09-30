@@ -60,16 +60,16 @@ class ExplorationSceneEditor:
     ) -> None:
         self.scene = scene
         self.scene_path = Path(scene_path)
-        self.catalog = catalog
+        self.project_registry = project_registry
+        self.catalog = project_registry.world_asset_catalog(catalog) if project_registry else catalog
         self.asset_root = Path(asset_root)
         self.project_root = Path(project_root) if project_root else None
-        self.project_registry = project_registry
         self.window_size = window_size
 
         self.mode = "terrain"  # terrain | elevation | objects | select | audio | story
         self.terrain_brush = "grass"
         self.elevation_brush = 0
-        self.asset_brush = next((a.id for a in catalog.by_category("scenery", "interactable", "dungeon", "actor")), "")
+        self.asset_brush = next((a.id for a in self.catalog.by_category("scenery", "interactable", "dungeon", "actor")), "")
         self.story_pawn_brush = next(iter(project_registry.pawn_labels), "") if project_registry else ""
         self.story_id: str | None = None
         self.snap = 16
@@ -1128,16 +1128,16 @@ class ExplorationSceneEditor:
         ]
         x = 12
         for key, label in buttons:
-            rect = pygame.Rect(x, 9, 130, 40)
+            rect = pygame.Rect(x, 9, 112, 40)
             pygame.draw.rect(self.screen, (76, 91, 112) if self.mode == key else (47, 56, 70), rect, border_radius=7)
             self.screen.blit(self.font.render(label, True, (245, 242, 232)), (rect.x + 10, rect.y + 9))
-            x += 140
-        x += 10
+            x += 118
+        x += 8
         for label, active in [("G Grid", self.grid), ("C Collision", self.show_collision), ("V Elevation", self.show_elevation)]:
-            rect = pygame.Rect(x, 9, 130, 40)
+            rect = pygame.Rect(x, 9, 112, 40)
             pygame.draw.rect(self.screen, (67, 96, 76) if active else (47, 56, 70), rect, border_radius=7)
             self.screen.blit(self.font.render(label, True, (245, 242, 232)), (rect.x + 10, rect.y + 9))
-            x += 140
+            x += 118
         save_rect = pygame.Rect(self.screen.get_width() - self.SIDE_W - 110, 9, 96, 40)
         pygame.draw.rect(self.screen, (116, 94, 47), save_rect, border_radius=7)
         self.screen.blit(self.font.render("Ctrl+S", True, (255, 248, 222)), (save_rect.x + 13, save_rect.y + 9))
@@ -1478,7 +1478,6 @@ class ExplorationSceneEditor:
                     "Open this room from run_project_editor.py.",
                 ])
             else:
-                self._refresh_project_catalog()
                 self._draw_sidebar_help(y, [f"Room: {self.scene.id}"])
                 y += 34
                 br = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
@@ -2087,7 +2086,7 @@ class ExplorationSceneEditor:
         if pos[1] >= self.TOP_H:
             return False
         for i, key in enumerate(("terrain", "elevation", "objects", "select", "audio", "story")):
-            if pygame.Rect(12 + 140*i, 9, 130, 40).collidepoint(pos):
+            if pygame.Rect(12 + 118*i, 9, 112, 40).collidepoint(pos):
                 self.mode = key; self._palette_scroll = 0; return True
         return False
 
