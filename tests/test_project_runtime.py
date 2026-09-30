@@ -763,3 +763,103 @@ def test_gameplay_conditions_work_inside_boolean_story_conditions():
         ]
     }
     assert evaluate_condition(condition, game.state.story, game.evaluate_gameplay_condition) is True
+
+
+def test_pawn_animation_sets_roundtrip_and_reach_runtime_actor(tmp_path):
+    registry = ProjectRegistry.create_project(tmp_path / "game", "Animation Game")
+    animations = {
+        "idle": {
+            "path": "characters/hero_idle.png",
+            "columns": 2,
+            "rows": 4,
+            "directions": ["n", "e", "s", "w"],
+            "frames": [0, 1],
+            "fps": 4.0,
+            "loop": True,
+        },
+        "wave": {
+            "path": "characters/hero_wave.png",
+            "columns": 3,
+            "rows": 1,
+            "directions": ["s"],
+            "frames": [0, 1, 2],
+            "fps": 6.0,
+            "loop": False,
+        },
+    }
+    registry.save_pawn(PawnDefinitionData(
+        id="hero_pawn",
+        name="Hero",
+        sprite_key="hero",
+        animations=animations,
+    ))
+    registry.save_character(PlayableCharacterDefinitionData(
+        id="hero",
+        pawn_id="hero_pawn",
+        max_hp=20,
+        attack=4,
+        defense=3,
+    ))
+    scene = ExplorationSceneData.blank("start", 6, 6)
+    save_exploration_scene(scene, registry.scene_dir / "start.json")
+    registry.save_game_settings(GameSettingsData(
+        title="Animation Game",
+        starting_scene="start",
+        starting_party=("hero",),
+        leader="hero",
+    ))
+
+    reloaded = ProjectRegistry.load(registry.game_root)
+    assert reloaded.pawn("hero_pawn").animations["wave"]["frames"] == [0, 1, 2]
+
+    game = build_project_game(registry.game_root)
+    world = game.definition.create_exploration(game)
+    actor = world.actor("hero")
+    assert set(actor.animations) == {"idle", "wave"}
+
+
+def test_actor_animation_auto_walk_and_one_shot_completion():
+    from mystery_engine.core import Vec2
+    from mystery_engine.story import ExplorationActor
+
+    actor = ExplorationActor(
+        "actor", "Actor", Vec2(10, 10),
+        animations={
+            "idle": {"columns": 1, "frames": [0], "fps": 4.0, "loop": True},
+            "walk": {"columns": 2, "frames": [0, 1], "fps": 8.0, "loop": True},
+            "wave": {"columns": 2, "frames": [0, 1], "fps": 4.0, "loop": False},
+        },
+    )
+    actor.update_animation(0.016)
+    actor.position.x += 4
+    actor.update_animation(0.016)
+    assert actor.animation_name == "walk"
+
+    assert actor.play_animation("wave", loop=False, return_to_idle=True)
+    before = actor.animation_completion_count
+    actor.update_animation(0.6)
+    assert actor.animation_completion_count == before + 1
+    assert actor.animation_name == "idle"
+    assert actor.animation_override is False
+
+
+def test_story_play_animation_waits_for_one_shot_completion(tmp_path):
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    game.exploration = game.definition.create_exploration(game)
+    actor = game.exploration.actor(game.state.leader.id)
+    actor.animations = {
+        "cast": {"columns": 2, "frames": [0, 1], "fps": 4.0, "loop": False},
+        "idle": {"columns": 1, "frames": [0], "fps": 4.0, "loop": True},
+    }
+
+    handle = game.story_actions("play_animation", {
+        "actor": actor.id,
+        "animation": "cast",
+        "loop": False,
+        "return_to_idle": True,
+    })
+    assert handle.update(0.0) is False
+    actor.update_animation(0.6)
+    assert handle.update(0.0) is True
+    assert actor.animation_name == "idle"

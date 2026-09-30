@@ -179,6 +179,10 @@ def edit_enemy_dialog(registry: ProjectRegistry, enemy_id: str | None = None) ->
     outer = tk.Frame(root)
     outer.pack(fill="both", expand=True, padx=16, pady=12)
     fields: dict[str, tk.StringVar] = {}
+    working_animations = {
+        str(name): dict(payload)
+        for name, payload in (current.animations.items() if current else [])
+    }
 
     def entry_row(label: str, key: str, value: object = "") -> None:
         r = tk.Frame(outer)
@@ -972,9 +976,152 @@ def edit_pawn_dialog(registry: ProjectRegistry, pawn_id: str | None = None) -> s
 
     tk.Button(portrait_row, text="Import…", command=import_portrait).pack(side="left", padx=(6, 0))
 
+    animation_row = tk.Frame(outer)
+    animation_row.pack(fill="x", pady=(12, 4))
+    tk.Label(animation_row, text="Animation sets", width=18, anchor="w").pack(side="left")
+    animation_summary = tk.StringVar()
+
+    def refresh_animation_summary() -> None:
+        names = sorted(working_animations)
+        animation_summary.set(", ".join(names) if names else "None (legacy/static fallback)")
+
+    tk.Label(animation_row, textvariable=animation_summary, anchor="w").pack(side="left", fill="x", expand=True)
+
+    def edit_animations() -> None:
+        win = tk.Toplevel(root)
+        win.title("Pawn Animation Sets")
+        win.geometry("820x620")
+        frame = tk.Frame(win)
+        frame.pack(fill="both", expand=True, padx=14, pady=12)
+        box = tk.Listbox(frame, height=16, exportselection=False)
+        box.pack(fill="both", expand=True)
+
+        def clip_label(name: str) -> str:
+            clip = working_animations[name]
+            return (
+                f"{name} — {clip.get('columns', 1)}×{clip.get('rows', 1)}  "
+                f"{clip.get('fps', 8)} fps  {'loop' if clip.get('loop', True) else 'one-shot'}"
+            )
+
+        def refresh(select: int | None = None) -> None:
+            box.delete(0, "end")
+            for name in sorted(working_animations):
+                box.insert("end", clip_label(name))
+            if working_animations:
+                index = max(0, min(select if select is not None else 0, len(working_animations)-1))
+                box.selection_set(index)
+
+        def selected_name() -> str | None:
+            sel = box.curselection()
+            if not sel:
+                return None
+            return sorted(working_animations)[sel[0]]
+
+        def edit_clip(name: str | None = None) -> None:
+            existing = dict(working_animations.get(name or "", {}))
+            clip_win = tk.Toplevel(win)
+            clip_win.title("Edit Animation Clip" if name else "Add Animation Clip")
+            clip_win.geometry("720x560")
+            body = tk.Frame(clip_win)
+            body.pack(fill="both", expand=True, padx=14, pady=12)
+
+            vars_: dict[str, tk.StringVar] = {}
+            def row(label: str, key: str, value: object = "") -> None:
+                r = tk.Frame(body); r.pack(fill="x", pady=4)
+                tk.Label(r, text=label, width=20, anchor="w").pack(side="left")
+                v = tk.StringVar(value=str(value))
+                vars_[key] = v
+                tk.Entry(r, textvariable=v).pack(side="left", fill="x", expand=True)
+
+            row("Name", "name", name or "")
+            row("Sprite sheet path", "path", existing.get("path", ""))
+            row("Columns", "columns", existing.get("columns", 1))
+            row("Rows", "rows", existing.get("rows", 1))
+            row("Directions", "directions", ",".join(existing.get("directions", ["s"])))
+            row("Frames", "frames", ",".join(str(v) for v in existing.get("frames", [])))
+            row("FPS", "fps", existing.get("fps", 8.0))
+            loop_var = tk.BooleanVar(value=bool(existing.get("loop", True)))
+            loop_row = tk.Frame(body); loop_row.pack(fill="x", pady=4)
+            tk.Label(loop_row, text="Loop", width=20, anchor="w").pack(side="left")
+            tk.Checkbutton(loop_row, variable=loop_var).pack(side="left")
+
+            def import_sheet() -> None:
+                chosen = filedialog.askopenfilename(
+                    parent=clip_win, title="Import animation sheet",
+                    filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+                )
+                if not chosen:
+                    return
+                try:
+                    key, _ = registry.import_asset(Path(chosen), "characters", allowed_suffixes={".png"})
+                    vars_["path"].set(f"characters/{key}.png")
+                except Exception as exc:
+                    messagebox.showerror("Could not import animation sheet", str(exc), parent=clip_win)
+
+            tk.Button(body, text="Import sheet…", command=import_sheet).pack(anchor="w", pady=(4, 10))
+
+            def accept() -> None:
+                try:
+                    clip_name = vars_["name"].get().strip()
+                    if not clip_name:
+                        raise ValueError("Animation name cannot be blank.")
+                    columns = max(1, int(vars_["columns"].get()))
+                    rows = max(1, int(vars_["rows"].get()))
+                    directions = [v.strip().lower() for v in vars_["directions"].get().split(",") if v.strip()]
+                    if not directions:
+                        directions = ["s"]
+                    frames_text = vars_["frames"].get().strip()
+                    frames = [int(v.strip()) for v in frames_text.split(",") if v.strip()] if frames_text else list(range(columns))
+                    if not frames:
+                        frames = [0]
+                    if any(v < 0 or v >= columns for v in frames):
+                        raise ValueError("Frame indices must be between 0 and columns-1.")
+                    if len(directions) > rows:
+                        raise ValueError("Rows must be at least the number of directional rows.")
+                    clip = {
+                        "path": vars_["path"].get().strip(),
+                        "columns": columns,
+                        "rows": rows,
+                        "directions": directions,
+                        "frames": frames,
+                        "fps": max(0.01, float(vars_["fps"].get())),
+                        "loop": bool(loop_var.get()),
+                    }
+                    if name and clip_name != name:
+                        working_animations.pop(name, None)
+                    working_animations[clip_name] = clip
+                except Exception as exc:
+                    messagebox.showerror("Invalid animation clip", str(exc), parent=clip_win)
+                    return
+                refresh()
+                refresh_animation_summary()
+                clip_win.destroy()
+
+            controls = tk.Frame(body); controls.pack(fill="x", pady=(12, 0))
+            tk.Button(controls, text="Cancel", command=clip_win.destroy).pack(side="right", padx=(8, 0))
+            tk.Button(controls, text="Save Clip", command=accept).pack(side="right")
+            clip_win.transient(win); clip_win.grab_set()
+
+        controls = tk.Frame(frame); controls.pack(fill="x", pady=8)
+        tk.Button(controls, text="+ Animation", command=lambda: edit_clip(None)).pack(side="left")
+        tk.Button(controls, text="Edit", command=lambda: edit_clip(selected_name()) if selected_name() else None).pack(side="left", padx=5)
+        def remove() -> None:
+            name = selected_name()
+            if name:
+                working_animations.pop(name, None)
+                refresh()
+                refresh_animation_summary()
+        tk.Button(controls, text="Delete", command=remove).pack(side="left")
+        tk.Button(controls, text="Close", command=win.destroy).pack(side="right")
+        refresh()
+        win.transient(root); win.grab_set()
+
+    tk.Button(animation_row, text="Edit…", command=edit_animations).pack(side="right", padx=(6, 0))
+    refresh_animation_summary()
+
     note = (
-        "A single PNG is enough for a static pawn. Directional/walk sheets with the same "
-        "sprite key can be added later and the renderer will use them automatically."
+        "Static/directional sprites still work without animation sets. Named clips can use "
+        "uniform sprite-sheet grids and optional directional rows; idle/walk/run are selected automatically."
     )
     tk.Label(outer, text=note, justify="left", wraplength=700, fg="#555555").pack(fill="x", pady=(14, 6))
 
@@ -990,6 +1137,7 @@ def edit_pawn_dialog(registry: ProjectRegistry, pawn_id: str | None = None) -> s
                 portrait_key=fields["portrait"].get().strip() or None,
                 radius=max(1.0, float(fields["radius"].get() or 28)),
                 color_key=fields["color"].get().strip() or "neutral",
+                animations={str(name): dict(payload) for name, payload in working_animations.items()},
             )
             registry.save_pawn(data)
         except Exception as exc:

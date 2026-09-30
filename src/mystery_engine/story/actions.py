@@ -82,6 +82,49 @@ class MoveActorAction:
 
 
 @dataclass
+class PlayAnimationAction:
+    game: Any
+    actor_id: str
+    animation: str
+    loop: bool | None = None
+    return_to_idle: bool = True
+    _started: bool = False
+    _completion_target: int = 0
+
+    def update(self, dt: float) -> bool:
+        world = self.game.exploration
+        if world is None:
+            return True
+        try:
+            actor = world.actor(self.actor_id)
+        except KeyError:
+            return True
+        if not self._started:
+            self._completion_target = actor.animation_completion_count + 1
+            if not actor.play_animation(
+                self.animation,
+                loop=self.loop,
+                return_to_idle=self.return_to_idle,
+            ):
+                return True
+            self._started = True
+            clip = actor.animation_clip(self.animation) or {}
+            effective_loop = bool(clip.get("loop", True)) if self.loop is None else bool(self.loop)
+            if effective_loop:
+                return True
+        return actor.animation_completion_count >= self._completion_target
+
+    def cancel(self) -> None:
+        world = self.game.exploration
+        if world is None:
+            return
+        try:
+            world.actor(self.actor_id).reset_animation()
+        except KeyError:
+            pass
+
+
+@dataclass
 class CameraMoveAction:
     game: Any
     target_id: str | None
@@ -191,6 +234,24 @@ class StoryActionDispatcher:
                         actor.enabled = bool(params["enabled"])
                     if params.get("sprite_key"):
                         actor.sprite_key = str(params["sprite_key"])
+                except KeyError:
+                    pass
+            return ImmediateAction()
+
+        if action in {"play_animation", "animation"}:
+            loop_value = params.get("loop")
+            return PlayAnimationAction(
+                self.game,
+                actor_id=str(params.get("actor", "")),
+                animation=str(params.get("animation", "idle")),
+                loop=(bool(loop_value) if loop_value is not None else None),
+                return_to_idle=bool(params.get("return_to_idle", True)),
+            )
+
+        if action in {"reset_animation", "stop_animation"}:
+            if world is not None:
+                try:
+                    world.actor(str(params.get("actor", ""))).reset_animation()
                 except KeyError:
                     pass
             return ImmediateAction()

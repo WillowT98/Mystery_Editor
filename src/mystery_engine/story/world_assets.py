@@ -67,6 +67,7 @@ class WorldAssetDefinition:
     actor_name: str | None = None
     color_key: str = "neutral"
     radius: float = 28.0
+    animations: Mapping[str, Mapping[str, object]] = field(default_factory=dict)
     # Semantic sound cues keyed by event name (for example "interact" or "use").
     # Scene instances may override these without changing the game-wide asset.
     sound_cues: Mapping[str, str] = field(default_factory=dict)
@@ -392,6 +393,7 @@ def build_exploration_map(
                     interaction=interaction,
                     enabled=placed.enabled,
                     interaction_sound=placed.sound_cues.get("interact") or definition.sound_cues.get("interact"),
+                    animations={str(k): dict(v) for k, v in definition.animations.items()},
                 )
             )
         elif definition.category == "marker":

@@ -119,3 +119,16 @@ def test_story_editor_exposes_gameplay_actions_and_conditions():
         "party_contains", "party_hp", "skill_charges",
     ):
         assert condition in conditions
+
+
+def test_story_editor_exposes_structured_actor_animation_actions():
+    assert "play_animation" in StoryGraphEditor.STRUCTURED_ACTIONS
+    assert "reset_animation" in StoryGraphEditor.STRUCTURED_ACTIONS
+    assert StoryGraphEditor.ACTION_TEMPLATES["Animation"][1]["action"] == "play_animation"
+
+
+def test_pawn_editor_contains_animation_set_authoring():
+    source = (__import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "mystery_engine" / "editor" / "project_editor.py").read_text(encoding="utf-8")
+    assert "Pawn Animation Sets" in source
+    assert "Import animation sheet" in source
+    assert "Animation sets" in source

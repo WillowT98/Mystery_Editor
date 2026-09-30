@@ -478,6 +478,9 @@ class ProjectGameDefinition:
             facing=str(data.get("facing", "S")).upper(),
             enabled=bool(data.get("enabled", True)),
             sprite_key=(str(data["sprite_key"]) if data.get("sprite_key") is not None else None),
+            animation_name=(str(data["animation_name"]) if data.get("animation_name") else None),
+            animation_override=bool(data.get("animation_override", False)),
+            animation_loop=(bool(data["animation_loop"]) if "animation_loop" in data else None),
         )
 
     def create_exploration(self, game: "MysteryGame") -> ExplorationMap:
@@ -511,6 +514,10 @@ class ProjectGameDefinition:
                 actor.enabled = saved.enabled
                 if saved.sprite_key is not None:
                     actor.sprite_key = saved.sprite_key
+                if saved.animation_name and saved.animation_name in actor.animations:
+                    actor.animation_name = saved.animation_name
+                    actor.animation_override = saved.animation_override
+                    actor.animation_loop_override = saved.animation_loop
                 restored_party = True
 
         if not restored_party and settings.starting_marker:
@@ -574,12 +581,15 @@ class ProjectGameDefinition:
         for member in game.state.party:
             if any(actor.id == member.id for actor in world.actors):
                 continue
+            character_def = self.project_registry.characters.get(member.id)
+            pawn = self.project_registry.pawns.get(character_def.pawn_id) if character_def is not None else None
             world.actors.append(ExplorationActor(
                 id=member.id,
                 name=member.name,
                 position=Vec2(world.width / 2, world.height / 2),
-                radius=28.0,
-                sprite_key=member.metadata.get("sprite_key", member.id),
+                radius=(pawn.radius if pawn is not None else 28.0),
+                sprite_key=member.metadata.get("sprite_key", pawn.sprite_key if pawn is not None else member.id),
+                animations=({str(k): dict(v) for k, v in pawn.animations.items()} if pawn is not None else {}),
             ))
 
         saved_scene_state = game.state.world.scenes.get(world.id)
@@ -596,6 +606,10 @@ class ProjectGameDefinition:
                 actor.enabled = saved.enabled
                 if saved.sprite_key is not None:
                     actor.sprite_key = saved.sprite_key
+                if saved.animation_name and saved.animation_name in actor.animations:
+                    actor.animation_name = saved.animation_name
+                    actor.animation_override = saved.animation_override
+                    actor.animation_loop_override = saved.animation_loop
             for object_id, saved in saved_scene_state.objects.items():
                 item = next((candidate for candidate in world.interactables if candidate.id == object_id), None)
                 if item is not None:

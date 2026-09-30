@@ -157,6 +157,18 @@ class MysteryGame:
             if self.exploration is not None and self.exploration.camera_shake_time > 0:
                 self.exploration.camera_shake_time = max(0.0, self.exploration.camera_shake_time - dt)
             self.story_runner.update(dt)
+            if self.exploration is not None:
+                sprinting_ids = set()
+                if (
+                    self.mode is GameMode.EXPLORATION
+                    and not self.story_runner.active
+                    and not self.dialogue.active
+                    and not self.menu.active
+                    and frame.sprint
+                    and frame.move.length() > 0
+                ):
+                    sprinting_ids.add(self.state.leader.id)
+                self.exploration.update_actor_animations(dt, sprinting_ids=sprinting_ids)
             self._update_projectiles(dt)
 
             if self.dialogue.active:
@@ -592,6 +604,9 @@ class MysteryGame:
                 facing=actor.facing.name,
                 enabled=actor.enabled,
                 sprite_key=actor.sprite_key,
+                animation_name=actor.animation_name,
+                animation_override=actor.animation_override,
+                animation_loop=actor.animation_loop_override,
             )
             for actor in world.actors
             if actor.id in party_ids
@@ -604,6 +619,9 @@ class MysteryGame:
                     facing=actor.facing.name,
                     enabled=actor.enabled,
                     sprite_key=actor.sprite_key,
+                    animation_name=actor.animation_name,
+                    animation_override=actor.animation_override,
+                    animation_loop=actor.animation_loop_override,
                 )
                 for actor in world.actors
                 if actor.id not in party_ids
