@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -9,13 +10,16 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from mystery_engine.project_runtime import build_project_game
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run a Mystery Engine project")
     parser.add_argument(
         "--project",
         type=Path,
-        help="Project folder containing project.json. Omit for the legacy test game.",
+        default=ROOT / "src" / "test_game",
+        help="Project folder containing project.json.",
     )
     parser.add_argument(
         "--locale",
@@ -23,16 +27,9 @@ def main() -> None:
     )
     args = parser.parse_args()
     if args.locale:
-        import os
         os.environ["MYSTERY_LOCALE"] = args.locale
 
-    if args.project is not None:
-        from mystery_engine.project_runtime import build_project_game
-        game = build_project_game(args.project)
-    else:
-        from test_game.game_definition import build_game
-        game = build_game()
-    game.run()
+    build_project_game(args.project).run()
 
 
 if __name__ == "__main__":
