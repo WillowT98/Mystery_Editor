@@ -1089,6 +1089,37 @@ class ExplorationSceneEditor:
             graph.save(self.project_registry.story_path(graph.id))
             self.status = f"Updated dialogue {node_id}"
 
+    def _assign_current_story_to_selected_pawn(self) -> None:
+        graph = self._current_story()
+        if graph is None:
+            self.status = "Choose or create a story first"
+            return
+        if self.selected_object is None or not (0 <= self.selected_object < len(self.scene.objects)):
+            self.status = "Select a placed pawn first"
+            return
+        obj = self.scene.objects[self.selected_object]
+        definition = self.catalog.get(obj.asset)
+        if definition.category != "actor":
+            self.status = "Select a placed pawn first"
+            return
+        before = self.history.snapshot(self.scene)
+        obj.target_story = graph.id
+        self.history.remember(before)
+        self.dirty = True
+        self.status = f"{definition.display_name} will start {graph.name or graph.id}"
+
+    def _clear_selected_pawn_story(self) -> None:
+        if self.selected_object is None or not (0 <= self.selected_object < len(self.scene.objects)):
+            return
+        obj = self.scene.objects[self.selected_object]
+        if not obj.target_story:
+            return
+        before = self.history.snapshot(self.scene)
+        obj.target_story = None
+        self.history.remember(before)
+        self.dirty = True
+        self.status = "Pawn story interaction cleared"
+
     def _open_story_graph(self) -> None:
         graph = self._current_story()
         if graph is None or self.project_registry is None:
@@ -1511,6 +1542,28 @@ class ExplorationSceneEditor:
                     note = self.font_small.render(f"{placed_count} placed", True, (173, 184, 199))
                     self.screen.blit(note, (br.x + 58, br.y + 29))
                     y += 60
+
+                if self.selected_object is not None and 0 <= self.selected_object < len(self.scene.objects):
+                    selected_obj = self.scene.objects[self.selected_object]
+                    selected_def = self.catalog.get(selected_obj.asset)
+                    if selected_def.category == "actor":
+                        linked = selected_obj.target_story or "none"
+                        self._draw_sidebar_help(y + 2, [
+                            f"Selected pawn: {selected_def.display_name}",
+                            f"Interaction story: {linked}",
+                        ])
+                        y += 56
+                        br = pygame.Rect(rect.x + 18, y, rect.w - 36, 32)
+                        self._palette_items.append(PaletteItem("__story_assign_selected", "Assign story", br, None))
+                        pygame.draw.rect(self.screen, (55, 66, 82), br, border_radius=6)
+                        self.screen.blit(self.font_small.render("Make pawn start current story", True, (235, 238, 232)), (br.x + 9, br.y + 6))
+                        y += 38
+                        if selected_obj.target_story:
+                            br = pygame.Rect(rect.x + 18, y, rect.w - 36, 30)
+                            self._palette_items.append(PaletteItem("__story_clear_selected", "Clear story", br, None))
+                            pygame.draw.rect(self.screen, (66, 58, 65), br, border_radius=6)
+                            self.screen.blit(self.font_small.render("Clear pawn story interaction", True, (235, 238, 232)), (br.x + 9, br.y + 5))
+                            y += 36
 
                 y += 6
                 self.screen.blit(self.font.render("Story", True, (242, 240, 231)), (rect.x + 18, y))
@@ -2001,7 +2054,7 @@ class ExplorationSceneEditor:
             action=src.action, label=src.label, enabled=src.enabled, collision=copied_collision,
             target_scene=src.target_scene, target_door=src.target_door, portal_facing=src.portal_facing,
             portal_mode=src.portal_mode, sound_cues=dict(src.sound_cues),
-            target_dungeon=src.target_dungeon, sprite_override=src.sprite_override,
+            target_dungeon=src.target_dungeon, target_story=src.target_story, sprite_override=src.sprite_override,
         )
         self.scene.objects.append(dup)
         self.history.remember(before)
@@ -2037,6 +2090,8 @@ class ExplorationSceneEditor:
                     elif item.key.startswith("__story_select::"):
                         self.story_id = str(item.value)
                         self.status = f"Story: {self.story_id}"
+                    elif item.key == "__story_assign_selected": self._assign_current_story_to_selected_pawn()
+                    elif item.key == "__story_clear_selected": self._clear_selected_pawn_story()
                     elif item.key == "__story_add_dialogue": self._new_dialogue_node()
                     elif item.key == "__story_graph": self._open_story_graph()
                     elif item.key.startswith("__story_dialogue::"): self._edit_dialogue_node(str(item.value))
