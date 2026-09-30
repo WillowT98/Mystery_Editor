@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "id": "veil_bloom_root_lash",
+  "name": "Root Lash",
+  "description": "Whip a target up to two cells away.",
+  "target": "enemy",
+  "range": 2,
+  "power": 4,
+  "heal": 0,
+  "damage_type": "physical",
+  "max_charges": 6,
+  "accuracy": 1,
+  "range_pattern": "two_tiles",
+  "sfx_cue": "combat.light_hit"
+}
