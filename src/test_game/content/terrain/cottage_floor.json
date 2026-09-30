@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "id": "cottage_floor",
+  "name": "Cottage Floor",
+  "mode": "single",
+  "sprite_keys": [],
+  "blocked": false,
+  "fallback_color": "#75563d"
+}
