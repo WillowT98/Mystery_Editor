@@ -152,8 +152,6 @@ class ProjectGameDefinition:
                     )
 
     def create_state(self) -> PersistentGameState:
-
-    def create_state(self) -> PersistentGameState:
         settings = self.project_registry.game_settings
         if not settings.starting_party:
             raise RuntimeError("Set at least one starting party member in Game Settings before running.")
