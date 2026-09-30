@@ -20,7 +20,9 @@ from mystery_engine.dungeon import DungeonFloor
 from mystery_engine.dungeon.actions import SkillAction
 from mystery_engine.dungeon.turns import TurnManager
 from mystery_engine.presentation import ProjectileAnimation
-from test_game.content import make_fox, make_mara, make_mossling, make_starting_bag
+from mystery_engine.project import ProjectRegistry
+
+GAME_ROOT = ROOT / "src" / "test_game"
 
 
 def _open_floor(width=8, height=8):
@@ -68,15 +70,20 @@ def test_missed_projectile_has_no_impact_phase():
 
 def test_ranged_skill_emits_projectile_event_instead_of_immediate_projectile_sfx():
     floor = _open_floor()
-    fox = make_fox()
-    mara = make_mara()
-    enemy = make_mossling("mossling_test")
+    registry = ProjectRegistry.load(GAME_ROOT)
+    fox = registry.make_character("fox", leader=True)
+    mara = registry.make_character("mara")
+    enemy = registry.make_enemy("mossling", "mossling_test")
     fox.grid_pos = GridPos(1, 2)
     mara.grid_pos = GridPos(1, 1)
     enemy.grid_pos = GridPos(4, 1)
     floor.entities.extend([fox, mara, enemy])
 
-    turns = TurnManager(floor, [fox, mara], make_starting_bag(), fox, Random(1))
+    from mystery_engine.core.inventory import Inventory
+    bag = Inventory(capacity=12)
+    for item_id, quantity in registry.game_settings.starting_items.items():
+        bag.add(registry.item(item_id), quantity)
+    turns = TurnManager(floor, [fox, mara], bag, fox, Random(1))
     messages: list[str] = []
     sounds: list[str] = []
     projectiles = []
