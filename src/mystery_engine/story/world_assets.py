@@ -11,6 +11,7 @@ from .exploration import (
     ExplorationMap,
     ExplorationMarker,
     ExplorationScenery,
+    ExplorationTrigger,
     ObstacleShape,
     PolygonObstacle,
     RectObstacle,
@@ -181,6 +182,64 @@ class SceneObjectData:
 
 
 @dataclass
+class SceneTriggerData:
+    id: str
+    kind: str
+    story: str
+    entry: str = "default"
+    once: bool = True
+    enabled: bool = True
+    condition: dict[str, object] | None = None
+    x: float | None = None
+    y: float | None = None
+    w: float | None = None
+    h: float | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SceneTriggerData":
+        kind = str(data.get("kind", "on_scene_enter")).lower()
+        if kind not in {"on_scene_enter", "on_region_enter"}:
+            kind = "on_scene_enter"
+        region = dict(data.get("region") or {})
+        return cls(
+            id=str(data["id"]),
+            kind=kind,
+            story=str(data.get("story", "")),
+            entry=str(data.get("entry", "default") or "default"),
+            once=bool(data.get("once", True)),
+            enabled=bool(data.get("enabled", True)),
+            condition=(dict(data["condition"]) if isinstance(data.get("condition"), dict) else None),
+            x=(float(region["x"]) if "x" in region else None),
+            y=(float(region["y"]) if "y" in region else None),
+            w=(float(region["w"]) if "w" in region else None),
+            h=(float(region["h"]) if "h" in region else None),
+        )
+
+    def to_dict(self) -> dict:
+        data: dict[str, object] = {
+            "id": self.id,
+            "kind": self.kind,
+            "story": self.story,
+        }
+        if self.entry != "default":
+            data["entry"] = self.entry
+        if not self.once:
+            data["once"] = False
+        if not self.enabled:
+            data["enabled"] = False
+        if self.condition:
+            data["condition"] = self.condition
+        if self.kind == "on_region_enter":
+            data["region"] = {
+                "x": float(self.x or 0.0),
+                "y": float(self.y or 0.0),
+                "w": max(1.0, float(self.w or 1.0)),
+                "h": max(1.0, float(self.h or 1.0)),
+            }
+        return data
+
+
+@dataclass
 class ExplorationSceneData:
     id: str
     tile_size: int
@@ -189,6 +248,7 @@ class ExplorationSceneData:
     terrain: list[list[str]]
     elevations: list[list[int]]
     objects: list[SceneObjectData] = field(default_factory=list)
+    triggers: list[SceneTriggerData] = field(default_factory=list)
     blocked_terrain: list[str] = field(default_factory=lambda: ["water", "void"])
     elevation_face_depth: int = 44
     # Optional looping background music, stored relative to the game's asset root.
@@ -237,6 +297,7 @@ class ExplorationSceneData:
             terrain=terrain,
             elevations=elevations,
             objects=[SceneObjectData.from_dict(v) for v in data.get("objects", [])],
+            triggers=[SceneTriggerData.from_dict(v) for v in data.get("triggers", [])],
             blocked_terrain=[str(v) for v in data.get("blocked_terrain", ["water", "void"])],
             elevation_face_depth=int(data.get("elevation_face_depth", 44)),
             music=(str(data["music"]) if data.get("music") else None),
@@ -259,6 +320,7 @@ class ExplorationSceneData:
             "terrain": self.terrain,
             "elevations": self.elevations,
             "objects": [obj.to_dict() for obj in self.objects],
+            "triggers": [trigger.to_dict() for trigger in self.triggers],
         }
         if self.music:
             data["music"] = self.music
@@ -291,6 +353,7 @@ def build_exploration_map(
     actors: list[ExplorationActor] = []
     interactables: list[ExplorationInteractable] = []
     markers: list[ExplorationMarker] = []
+    triggers: list[ExplorationTrigger] = []
 
     for placed in scene.objects:
         definition = catalog.get(placed.asset)
@@ -362,6 +425,26 @@ def build_exploration_map(
         else:
             raise ValueError(f"Unsupported world asset category: {definition.category}")
 
+    for trigger in scene.triggers:
+        region = None
+        if trigger.kind == "on_region_enter":
+            region = RectObstacle(
+                float(trigger.x or 0.0),
+                float(trigger.y or 0.0),
+                max(1.0, float(trigger.w or 1.0)),
+                max(1.0, float(trigger.h or 1.0)),
+            )
+        triggers.append(ExplorationTrigger(
+            id=trigger.id,
+            kind=trigger.kind,
+            story=trigger.story,
+            entry=trigger.entry,
+            once=trigger.once,
+            enabled=trigger.enabled,
+            condition=(dict(trigger.condition) if trigger.condition else None),
+            region=region,
+        ))
+
     terrain = TerrainTileMap(
         tile_size=scene.tile_size,
         width_tiles=scene.width_tiles,
@@ -381,6 +464,7 @@ def build_exploration_map(
         actors=actors,
         interactables=interactables,
         markers=markers,
+        triggers=triggers,
         blocked_terrain=frozenset(
             set(scene.blocked_terrain)
             | {key for key, style in dict(terrain_styles or {}).items() if bool(style.get("blocked", False))}

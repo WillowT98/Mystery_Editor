@@ -132,3 +132,12 @@ current pawn display name and portrait when the line is played. Free-form
 Scene objects may store `target_story`. This is the generic no-code interaction
 link used by the room editor: interacting with that pawn starts the referenced
 graph.
+
+## Automatic scene triggers
+
+Exploration scenes may also launch story graphs automatically through scene triggers. The scene editor's **7 Triggers** mode supports:
+
+- `on_scene_enter` — after scene loading, persistent-state restoration, and party placement;
+- `on_region_enter` — when the leader crosses into an authored rectangular trigger region.
+
+Triggers can specify a named story entry point, the same flag/variable condition objects used elsewhere in story graphs, and `once` or repeatable behavior. Once-trigger completion is stored in story state and therefore participates in normal save/load automatically.

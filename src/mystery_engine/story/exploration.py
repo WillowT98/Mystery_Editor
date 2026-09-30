@@ -195,6 +195,18 @@ class ExplorationInteractable:
 
 
 @dataclass
+class ExplorationTrigger:
+    id: str
+    kind: str
+    story: str
+    entry: str = "default"
+    once: bool = True
+    enabled: bool = True
+    condition: dict[str, object] | None = None
+    region: RectObstacle | None = None
+
+
+@dataclass
 class ExplorationMap:
     id: str
     width: float
@@ -205,6 +217,7 @@ class ExplorationMap:
     terrain: TerrainTileMap | None = None
     scenery: list[ExplorationScenery] = field(default_factory=list)
     markers: list[ExplorationMarker] = field(default_factory=list)
+    triggers: list[ExplorationTrigger] = field(default_factory=list)
     blocked_terrain: frozenset[str] = field(default_factory=frozenset)
     music: str | None = None
     music_volume: float = 1.0
