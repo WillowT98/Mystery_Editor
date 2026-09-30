@@ -330,7 +330,7 @@ def test_scene_transition_captures_scene_state_before_leaving(tmp_path):
 
     game.change_exploration_scene(registry.scene_dir / "second.json")
 
-    assert game.state.world.current_scene == "first"
+    assert game.state.world.current_scene == "second"
     assert game.state.world.scenes["first"].objects["storage_box"].enabled is False
 
 
