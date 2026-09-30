@@ -59,9 +59,30 @@ Effects currently support:
 - `multiply_variable`
 - `delete_variable`
 
+
+Gameplay-aware conditions are also available. These are resolved by the engine against the active persistent game state, so they work in Condition nodes, conditional choices/random branches, and scene triggers:
+
+- `has_item` / `item_count` — compare item quantities in the bag, storage, or both;
+- `has_money` — compare carried, stored, or total money;
+- `party_contains` — test whether a character is currently in the party;
+- `party_hp` — compare current HP, missing HP, or HP percentage for a party member;
+- `skill_charges` — compare remaining charges for a specific party member's skill.
+
+These conditions support the ordinary comparison operators (`==`, `!=`, `>`, `>=`, `<`, `<=`) and may be nested inside `all`, `any`, and `not` groups.
+
 ## Scene choreography
 
 The exploration scene editor now exposes a **Story marker** asset. Markers are visible in the editor but invisible at runtime. Use their IDs as durable movement/camera destinations instead of putting raw world coordinates into story files.
+
+Engine-native gameplay actions also include:
+
+- `give_item` / `remove_item` — move authored quantities into or out of the bag or storage;
+- `give_money` / `remove_money` — change carried or stored money;
+- `heal_party` — heal one party member or the whole party by an amount or to full HP;
+- `restore_skill_charges` — restore one skill or all skills for one member or the whole party;
+- `restore_party` — fully restore HP and skill charges for one member or the whole party.
+
+All of these use the existing persistent inventory/wallet/party state, so their results participate in normal save/load automatically.
 
 Engine-native action IDs currently include:
 
@@ -89,6 +110,8 @@ Action nodes have a `wait` field. When false, the action continues in the backgr
 
 
 ### Structured choreography editing
+
+The structured editor also covers the generic gameplay actions above. Item fields use project item IDs, character fields use project character IDs, and condition nodes now have a structured **Edit Condition** form for gameplay checks as well as flags/variables.
 
 The structured action editor currently covers:
 
