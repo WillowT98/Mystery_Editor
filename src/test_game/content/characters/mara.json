@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "id": "mara",
+  "pawn": "mara",
+  "stats": {
+    "max_hp": 38,
+    "attack": 6,
+    "defense": 4
+  },
+  "attacks": [
+    "mara_spark",
+    "mara_mend"
+  ],
+  "resistances": {},
+  "resources": {},
+  "ai_tactic": "protect"
+}
