@@ -850,7 +850,8 @@
       "id": "fox",
       "asset": "fox",
       "x": 640,
-      "y": 610
+      "y": 610,
+      "enabled": false
     },
     {
       "id": "mara",
