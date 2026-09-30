@@ -57,6 +57,26 @@ class SceneDataTests(unittest.TestCase):
         self.assertEqual(world.interactables[0].icon_key, "waystone")
 
 
+    def test_storage_assets_bind_as_separate_interactables(self):
+        scene = ExplorationSceneData.blank("storage", 8, 8)
+        scene.objects.extend([
+            SceneObjectData("items", "item_storage", 128, 128, action="storage.items"),
+            SceneObjectData("money", "money_storage", 256, 128, action="storage.money"),
+        ])
+        called: list[str] = []
+        world = build_exploration_map(
+            scene,
+            WORLD_ASSETS,
+            {
+                "storage.items": lambda: called.append("items"),
+                "storage.money": lambda: called.append("money"),
+            },
+        )
+        self.assertEqual([entry.label for entry in world.interactables], ["Item storage", "Money storage"])
+        world.interactables[0].interaction()
+        world.interactables[1].interaction()
+        self.assertEqual(called, ["items", "money"])
+
     def test_collision_override_roundtrip_and_runtime(self):
         scene = ExplorationSceneData.blank("collision_override", 6, 5)
         scene.objects.append(

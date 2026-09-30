@@ -282,6 +282,22 @@ The existing Tree, Boulder, Flower Bush, Bush, Fence, Signpost, and Waystone are
 also present as project object definitions, so the shipped test project exercises
 the same data-backed path used by newly created objects.
 
+### Item and money storage
+
+The engine also provides two generic exploration interactables in the Objects
+palette:
+
+- **Item storage** transfers items between the party bag and persistent storage.
+  Players may move one item or an entire stack in either direction. Bag and
+  storage capacity rules are respected.
+- **Money storage** transfers funds between carried money and stored money.
+  The runtime exposes common denominations plus an **All** option.
+
+These objects do not own separate inventories or balances. They operate directly
+on the shared `PersistentGameState` bag/storage/wallet fields, so storage contents
+remain part of the same persistent state used by saving, defeat loss, and future
+load-game reconstruction.
+
 
 ## Standalone projects and the File menu
 

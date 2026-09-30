@@ -671,6 +671,130 @@ class MysteryGame:
             entries.append(MenuEntry("Bag is empty", enabled=False))
         return entries
 
+    def open_item_storage(self) -> None:
+        """Open the shared bag/storage transfer interface from an exploration object."""
+        if self.mode is not GameMode.EXPLORATION:
+            self.add_message("Item storage is only available while exploring.")
+            return
+        self._system_menu = False
+        self.menu.open("Item Storage", [
+            MenuEntry(
+                "Deposit from bag",
+                children=lambda: self._storage_item_entries("bag"),
+                detail=f"{self.state.bag.occupied_slots}/{self.state.bag.capacity} bag slots",
+            ),
+            MenuEntry(
+                "Withdraw from storage",
+                children=lambda: self._storage_item_entries("storage"),
+                detail=f"{self.state.storage.occupied_slots}/{self.state.storage.capacity} storage slots",
+            ),
+            MenuEntry("Close", action=self.menu.close),
+        ])
+
+    def _storage_item_entries(self, source_name: str) -> list[MenuEntry]:
+        source = self.state.bag if source_name == "bag" else self.state.storage
+        verb = "Deposit" if source_name == "bag" else "Withdraw"
+        if not source.stacks:
+            return [MenuEntry("Nothing here", enabled=False)]
+
+        entries: list[MenuEntry] = []
+        for stack in source.stacks:
+            item_id = stack.item.id
+            quantity = stack.quantity
+
+            def actions(i=item_id, q=quantity, v=verb, src=source_name):
+                return [
+                    MenuEntry(f"{v} one", action=lambda: self._transfer_storage_item(src, i, 1)),
+                    MenuEntry(
+                        f"{v} stack",
+                        action=lambda: self._transfer_storage_item(src, i, None),
+                        detail=f"×{q}",
+                    ),
+                ]
+
+            entries.append(MenuEntry(
+                f"{stack.item.name} ×{quantity}",
+                children=actions,
+                detail=stack.item.description,
+            ))
+        return entries
+
+    def _transfer_storage_item(self, source_name: str, item_id: str, quantity: int | None) -> None:
+        source = self.state.bag if source_name == "bag" else self.state.storage
+        destination = self.state.storage if source_name == "bag" else self.state.bag
+        stack = next((entry for entry in source.stacks if entry.item.id == item_id), None)
+        if stack is None:
+            self.add_message("That item is no longer available.")
+            self.open_item_storage()
+            return
+
+        amount = stack.quantity if quantity is None else min(stack.quantity, max(1, int(quantity)))
+        item = stack.item
+        if not destination.add(item, amount):
+            target = "storage" if source_name == "bag" else "bag"
+            self.add_message(f"The {target} is full.")
+            self.open_item_storage()
+            return
+
+        source.remove(item_id, amount)
+        direction = "Stored" if source_name == "bag" else "Withdrew"
+        self.add_message(f"{direction} {item.name} ×{amount}.")
+        self.open_item_storage()
+
+    def open_money_storage(self) -> None:
+        """Open the carried/stored money transfer interface from an exploration object."""
+        if self.mode is not GameMode.EXPLORATION:
+            self.add_message("Money storage is only available while exploring.")
+            return
+        self._system_menu = False
+        self.menu.open("Money Storage", [
+            MenuEntry(
+                "Deposit",
+                children=lambda: self._money_storage_entries(to_storage=True),
+                detail=f"Carried: {self.state.wallet.carried}",
+            ),
+            MenuEntry(
+                "Withdraw",
+                children=lambda: self._money_storage_entries(to_storage=False),
+                detail=f"Stored: {self.state.wallet.stored}",
+            ),
+            MenuEntry("Close", action=self.menu.close),
+        ])
+
+    def _money_storage_entries(self, *, to_storage: bool) -> list[MenuEntry]:
+        available = self.state.wallet.carried if to_storage else self.state.wallet.stored
+        verb = "Deposit" if to_storage else "Withdraw"
+        if available <= 0:
+            return [MenuEntry("No money available", enabled=False)]
+
+        amounts = [value for value in (1, 10, 100, 1000) if value < available]
+        entries = [
+            MenuEntry(str(value), action=lambda amount=value: self._transfer_storage_money(to_storage, amount))
+            for value in amounts
+        ]
+        entries.append(MenuEntry(
+            f"All ({available})",
+            action=lambda amount=available: self._transfer_storage_money(to_storage, amount),
+        ))
+        return entries
+
+    def _transfer_storage_money(self, to_storage: bool, amount: int) -> None:
+        amount = max(0, int(amount))
+        if to_storage:
+            moved = min(amount, self.state.wallet.carried)
+            self.state.wallet.carried -= moved
+            self.state.wallet.stored += moved
+            verb = "Stored"
+        else:
+            moved = min(amount, self.state.wallet.stored)
+            self.state.wallet.stored -= moved
+            self.state.wallet.carried += moved
+            verb = "Withdrew"
+
+        if moved:
+            self.add_message(f"{verb} {moved} money.")
+        self.open_money_storage()
+
     def _ground_entries(self) -> list[MenuEntry]:
         if self.dungeon is None or self.state.leader.grid_pos is None:
             return [MenuEntry("Nothing here", enabled=False)]

@@ -10,7 +10,7 @@ from mystery_engine.project import (
     TerrainDefinitionData,
 )
 from mystery_engine.core import DungeonResult, StoryState
-from mystery_engine.project_runtime import ProjectGameDefinition, SYSTEM_WORLD_ASSETS
+from mystery_engine.project_runtime import ProjectGameDefinition, SYSTEM_WORLD_ASSETS, build_project_game
 from mystery_engine.story import ExplorationSceneData, save_exploration_scene
 
 
@@ -58,6 +58,8 @@ def test_generic_project_runtime_builds_state_and_scene(tmp_path):
         change_exploration_scene=lambda *_: None,
         run_story=lambda *_: None,
         enter_dungeon=lambda *_: None,
+        open_item_storage=lambda: None,
+        open_money_storage=lambda: None,
     )
     world = definition.create_exploration(fake_game)
 
@@ -72,6 +74,8 @@ def test_system_assets_include_editor_primitives():
     assert SYSTEM_WORLD_ASSETS.get("scene_door").category == "portal"
     assert SYSTEM_WORLD_ASSETS.get("dungeon_entrance").category == "dungeon"
     assert SYSTEM_WORLD_ASSETS.get("story_marker").category == "marker"
+    assert SYSTEM_WORLD_ASSETS.get("item_storage").action_id == "storage.items"
+    assert SYSTEM_WORLD_ASSETS.get("money_storage").action_id == "storage.money"
 
 
 
@@ -149,3 +153,56 @@ def test_example_project_configures_data_driven_dungeon_result_stories():
     line = defeat.nodes["dialogue"]["lines"][1]["text"]
     assert "{dungeon_lost_money}" in line
     assert "{dungeon_lost_items}" in line
+
+
+def test_item_storage_transfers_single_items_and_whole_stacks():
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    salve = game.definition.project_registry.item("field_salve")
+    game.state.bag.stacks.clear()
+    game.state.storage.stacks.clear()
+    game.state.bag.add(salve, 3)
+
+    game._transfer_storage_item("bag", "field_salve", 1)
+    assert game.state.bag.stacks[0].quantity == 2
+    assert game.state.storage.stacks[0].quantity == 1
+
+    game._transfer_storage_item("bag", "field_salve", None)
+    assert not game.state.bag.stacks
+    assert game.state.storage.stacks[0].quantity == 3
+
+    game._transfer_storage_item("storage", "field_salve", None)
+    assert game.state.bag.stacks[0].quantity == 3
+    assert not game.state.storage.stacks
+
+
+def test_item_storage_does_not_remove_item_when_destination_is_full():
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    salve = game.definition.project_registry.item("field_salve")
+    stone = game.definition.project_registry.item("throwing_stone")
+    game.state.bag.stacks.clear()
+    game.state.storage.stacks.clear()
+    game.state.storage.capacity = 1
+    game.state.bag.add(salve, 2)
+    game.state.storage.add(stone, 1)
+
+    game._transfer_storage_item("bag", "field_salve", 1)
+
+    assert game.state.bag.stacks[0].quantity == 2
+    assert game.state.storage.stacks[0].item.id == "throwing_stone"
+
+
+def test_money_storage_moves_between_carried_and_stored_balances():
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    game.state.wallet.carried = 275
+    game.state.wallet.stored = 40
+
+    game._transfer_storage_money(True, 100)
+    assert game.state.wallet.carried == 175
+    assert game.state.wallet.stored == 140
+
+    game._transfer_storage_money(False, 90)
+    assert game.state.wallet.carried == 265
+    assert game.state.wallet.stored == 50
