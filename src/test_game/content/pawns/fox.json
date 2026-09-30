@@ -5,5 +5,6 @@
   "sprite_key": "fox",
   "portrait_key": "fox",
   "radius": 28,
-  "color_key": "fox"
+  "color_key": "fox",
+  "voice_cue": "dialogue.tone_2"
 }
