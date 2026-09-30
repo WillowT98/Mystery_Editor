@@ -521,7 +521,7 @@ class ExplorationSceneEditor:
 
     def reset_collision_override(self) -> None:
         pair = self._selected_pair()
-        if pair is None or pair[0].collision is None:
+        if pair is None or (pair[0].collision is None and pair[0].collision_enabled is None):
             return
         before = self.history.snapshot(self.scene)
         pair[0].collision = None
@@ -1392,7 +1392,7 @@ class ExplorationSceneEditor:
                 if len(points) >= 3:
                     pygame.draw.polygon(overlay, (235, 69, 82, 76), points)
                     pygame.draw.polygon(overlay, (255, 120, 125, 220), points, width=2)
-            elif definition.collision_radius > 0:
+            elif obj.collision_enabled is not False and definition.collision_radius > 0:
                 sx, sy = self.world_to_screen(obj.x, obj.y)
                 pygame.draw.circle(overlay, (235, 69, 82, 76), (sx, sy), round(definition.collision_radius * self.zoom))
         self.screen.blit(overlay, (0, 0))
@@ -1718,7 +1718,7 @@ class ExplorationSceneEditor:
                     pygame.draw.rect(self.screen, (64, 69, 79), box_rect, border_radius=6)
                     self.screen.blit(self.font_small.render("Convert to box  [X]", True, (230, 234, 240)), (box_rect.x + 10, box_rect.y + 7))
                     y += 40
-                    if obj.collision is not None:
+                    if obj.collision is not None or obj.collision_enabled is not None:
                         reset_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
                         self._palette_items.append(PaletteItem("__collision_reset", "Reset collision", reset_rect, None))
                         pygame.draw.rect(self.screen, (66, 58, 65), reset_rect, border_radius=6)
