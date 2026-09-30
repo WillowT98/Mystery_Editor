@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "id": "mirror_shade_shard_volley",
+  "name": "Shard Volley",
+  "description": "Fire a reflected shard down a straight line.",
+  "target": "enemy",
+  "range": 7,
+  "power": 4,
+  "heal": 0,
+  "damage_type": "piercing",
+  "max_charges": 7,
+  "accuracy": 0.9,
+  "range_pattern": "line",
+  "sfx_cue": "magic.bolt_launch",
+  "impact_sfx_cue": "magic.bolt_impact"
+}
