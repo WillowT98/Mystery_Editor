@@ -419,3 +419,109 @@ def test_game_load_snapshot_replaces_runtime_state_and_restores_location(tmp_pat
     assert (restored.position.x, restored.position.y) == (222, 333)
     assert restored.facing is Direction.N
     assert game.state.wallet.carried == 77
+
+
+def _dungeon_signature(game):
+    floor = game.dungeon.floor
+    return {
+        "floor_number": game.dungeon.floor_number,
+        "tiles": [[(tile.kind.name, tile.walkable, tile.blocks_sight, tile.terrain) for tile in row] for row in floor.tiles],
+        "stairs": (floor.stairs_pos.x, floor.stairs_pos.y) if floor.stairs_pos else None,
+        "spawn": (floor.player_spawn.x, floor.player_spawn.y) if floor.player_spawn else None,
+        "actors": sorted(
+            (
+                actor.id,
+                actor.metadata.get("definition_id"),
+                actor.name,
+                actor.hostile,
+                (actor.grid_pos.x, actor.grid_pos.y) if actor.grid_pos else None,
+                actor.facing.name,
+                actor.incapacitated,
+                actor.stats.max_hp,
+                actor.stats.current_hp,
+                actor.stats.attack,
+                actor.stats.defense,
+                tuple(sorted(actor.resources.items())),
+                tuple(sorted(actor.resistances.items())),
+                tuple((skill.definition.id, skill.charges) for skill in actor.skills),
+            )
+            for actor in floor.entities
+        ),
+        "items": sorted((item.item.id, item.pos.x, item.pos.y) for item in floor.ground_items),
+        "discovered": sorted((pos.x, pos.y) for pos in game.dungeon.turns.memory.discovered),
+        "visible": sorted((pos.x, pos.y) for pos in game.dungeon.turns.memory.visible),
+        "turn_count": game.dungeon.turns.turn_count,
+    }
+
+
+def test_dungeon_save_load_restores_exact_generated_session(tmp_path):
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    game.exploration = game.definition.create_exploration(game)
+    game._play_event_sfx = lambda *_args, **_kwargs: None
+    game.audio.play_scene = lambda *_args, **_kwargs: None
+    game._start_floor(1)
+    game.mode = __import__("mystery_engine.core", fromlist=["GameMode"]).GameMode.DUNGEON
+
+    game.dungeon.turns.turn_count = 17
+    enemy = next(actor for actor in game.dungeon.floor.entities if actor.hostile)
+    enemy.stats.current_hp = max(0, enemy.stats.current_hp - 3)
+    enemy.facing = Direction.W
+    if game.dungeon.floor.ground_items:
+        game.dungeon.floor.ground_items.pop()
+    game.dungeon.turns.memory.discovered.add(
+        __import__("mystery_engine.core", fromlist=["GridPos"]).GridPos(0, 0)
+    )
+
+    expected = _dungeon_signature(game)
+    save_path = tmp_path / "dungeon-save.json"
+    assert game.save_snapshot(save_path) == save_path
+
+    # Mutate the live session heavily after saving.
+    game.dungeon.floor.tiles[0][0] = __import__("mystery_engine.dungeon.tiles", fromlist=["FLOOR"]).FLOOR
+    game.dungeon.turns.turn_count = 999
+    enemy.stats.current_hp = 1
+    game.dungeon.floor.ground_items.clear()
+
+    assert game.load_snapshot(save_path) is True
+    assert game.mode.name == "DUNGEON"
+    assert _dungeon_signature(game) == expected
+
+
+def test_dungeon_load_does_not_regenerate_floor(tmp_path):
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    game.exploration = game.definition.create_exploration(game)
+    game._play_event_sfx = lambda *_args, **_kwargs: None
+    game.audio.play_scene = lambda *_args, **_kwargs: None
+    game._start_floor(1)
+    game.mode = __import__("mystery_engine.core", fromlist=["GameMode"]).GameMode.DUNGEON
+
+    save_path = tmp_path / "dungeon-save.json"
+    assert game.save_snapshot(save_path) == save_path
+    original_generator = game.definition.create_dungeon_floor
+    game.definition.create_dungeon_floor = lambda *_args, **_kwargs: (_ for _ in ()).throw(
+        AssertionError("dungeon generation must not run while loading")
+    )
+    try:
+        assert game.load_snapshot(save_path) is True
+    finally:
+        game.definition.create_dungeon_floor = original_generator
+
+
+def test_dungeon_save_restores_rng_checkpoint(tmp_path):
+    game_root = __import__("pathlib").Path(__file__).resolve().parents[1] / "src" / "test_game"
+    game = build_project_game(game_root)
+    game.exploration = game.definition.create_exploration(game)
+    game._play_event_sfx = lambda *_args, **_kwargs: None
+    game.audio.play_scene = lambda *_args, **_kwargs: None
+    game._start_floor(1)
+    game.mode = __import__("mystery_engine.core", fromlist=["GameMode"]).GameMode.DUNGEON
+
+    save_path = tmp_path / "dungeon-save.json"
+    assert game.save_snapshot(save_path) == save_path
+    expected_next = [game.rng.random() for _ in range(5)]
+
+    assert game.load_snapshot(save_path) is True
+    actual_next = [game.rng.random() for _ in range(5)]
+    assert actual_next == expected_next
