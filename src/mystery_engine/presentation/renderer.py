@@ -258,7 +258,7 @@ class Renderer:
             if ground.pos not in memory.visible:
                 continue
             rect = pygame.Rect(int(ground.pos.x * tile - camera_world_x), int(ground.pos.y * tile - camera_world_y), tile, tile)
-            sprite = self._load_item_sprite(ground.item.id, (40, 40))
+            sprite = self._load_item_sprite(ground.item.sprite_key or ground.item.id, (40, 40))
             if sprite is not None:
                 self.canvas.blit(sprite, sprite.get_rect(center=rect.center))
             else:
