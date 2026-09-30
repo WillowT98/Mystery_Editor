@@ -11,6 +11,7 @@ from .exploration import (
     ExplorationMap,
     ExplorationMarker,
     ExplorationScenery,
+    ExplorationTrigger,
     ObstacleShape,
     PolygonObstacle,
     RectObstacle,
@@ -352,6 +353,7 @@ def build_exploration_map(
     actors: list[ExplorationActor] = []
     interactables: list[ExplorationInteractable] = []
     markers: list[ExplorationMarker] = []
+    triggers: list[ExplorationTrigger] = []
 
     for placed in scene.objects:
         definition = catalog.get(placed.asset)
@@ -423,6 +425,26 @@ def build_exploration_map(
         else:
             raise ValueError(f"Unsupported world asset category: {definition.category}")
 
+    for trigger in scene.triggers:
+        region = None
+        if trigger.kind == "on_region_enter":
+            region = RectObstacle(
+                float(trigger.x or 0.0),
+                float(trigger.y or 0.0),
+                max(1.0, float(trigger.w or 1.0)),
+                max(1.0, float(trigger.h or 1.0)),
+            )
+        triggers.append(ExplorationTrigger(
+            id=trigger.id,
+            kind=trigger.kind,
+            story=trigger.story,
+            entry=trigger.entry,
+            once=trigger.once,
+            enabled=trigger.enabled,
+            condition=(dict(trigger.condition) if trigger.condition else None),
+            region=region,
+        ))
+
     terrain = TerrainTileMap(
         tile_size=scene.tile_size,
         width_tiles=scene.width_tiles,
@@ -442,6 +464,7 @@ def build_exploration_map(
         actors=actors,
         interactables=interactables,
         markers=markers,
+        triggers=triggers,
         blocked_terrain=frozenset(
             set(scene.blocked_terrain)
             | {key for key, style in dict(terrain_styles or {}).items() if bool(style.get("blocked", False))}
