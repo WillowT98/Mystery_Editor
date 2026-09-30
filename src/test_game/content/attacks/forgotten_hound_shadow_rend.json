@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "id": "forgotten_hound_shadow_rend",
+  "name": "Shadow Rend",
+  "description": "Tear at an adjacent target with shadow.",
+  "target": "enemy",
+  "range": 1,
+  "power": 4,
+  "heal": 0,
+  "damage_type": "shadow",
+  "max_charges": null,
+  "accuracy": 1,
+  "range_pattern": "adjacent",
+  "sfx_cue": "combat.light_hit"
+}

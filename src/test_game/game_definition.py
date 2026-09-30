@@ -6,9 +6,10 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mystery_engine.core.game import MysteryGame
-from mystery_engine.core import DungeonResult, PersistentGameState, StoryState, Wallet
+from mystery_engine.core import DungeonResult, PersistentGameState, SkillRuntime, StoryState, Wallet
 from mystery_engine.core.inventory import Inventory
 from mystery_engine.dungeon import DungeonDefinition
+from mystery_engine.project import ProjectRegistry
 from mystery_engine.story import (
     build_exploration_map,
     load_exploration_scene,
@@ -19,7 +20,6 @@ from mystery_engine.story import (
 from .world_assets import WORLD_ASSETS
 
 from .content import (
-    ENEMY_FACTORIES,
     ITEM_CATALOG,
     make_fox,
     make_mara,
@@ -57,13 +57,31 @@ class TestGameDefinition:
     scene_root = Path(__file__).resolve().parent / "scenes"
 
     def __init__(self) -> None:
+        self.project_registry = ProjectRegistry.load(Path(__file__).resolve().parent)
         override = os.environ.get("MYSTERY_DUNGEON_PATH")
-        self.dungeon_definition = DungeonDefinition.load(Path(override) if override else self.dungeon_path)
+        if override:
+            self.active_dungeon_id = Path(override).stem
+            self.dungeon_definition = DungeonDefinition.load(Path(override))
+        else:
+            self.active_dungeon_id = self.project_registry.default_dungeon_id or "test_dungeon"
+            self.dungeon_definition = self.project_registry.load_dungeon(self.active_dungeon_id)
+        self.dungeon_floor_count = self.dungeon_definition.floor_count
+
+    def select_dungeon(self, dungeon_id: str) -> None:
+        self.dungeon_definition = self.project_registry.load_dungeon(dungeon_id)
+        self.active_dungeon_id = dungeon_id
         self.dungeon_floor_count = self.dungeon_definition.floor_count
 
     def create_state(self) -> PersistentGameState:
         fox = make_fox()
         mara = make_mara()
+        # Party construction remains game-specific, but ordinary attack data now
+        # comes from the same reusable registry used by the authoring UI.
+        fox.skills = [SkillRuntime.from_definition(self.project_registry.attack_skill("fox_lunge"))]
+        mara.skills = [
+            SkillRuntime.from_definition(self.project_registry.attack_skill("mara_spark")),
+            SkillRuntime.from_definition(self.project_registry.attack_skill("mara_mend")),
+        ]
         return PersistentGameState(
             game_id=self.game_id,
             game_version=self.game_version,
@@ -128,14 +146,30 @@ class TestGameDefinition:
                 game.change_exploration_scene(target_path, placed.target_door)
             return transition
 
-        return build_exploration_map(scene, WORLD_ASSETS, interactions, portal_transition_factory=portal_transition)
+        def dungeon_transition(placed):
+            def transition() -> None:
+                if not placed.target_dungeon:
+                    game.add_message("This dungeon entrance is not linked yet.")
+                    return
+                try:
+                    self.select_dungeon(placed.target_dungeon)
+                except KeyError:
+                    game.add_message(f"Unknown dungeon: {placed.target_dungeon}")
+                    return
+                game.enter_dungeon()
+            return transition
+
+        return build_exploration_map(
+            scene,
+            WORLD_ASSETS,
+            interactions,
+            portal_transition_factory=portal_transition,
+            dungeon_transition_factory=dungeon_transition,
+        )
 
     def create_dungeon_floor(self, game: "MysteryGame", floor_number: int):
         def enemy_factory(enemy_id: str, identifier: str):
-            try:
-                return ENEMY_FACTORIES[enemy_id](identifier)
-            except KeyError as exc:
-                raise KeyError(f"Unknown dungeon enemy: {enemy_id}") from exc
+            return self.project_registry.make_enemy(enemy_id, identifier)
 
         def item_lookup(item_id: str):
             try:
@@ -148,6 +182,7 @@ class TestGameDefinition:
             game.rng,
             enemy_factory,
             item_lookup,
+            enemy_modifier=self.project_registry.apply_spawn_modifiers,
         )
 
     def on_dungeon_result(self, game: "MysteryGame", result: DungeonResult, *, lost_money: int = 0, lost_items: list[str] | None = None) -> None:

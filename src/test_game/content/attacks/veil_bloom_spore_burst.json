@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "id": "veil_bloom_spore_burst",
+  "name": "Spore Burst",
+  "description": "Scatter spores through the current room.",
+  "target": "enemy",
+  "range": 4,
+  "power": 2,
+  "heal": 0,
+  "damage_type": "plant",
+  "max_charges": 3,
+  "accuracy": 1,
+  "range_pattern": "room",
+  "sfx_cue": "magic.arcane_cast"
+}

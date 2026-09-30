@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "id": "lost_lantern_glow_shot",
+  "name": "Glow Shot",
+  "description": "Launch a mote down a straight line.",
+  "target": "enemy",
+  "range": 6,
+  "power": 4,
+  "heal": 0,
+  "damage_type": "spirit",
+  "max_charges": 8,
+  "accuracy": 1,
+  "range_pattern": "line",
+  "sfx_cue": "magic.bolt_launch",
+  "impact_sfx_cue": "magic.bolt_impact"
+}

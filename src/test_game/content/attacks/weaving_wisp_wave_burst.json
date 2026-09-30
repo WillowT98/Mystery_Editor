@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "id": "weaving_wisp_wave_burst",
+  "name": "Wave Burst",
+  "description": "Send a wavering pulse down a straight line.",
+  "target": "enemy",
+  "range": 5,
+  "power": 3,
+  "heal": 0,
+  "damage_type": "arcane",
+  "max_charges": 8,
+  "accuracy": 1,
+  "range_pattern": "line",
+  "sfx_cue": "magic.bolt_launch",
+  "impact_sfx_cue": "magic.bolt_impact"
+}

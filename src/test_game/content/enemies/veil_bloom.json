@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "id": "veil_bloom",
+  "name": "Veil Bloom",
+  "stats": {
+    "max_hp": 20,
+    "attack": 4,
+    "defense": 3
+  },
+  "sprite_key": "veil_bloom",
+  "attacks": [
+    "veil_bloom_spore_burst",
+    "veil_bloom_root_lash"
+  ],
+  "resistances": {
+    "piercing": 0.85,
+    "lightning": 1.2
+  }
+}

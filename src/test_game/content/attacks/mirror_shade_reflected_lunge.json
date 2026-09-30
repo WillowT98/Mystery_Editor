@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "id": "mirror_shade_reflected_lunge",
+  "name": "Reflected Lunge",
+  "description": "Strike a target up to two cells away.",
+  "target": "enemy",
+  "range": 2,
+  "power": 5,
+  "heal": 0,
+  "damage_type": "shadow",
+  "max_charges": 5,
+  "accuracy": 1,
+  "range_pattern": "two_tiles",
+  "sfx_cue": "combat.light_hit"
+}

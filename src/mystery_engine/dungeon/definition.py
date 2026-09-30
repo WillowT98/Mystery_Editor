@@ -68,25 +68,58 @@ class SpawnRule:
     weight: float = 1.0
     min_per_floor: int = 0
     max_per_floor: int = 999
+    hp_percent: float = 100.0
+    attack_percent: float = 100.0
+    defense_percent: float = 100.0
+    name_override: str | None = None
+    sprite_override: str | None = None
+    resistances: dict[str, float] = field(default_factory=dict)
+    extra_attacks: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any], key: str) -> "SpawnRule":
+        modifiers = dict(payload.get("modifiers") or {})
         return cls(
             content_id=str(payload.get(key, "")),
             floors=str(payload.get("floors", "all")),
             weight=max(0.0, float(payload.get("weight", 1.0))),
             min_per_floor=max(0, int(payload.get("min_per_floor", payload.get("min", 0)))),
             max_per_floor=max(0, int(payload.get("max_per_floor", payload.get("max", 999)))),
+            hp_percent=max(1.0, float(modifiers.get("hp_percent", 100.0))),
+            attack_percent=max(0.0, float(modifiers.get("attack_percent", 100.0))),
+            defense_percent=max(0.0, float(modifiers.get("defense_percent", 100.0))),
+            name_override=(str(modifiers["name"]) if modifiers.get("name") else None),
+            sprite_override=(str(modifiers["sprite"]) if modifiers.get("sprite") else None),
+            resistances={str(k): max(0.0, float(v)) for k, v in dict(modifiers.get("resistances", {})).items()},
+            extra_attacks=[str(v) for v in modifiers.get("attacks", [])],
         )
 
     def to_dict(self, key: str) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             key: self.content_id,
             "floors": self.floors,
             "weight": self.weight,
             "min_per_floor": self.min_per_floor,
             "max_per_floor": self.max_per_floor,
         }
+        modifiers: dict[str, Any] = {}
+        if self.hp_percent != 100.0:
+            modifiers["hp_percent"] = self.hp_percent
+        if self.attack_percent != 100.0:
+            modifiers["attack_percent"] = self.attack_percent
+        if self.defense_percent != 100.0:
+            modifiers["defense_percent"] = self.defense_percent
+        if self.name_override:
+            modifiers["name"] = self.name_override
+        if self.sprite_override:
+            modifiers["sprite"] = self.sprite_override
+        if self.resistances:
+            modifiers["resistances"] = dict(sorted(self.resistances.items()))
+        if self.extra_attacks:
+            modifiers["attacks"] = list(self.extra_attacks)
+        if modifiers:
+            data["modifiers"] = modifiers
+        return data
 
 
 @dataclass
@@ -285,6 +318,7 @@ class DungeonDefinition:
         rng: Random,
         enemy_factory: Callable[[str, str], Character],
         item_lookup: Callable[[str], ItemDefinition],
+        enemy_modifier: Callable[[Character, SpawnRule], Character] | None = None,
     ) -> DungeonFloor:
         floor = self.generate_layout(floor_number, rng)
         valid = [
@@ -299,7 +333,10 @@ class DungeonDefinition:
 
         enemy_rules = self.active_enemies(floor_number)
         enemy_target = self._resolve_count(self.settings_for_floor(floor_number)["enemy_count"], floor_number, rng)
-        self._spawn_enemies(floor, floor_number, enemy_target, enemy_rules, valid, rng, enemy_factory)
+        self._spawn_enemies(
+            floor, floor_number, enemy_target, enemy_rules, valid, rng,
+            enemy_factory, enemy_modifier,
+        )
 
         item_rules = self.active_items(floor_number)
         item_target = self._resolve_count(self.settings_for_floor(floor_number)["item_count"], floor_number, rng)
@@ -334,6 +371,7 @@ class DungeonDefinition:
         valid: list[GridPos],
         rng: Random,
         factory: Callable[[str, str], Character],
+        modifier: Callable[[Character, SpawnRule], Character] | None = None,
     ) -> None:
         counts: dict[str, int] = {}
         serial = 0
@@ -344,6 +382,8 @@ class DungeonDefinition:
                 return False
             serial += 1
             enemy = factory(rule.content_id, f"{rule.content_id}_f{floor_number}_{serial}")
+            if modifier is not None:
+                enemy = modifier(enemy, rule)
             enemy.grid_pos = valid.pop()
             floor.entities.append(enemy)
             counts[rule.content_id] = counts.get(rule.content_id, 0) + 1

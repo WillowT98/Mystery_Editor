@@ -37,6 +37,7 @@ class DungeonBuilderEditor:
         item_labels: dict[str, str],
         *,
         project_root: Path | None = None,
+        project_registry=None,
         window_size: tuple[int, int] = (1500, 900),
     ) -> None:
         self.definition = definition
@@ -45,6 +46,7 @@ class DungeonBuilderEditor:
         self.enemy_labels = dict(enemy_labels)
         self.item_labels = dict(item_labels)
         self.project_root = Path(project_root) if project_root else None
+        self.project_registry = project_registry
         self.window_size = window_size
 
         self.tab = "Overview"
@@ -140,6 +142,43 @@ class DungeonBuilderEditor:
             self.preview_floor = None
             self.status = f"Preview error: {exc}"
 
+    def _switch_dungeon(self, dungeon_id: str) -> None:
+        if self.project_registry is None:
+            return
+        if self.dirty:
+            self.save()
+        self.definition = self.project_registry.load_dungeon(dungeon_id)
+        self.path = self.project_registry.dungeon_path(dungeon_id)
+        self.floor_number = 1
+        self.seed = 1
+        self.dirty = False
+        self._regenerate_preview()
+        self.status = f"Opened {self.definition.name}"
+
+    def _choose_dungeon(self) -> None:
+        if self.project_registry is None:
+            return
+        from .project_editor import choose_catalog_id
+        chosen = choose_catalog_id(
+            "Choose dungeon",
+            self.project_registry.dungeon_labels(),
+            self.definition.id,
+        )
+        if chosen and chosen != self.definition.id:
+            self._switch_dungeon(chosen)
+
+    def _new_dungeon(self) -> None:
+        if self.project_registry is None:
+            return
+        name = self._ask_text("New dungeon", "Dungeon name", "New Dungeon")
+        if not name:
+            return
+        floors = self._ask_int("New dungeon", "Number of floors", 3, 1)
+        if floors is None:
+            return
+        dungeon, _path = self.project_registry.create_dungeon(name, floors=floors)
+        self._switch_dungeon(dungeon.id)
+
     def _edit_generation_value(self, key: str) -> None:
         current = int(self.definition.generation.get(key, 0))
         value = self._ask_int("Generation", key.replace("_", " ").title(), current, 1)
@@ -157,6 +196,11 @@ class DungeonBuilderEditor:
         if not 0 <= index < len(rules):
             return
         rule = rules[index]
+        if kind == "enemy" and self.project_registry is not None:
+            from .project_editor import edit_spawn_rule_dialog
+            if edit_spawn_rule_dialog(self.project_registry, rule):
+                self._changed(f"Updated {rule.content_id}")
+            return
         floors = self._ask_text("Floor range", "Examples: 1-5, 8, 10+", rule.floors)
         if floors is None:
             return
@@ -177,11 +221,18 @@ class DungeonBuilderEditor:
 
     def _add_rule(self, kind: str) -> None:
         catalog = self.enemy_labels if kind == "enemy" else self.item_labels
-        if not catalog:
-            self.status = f"No {kind} catalog entries"
-            return
-        choices = "\n".join(f"{key}: {label}" for key, label in catalog.items())
-        content_id = self._ask_text(f"Add {kind}", f"Enter ID:\n\n{choices}", next(iter(catalog)))
+        if kind == "enemy" and self.project_registry is not None:
+            from .project_editor import choose_catalog_id
+            self.project_registry.reload()
+            self.enemy_labels = self.project_registry.enemy_labels
+            catalog = self.enemy_labels
+            content_id = choose_catalog_id("Choose enemy", catalog)
+        else:
+            if not catalog:
+                self.status = f"No {kind} catalog entries"
+                return
+            choices = "\n".join(f"{key}: {label}" for key, label in catalog.items())
+            content_id = self._ask_text(f"Add {kind}", f"Enter ID:\n\n{choices}", next(iter(catalog)))
         if content_id is None:
             return
         content_id = content_id.strip()
@@ -193,7 +244,25 @@ class DungeonBuilderEditor:
             return
         rule = SpawnRule(content_id=content_id, floors=floors, weight=50.0, min_per_floor=0, max_per_floor=4)
         (self.definition.enemies if kind == "enemy" else self.definition.items).append(rule)
+        if kind == "enemy" and self.project_registry is not None:
+            from .project_editor import edit_spawn_rule_dialog
+            edit_spawn_rule_dialog(self.project_registry, rule)
         self._changed(f"Added {catalog[content_id]}")
+
+    def _new_enemy(self) -> None:
+        if self.project_registry is None:
+            self.status = "Project registry is unavailable"
+            return
+        from .project_editor import edit_enemy_dialog, edit_spawn_rule_dialog
+        created = edit_enemy_dialog(self.project_registry)
+        if not created:
+            return
+        self.project_registry.reload()
+        self.enemy_labels = self.project_registry.enemy_labels
+        rule = SpawnRule(content_id=created, floors="all", weight=50.0, min_per_floor=0, max_per_floor=4)
+        self.definition.enemies.append(rule)
+        edit_spawn_rule_dialog(self.project_registry, rule)
+        self._changed(f"Created and added {self.enemy_labels.get(created, created)}")
 
     def _add_generation_profile_rule(self) -> None:
         choices = "\n".join(
@@ -318,6 +387,9 @@ class DungeonBuilderEditor:
 
     def _draw_overview(self) -> None:
         y = 105
+        if self.project_registry is not None:
+            y = self._field(y, "Current dungeon", f"{self.definition.name}  ▼", "choose_dungeon")
+            self._button(pygame.Rect(700, 97, 170, 38), "+ New dungeon", "new_dungeon")
         y = self._field(y, "Dungeon ID", self.definition.id, "edit_text", "id")
         y = self._field(y, "Display name", self.definition.name, "edit_text", "name")
         y = self._field(y, "Floor count", str(self.definition.floor_count), "edit_int", "floor_count")
@@ -376,6 +448,8 @@ class DungeonBuilderEditor:
         rules = self.definition.enemies if kind == "enemy" else self.definition.items
         catalog = self.enemy_labels if kind == "enemy" else self.item_labels
         self._button(pygame.Rect(48, 92, 180, 40), f"+ Add {kind}", "add_rule", kind)
+        if kind == "enemy" and self.project_registry is not None:
+            self._button(pygame.Rect(238, 92, 190, 40), "+ New enemy", "new_enemy")
         y = 150
         for i, rule in enumerate(rules):
             rect = pygame.Rect(48, y, 720, 72)
@@ -437,6 +511,10 @@ class DungeonBuilderEditor:
             self.tab = str(value)
         elif action == "save":
             self.save()
+        elif action == "choose_dungeon":
+            self._choose_dungeon()
+        elif action == "new_dungeon":
+            self._new_dungeon()
         elif action == "cycle_generator":
             self._cycle_generator()
         elif action == "edit_generation":
@@ -461,6 +539,8 @@ class DungeonBuilderEditor:
             if 0 <= int(value) < len(self.definition.generation_profile_rules):
                 removed = self.definition.generation_profile_rules.pop(int(value))
                 self._changed(f"Removed generation profile {removed.get('profile', 'default')}")
+        elif action == "new_enemy":
+            self._new_enemy()
         elif action == "add_rule":
             self._add_rule(str(value))
         elif action == "edit_rule":
@@ -552,6 +632,7 @@ def run_dungeon_builder(
     item_labels: dict[str, str],
     *,
     project_root: Path | None = None,
+    project_registry=None,
 ) -> None:
     dungeon_path = Path(dungeon_path)
     definition = DungeonDefinition.load(dungeon_path) if dungeon_path.exists() else DungeonDefinition.blank(dungeon_path.stem)
@@ -562,4 +643,5 @@ def run_dungeon_builder(
         enemy_labels,
         item_labels,
         project_root=project_root,
+        project_registry=project_registry,
     ).run()

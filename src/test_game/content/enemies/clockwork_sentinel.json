@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "id": "clockwork_sentinel",
+  "name": "Clockwork Sentinel",
+  "stats": {
+    "max_hp": 28,
+    "attack": 5,
+    "defense": 5
+  },
+  "sprite_key": "clockwork_sentinel",
+  "attacks": [
+    "clockwork_sentinel_time_pulse",
+    "clockwork_sentinel_pendulum_sweep"
+  ],
+  "resistances": {
+    "physical": 0.85,
+    "lightning": 1.25
+  }
+}

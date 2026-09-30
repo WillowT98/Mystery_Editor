@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "id": "lost_lantern_flare",
+  "name": "Lantern Flare",
+  "description": "Flood the current room with ghost-light.",
+  "target": "enemy",
+  "range": 4,
+  "power": 2,
+  "heal": 0,
+  "damage_type": "spirit",
+  "max_charges": 2,
+  "accuracy": 1,
+  "range_pattern": "room",
+  "sfx_cue": "magic.arcane_cast"
+}

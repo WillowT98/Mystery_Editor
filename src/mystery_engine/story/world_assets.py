@@ -113,6 +113,12 @@ class SceneObjectData:
     portal_mode: str = "two_way"
     # Optional per-instance semantic sound-cue overrides.
     sound_cues: dict[str, str] = field(default_factory=dict)
+    # Generic dungeon-entrance metadata. This is a stable dungeon ID, not a
+    # game-specific Python callback.
+    target_dungeon: str | None = None
+    # Optional per-instance sprite key. Used by dungeon entrances and other
+    # authorable interactables without creating a new global asset definition.
+    sprite_override: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "SceneObjectData":
@@ -130,6 +136,8 @@ class SceneObjectData:
             portal_facing=str(data.get("portal_facing", "S")).upper(),
             portal_mode=("one_way" if str(data.get("portal_mode", "two_way")).lower() == "one_way" else "two_way"),
             sound_cues={str(k): str(v) for k, v in dict(data.get("sound_cues", {})).items() if v},
+            target_dungeon=(str(data["target_dungeon"]) if data.get("target_dungeon") else None),
+            sprite_override=(str(data["sprite_override"]) if data.get("sprite_override") else None),
         )
 
     def to_dict(self) -> dict:
@@ -152,6 +160,10 @@ class SceneObjectData:
             data["portal_mode"] = "one_way"
         if self.sound_cues:
             data["sound_cues"] = dict(sorted(self.sound_cues.items()))
+        if self.target_dungeon:
+            data["target_dungeon"] = self.target_dungeon
+        if self.sprite_override:
+            data["sprite_override"] = self.sprite_override
         return data
 
 
@@ -250,6 +262,7 @@ def build_exploration_map(
     catalog: WorldAssetCatalog,
     interactions: InteractionRegistry | None = None,
     portal_transition_factory: Callable[[SceneObjectData], Callable[[], None]] | None = None,
+    dungeon_transition_factory: Callable[[SceneObjectData], Callable[[], None]] | None = None,
 ) -> ExplorationMap:
     interactions = interactions or {}
     scenery: list[ExplorationScenery] = []
@@ -293,12 +306,14 @@ def build_exploration_map(
             )
         elif definition.category == "marker":
             markers.append(ExplorationMarker(placed.id, pos))
-        elif definition.category in {"interactable", "portal"}:
-            # Portals are generic scene links. The game definition supplies the
+        elif definition.category in {"interactable", "portal", "dungeon"}:
+            # Portals and dungeon entrances are generic links. The game definition supplies the
             # transition callback factory, while ordinary interactables still use
             # named action IDs from the interaction registry.
             if definition.category == "portal" and portal_transition_factory is not None:
                 callback = portal_transition_factory(placed)
+            elif definition.category == "dungeon" and dungeon_transition_factory is not None:
+                callback = dungeon_transition_factory(placed)
             else:
                 callback = interaction or (lambda: None)
             interactables.append(
@@ -307,7 +322,7 @@ def build_exploration_map(
                     pos,
                     callback,
                     label=placed.label or definition.label or definition.display_name,
-                    icon_key=definition.sprite_key,
+                    icon_key=placed.sprite_override or definition.sprite_key,
                     enabled=placed.enabled,
                     collision_radius=definition.collision_radius,
                     collision=collision,

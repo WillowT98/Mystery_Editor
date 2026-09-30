@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "id": "weaving_wisp",
+  "name": "Weaving Wisp",
+  "stats": {
+    "max_hp": 13,
+    "attack": 3,
+    "defense": 1
+  },
+  "sprite_key": "weaving_wisp",
+  "attacks": [
+    "weaving_wisp_wave_burst",
+    "weaving_wisp_memory_ripple"
+  ],
+  "resistances": {
+    "lightning": 0.6
+  }
+}

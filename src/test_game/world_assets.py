@@ -35,14 +35,18 @@ WORLD_ASSETS = WorldAssetCatalog(
             label="Waystone", action_id="inspect_waystone",
         ),
         "dungeon_gate": WorldAssetDefinition(
-            id="dungeon_gate", category="interactable", sprite_key="dungeon_gate", display_name="Dungeon entrance",
+            id="dungeon_gate", category="interactable", sprite_key="dungeon_gate", display_name="Legacy dungeon entrance",
             size=(192, 150),
-            # Only the rear/back wall of the entrance is solid. The opening and
-            # foreground path remain approachable from the south so the player
-            # can still walk up to the doorway and interact with it, while the
-            # collider prevents walking behind the cave sprite from the north.
             collision=RectObstacle(-88, -136, 176, 58),
             label="Dungeon entrance", action_id="enter_test_dungeon",
+        ),
+        "dungeon_entrance": WorldAssetDefinition(
+            id="dungeon_entrance", category="dungeon", sprite_key="dungeon_gate", display_name="Dungeon entrance",
+            size=(192, 150),
+            # Generic entrance. The scene instance stores target_dungeon and may
+            # override this default sprite with any imported object PNG.
+            collision=RectObstacle(-88, -136, 176, 58),
+            label="Dungeon entrance",
         ),
         "scene_door": WorldAssetDefinition(
             id="scene_door", category="portal", sprite_key=None, display_name="Scene door",

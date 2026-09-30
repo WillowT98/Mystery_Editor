@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "id": "fox_and_mara_test",
+  "name": "Fox & Mara — Mystery Engine Test",
+  "default_dungeon": "test_dungeon",
+  "content": {
+    "attacks": "content/attacks",
+    "enemies": "content/enemies",
+    "dungeons": "dungeons",
+    "scenes": "scenes",
+    "assets": "assets"
+  },
+  "damage_types": [
+    "physical",
+    "piercing",
+    "lightning",
+    "arcane",
+    "shadow",
+    "spirit",
+    "plant"
+  ]
+}

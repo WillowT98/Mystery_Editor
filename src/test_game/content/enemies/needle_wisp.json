@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "id": "needle_wisp",
+  "name": "Needle Wisp",
+  "stats": {
+    "max_hp": 14,
+    "attack": 2,
+    "defense": 1
+  },
+  "sprite_key": "needle_wisp",
+  "portrait_key": "needle_wisp",
+  "attacks": [
+    "wisp_bolt"
+  ],
+  "resistances": {
+    "lightning": 0.6
+  }
+}

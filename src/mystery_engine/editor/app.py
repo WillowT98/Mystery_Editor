@@ -55,6 +55,7 @@ class ExplorationSceneEditor:
         asset_root: Path,
         *,
         project_root: Path | None = None,
+        project_registry=None,
         window_size: tuple[int, int] = (1600, 900),
     ) -> None:
         self.scene = scene
@@ -62,12 +63,13 @@ class ExplorationSceneEditor:
         self.catalog = catalog
         self.asset_root = Path(asset_root)
         self.project_root = Path(project_root) if project_root else None
+        self.project_registry = project_registry
         self.window_size = window_size
 
         self.mode = "terrain"  # terrain | elevation | objects | select | audio
         self.terrain_brush = "grass"
         self.elevation_brush = 0
-        self.asset_brush = next((a.id for a in catalog.by_category("scenery", "interactable", "actor")), "")
+        self.asset_brush = next((a.id for a in catalog.by_category("scenery", "interactable", "dungeon", "actor")), "")
         self.snap = 16
         self.zoom = 1.0
         self.camera_x = 0.0
@@ -1144,7 +1146,10 @@ class ExplorationSceneEditor:
                 label = self.font_small.render(name, True, (187, 241, 247))
                 self.screen.blit(label, (dest.centerx-label.get_width()//2, dest.top-label.get_height()-2))
         else:
-            native = self._world_asset_native_surface(definition)
+            native = (
+                self._native_surface(f"objects/{obj.sprite_override}.png")
+                if obj.sprite_override else self._world_asset_native_surface(definition)
+            )
             if native:
                 scaled_size = (max(1, round(native.get_width() * self.zoom)), max(1, round(native.get_height() * self.zoom)))
                 surf = native if native.get_size() == scaled_size else pygame.transform.scale(native, scaled_size)
@@ -1428,6 +1433,28 @@ class ExplorationSceneEditor:
                         self._draw_sidebar_help(y + 4, [f"{field_name}:", self._text_edit_buffer + "|"])
                         y += 62
 
+                if definition.category == "dungeon":
+                    dungeon_name = "— not linked —"
+                    if self.project_registry is not None and obj.target_dungeon:
+                        dungeon_name = self.project_registry.dungeon_labels().get(obj.target_dungeon, obj.target_dungeon)
+                    self._draw_sidebar_help(y, [
+                        f"Entrance: {obj.label or definition.display_name}",
+                        f"Dungeon: {dungeon_name}",
+                        f"Sprite: {obj.sprite_override or definition.sprite_key or 'none'}",
+                    ])
+                    y += 82
+                    for key, caption in (
+                        ("__dungeon_open", "Open dungeon editor"),
+                        ("__dungeon_change", "Change linked dungeon"),
+                        ("__dungeon_sprite", "Import / change sprite"),
+                        ("__edit_label", "Edit entrance name"),
+                    ):
+                        br = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
+                        self._palette_items.append(PaletteItem(key, caption, br, None))
+                        pygame.draw.rect(self.screen, (50, 83, 96) if key == "__dungeon_open" else (55, 66, 82), br, border_radius=6)
+                        self.screen.blit(self.font_small.render(caption, True, (232, 238, 232)), (br.x + 10, br.y + 7))
+                        y += 40
+
                 if definition.category == "interactable":
                     action = obj.action or definition.action_id or "—"
                     label = obj.label or definition.label or definition.display_name
@@ -1579,6 +1606,148 @@ class ExplorationSceneEditor:
         self.selected_object = len(self.scene.objects) - 1
         self.dirty = True
         self.status = f"Placed {definition.display_name}"
+        if definition.category == "dungeon" and self.project_registry is not None:
+            if not self._configure_dungeon_entrance(obj):
+                self.scene.objects.pop()
+                self.selected_object = None
+                self.status = "Dungeon entrance creation cancelled"
+
+    def _configure_dungeon_entrance(self, obj: SceneObjectData) -> bool:
+        if self.project_registry is None:
+            return False
+        try:
+            import tkinter as tk
+            from tkinter import filedialog, messagebox, simpledialog
+            from .project_editor import choose_catalog_id
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            label = simpledialog.askstring(
+                "Dungeon entrance", "Entrance name shown to the player:",
+                initialvalue=obj.label or "Dungeon entrance", parent=root,
+            )
+            if label is None:
+                root.destroy()
+                return False
+            obj.label = label.strip() or "Dungeon entrance"
+
+            chosen = filedialog.askopenfilename(
+                parent=root,
+                title="Choose entrance sprite (Cancel keeps the default)",
+                filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+            )
+            if chosen:
+                key, _ = self.project_registry.import_asset(
+                    Path(chosen), "objects", preferred_id=f"{obj.id}_entrance",
+                    allowed_suffixes={".png"},
+                )
+                obj.sprite_override = key
+
+            dungeon_labels = self.project_registry.dungeon_labels()
+            create_new = not dungeon_labels or messagebox.askyesno(
+                "Dungeon", "Create a new dungeon for this entrance?\n\nChoose No to link an existing dungeon.",
+                parent=root,
+            )
+            if create_new:
+                name = simpledialog.askstring(
+                    "New dungeon", "Dungeon name:", initialvalue=obj.label, parent=root,
+                )
+                if not name:
+                    root.destroy()
+                    return False
+                floors = simpledialog.askinteger(
+                    "New dungeon", "Number of floors:", initialvalue=3, minvalue=1, parent=root,
+                ) or 3
+                dungeon, _path = self.project_registry.create_dungeon(name, floors=floors)
+                obj.target_dungeon = dungeon.id
+            else:
+                root.destroy()
+                root = None
+                obj.target_dungeon = choose_catalog_id("Choose dungeon", dungeon_labels)
+                if not obj.target_dungeon:
+                    return False
+            if root is not None:
+                root.destroy()
+        except Exception as exc:
+            self.status = f"Could not configure dungeon entrance: {exc}"
+            return False
+
+        self.save()
+        self._open_dungeon_editor(obj.target_dungeon)
+        return True
+
+    def _open_dungeon_editor(self, dungeon_id: str | None) -> None:
+        if not dungeon_id or self.project_registry is None:
+            self.status = "This entrance is not linked to a dungeon"
+            return
+        try:
+            from .dungeon_builder import DungeonBuilderEditor
+            self.project_registry.reload()
+            path = self.project_registry.dungeon_path(dungeon_id)
+            definition = self.project_registry.load_dungeon(dungeon_id)
+            editor = DungeonBuilderEditor(
+                definition, path, self.project_registry.asset_root,
+                self.project_registry.enemy_labels, {},
+                project_root=self.project_root,
+                project_registry=self.project_registry,
+            )
+            editor.run()
+            pygame.init()
+            pygame.display.set_caption("Mystery Engine — Exploration Scene Editor")
+            self.screen = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
+            self.font_small = pygame.font.Font(None, 24)
+            self.font = pygame.font.Font(None, 30)
+            self.font_large = pygame.font.Font(None, 38)
+            self._surface_cache.clear()
+            self._scaled_cache.clear()
+            self.status = f"Returned from dungeon editor: {definition.name}"
+        except Exception as exc:
+            self.status = f"Could not open dungeon editor: {exc}"
+
+    def _change_selected_dungeon(self) -> None:
+        pair = self._selected_pair()
+        if pair is None or pair[1].category != "dungeon" or self.project_registry is None:
+            return
+        obj, _ = pair
+        from .project_editor import choose_catalog_id
+        chosen = choose_catalog_id(
+            "Choose dungeon", self.project_registry.dungeon_labels(), obj.target_dungeon
+        )
+        if chosen:
+            before = self.history.snapshot(self.scene)
+            obj.target_dungeon = chosen
+            self.history.remember(before)
+            self.dirty = True
+            self.status = f"Entrance linked to {self.project_registry.dungeon_labels().get(chosen, chosen)}"
+
+    def _change_selected_dungeon_sprite(self) -> None:
+        pair = self._selected_pair()
+        if pair is None or pair[1].category != "dungeon" or self.project_registry is None:
+            return
+        obj, _ = pair
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk(); root.withdraw(); root.attributes("-topmost", True)
+            chosen = filedialog.askopenfilename(
+                parent=root, title="Choose entrance sprite",
+                filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+            )
+            root.destroy()
+            if not chosen:
+                return
+            key, _ = self.project_registry.import_asset(
+                Path(chosen), "objects", preferred_id=f"{obj.id}_entrance",
+                allowed_suffixes={".png"},
+            )
+            before = self.history.snapshot(self.scene)
+            obj.sprite_override = key
+            self.history.remember(before)
+            self.dirty = True
+            self._surface_cache.clear()
+            self.status = f"Entrance sprite: {key}"
+        except Exception as exc:
+            self.status = f"Could not import entrance sprite: {exc}"
 
     def _object_hit(self, pos: tuple[int, int]) -> int | None:
         wx, wy = self.screen_to_world(pos)
@@ -1623,6 +1792,7 @@ class ExplorationSceneEditor:
             action=src.action, label=src.label, enabled=src.enabled, collision=copied_collision,
             target_scene=src.target_scene, target_door=src.target_door, portal_facing=src.portal_facing,
             portal_mode=src.portal_mode, sound_cues=dict(src.sound_cues),
+            target_dungeon=src.target_dungeon, sprite_override=src.sprite_override,
         )
         self.scene.objects.append(dup)
         self.history.remember(before)
@@ -1674,6 +1844,11 @@ class ExplorationSceneEditor:
                     elif item.key == "__edit_target_door": self._start_text_edit("target_door")
                     elif item.key == "__portal_facing": self.cycle_portal_facing()
                     elif item.key == "__portal_back": self.back_scene()
+                    elif item.key == "__dungeon_open":
+                        pair = self._selected_pair()
+                        if pair: self._open_dungeon_editor(pair[0].target_dungeon)
+                    elif item.key == "__dungeon_change": self._change_selected_dungeon()
+                    elif item.key == "__dungeon_sprite": self._change_selected_dungeon_sprite()
                     elif item.key == "__sound_prev": self._cycle_selected_object_sound(-1)
                     elif item.key == "__sound_next": self._cycle_selected_object_sound(1)
                     elif item.key.startswith("__object_sound::"): self._set_selected_object_sound(str(item.value))
@@ -1995,6 +2170,7 @@ def run_editor(
     asset_root: Path,
     *,
     project_root: Path | None = None,
+    project_registry=None,
     new_width: int = 40,
     new_height: int = 24,
     screenshot: Path | None = None,
@@ -2004,5 +2180,8 @@ def run_editor(
         scene = load_exploration_scene(scene_path)
     else:
         scene = ExplorationSceneData.blank(scene_path.stem, new_width, new_height)
-    editor = ExplorationSceneEditor(scene, scene_path, catalog, asset_root, project_root=project_root)
+    editor = ExplorationSceneEditor(
+        scene, scene_path, catalog, asset_root,
+        project_root=project_root, project_registry=project_registry,
+    )
     editor.run(screenshot=screenshot)
