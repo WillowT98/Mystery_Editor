@@ -56,6 +56,13 @@ def test_example_projectile_assets_and_item_metadata_are_data_driven():
     assert stone.projectile_key == "stone"
     assert stone.projectile_arc_px > 0
 
+    for index, item_id in enumerate(("field_salve", "throwing_stone", "waystone_shard")):
+        item = registry.item(item_id)
+        assert item.sprite_sheet_key == "item_sheet"
+        assert item.sprite_sheet_index == index
+        assert item.sprite_sheet_columns == 3
+    assert (registry.asset_root / "items" / "item_sheet.png").exists()
+
     for key in ("spark", "needle", "stone"):
         assert (registry.asset_root / "projectiles" / f"{key}.png").exists()
 
