@@ -1323,16 +1323,26 @@ class ProjectRegistry:
             for node_id, node in graph.nodes.items():
                 node_type = str(node.get("type", "")).lower()
                 if node_type == "dialogue":
-                    for index, line in enumerate(node.get("lines", []) or [], start=1):
-                        if not isinstance(line, dict):
-                            continue
+                    lines = [line for line in (node.get("lines", []) or []) if isinstance(line, dict)]
+                    for index, line in enumerate(lines, start=1):
                         line_id = str(line.get("id") or f"line_{index:03d}")
                         base = f"story.{story_id}.{node_id}.{line_id}"
+                        speaker = str(line.get("pawn") or line.get("speaker") or "Narrator")
+                        previous = str(lines[index - 2].get("text", "")).replace("\n", " ") if index > 1 else ""
+                        following = str(lines[index].get("text", "")).replace("\n", " ") if index < len(lines) else ""
+                        context_parts = [
+                            f"Dialogue · story {story_id} · node {node_id} · line {index}",
+                            f"Speaker: {speaker}",
+                        ]
+                        if previous:
+                            context_parts.append(f"Previous: {previous[:120]}")
+                        if following:
+                            context_parts.append(f"Next: {following[:120]}")
                         self._entry(
                             entries,
                             f"{base}.text",
                             line.get("text"),
-                            f"Dialogue · story {story_id} · node {node_id} · line {index}",
+                            " · ".join(context_parts),
                         )
                         if line.get("speaker") and not line.get("pawn"):
                             self._entry(
