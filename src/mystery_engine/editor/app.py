@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import json
 import os
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ from mystery_engine.story import (
     PolygonObstacle,
     RectObstacle,
     SceneObjectData,
+    SceneTriggerData,
     TerrainTileMap,
     WorldAssetCatalog,
     WorldAssetDefinition,
@@ -66,12 +68,15 @@ class ExplorationSceneEditor:
         self.project_root = Path(project_root) if project_root else None
         self.window_size = window_size
 
-        self.mode = "terrain"  # terrain | elevation | objects | select | audio | story
+        self.mode = "terrain"  # terrain | elevation | objects | select | audio | story | triggers
         self.terrain_brush = "grass"
         self.elevation_brush = 0
         self.asset_brush = next((a.id for a in self.catalog.by_category("scenery", "interactable", "dungeon", "actor")), "")
         self.story_pawn_brush = next(iter(project_registry.pawn_labels), "") if project_registry else ""
         self.story_id: str | None = None
+        self.selected_trigger: int | None = None
+        self._pending_region_trigger: tuple[str, str] | None = None
+        self._trigger_drag_start: tuple[float, float] | None = None
         self.snap = 16
         self.zoom = 1.0
         self.camera_x = 0.0
@@ -195,6 +200,7 @@ class ExplorationSceneEditor:
         if new_scene is not self.scene:
             self.scene = new_scene
             self.selected_object = None
+            self.selected_trigger = None
             self.collision_edit = False
             self._text_edit_field = None
             self.dirty = True
@@ -1289,6 +1295,7 @@ class ExplorationSceneEditor:
         buttons = [
             ("terrain", "1 Terrain"), ("elevation", "2 Elevation"), ("objects", "3 Assets"),
             ("select", "4 Select"), ("audio", "5 Audio"), ("story", "6 Story"),
+            ("triggers", "7 Triggers"),
         ]
         x = 12
         for key, label in buttons:
@@ -1402,6 +1409,34 @@ class ExplorationSceneEditor:
         for index, obj in indexed:
             definition = self.catalog.get(obj.asset)
             self._draw_object(index, obj, definition)
+
+        if self.mode == "triggers":
+            trigger_overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
+            for index, trigger in enumerate(self.scene.triggers):
+                if trigger.kind != "on_region_enter" or None in (trigger.x, trigger.y, trigger.w, trigger.h):
+                    continue
+                sx, sy = self.world_to_screen(float(trigger.x), float(trigger.y))
+                tw = max(1, round(float(trigger.w) * self.zoom))
+                th = max(1, round(float(trigger.h) * self.zoom))
+                rr = pygame.Rect(sx - rect.x, sy - rect.y, tw, th)
+                fill = (90, 170, 235, 65) if self.selected_trigger == index else (90, 170, 235, 35)
+                line = (150, 220, 255, 235) if self.selected_trigger == index else (110, 190, 235, 190)
+                pygame.draw.rect(trigger_overlay, fill, rr)
+                pygame.draw.rect(trigger_overlay, line, rr, width=3 if self.selected_trigger == index else 2)
+                label = self.font_small.render(trigger.id, True, (220, 245, 255))
+                trigger_overlay.blit(label, (rr.x + 4, rr.y + 3))
+            if self._trigger_drag_start is not None:
+                mx, my = pygame.mouse.get_pos()
+                if rect.collidepoint((mx, my)):
+                    ex, ey = self.screen_to_world((mx, my))
+                    x0, y0 = self._trigger_drag_start
+                    left, top = min(x0, ex), min(y0, ey)
+                    right, bottom = max(x0, ex), max(y0, ey)
+                    sx, sy = self.world_to_screen(left, top)
+                    rr = pygame.Rect(sx - rect.x, sy - rect.y, max(1, round((right-left)*self.zoom)), max(1, round((bottom-top)*self.zoom)))
+                    pygame.draw.rect(trigger_overlay, (255, 222, 120, 60), rr)
+                    pygame.draw.rect(trigger_overlay, (255, 235, 155, 235), rr, width=2)
+            self.screen.blit(trigger_overlay, rect.topleft)
 
         if self.show_collision:
             self._draw_collisions()
@@ -1532,7 +1567,7 @@ class ExplorationSceneEditor:
         title = {
             "terrain": "Terrain Brush", "elevation": "Elevation Brush",
             "objects": "Asset Palette", "select": "Selection", "audio": "Scene Audio",
-            "story": "Story & Pawns",
+            "story": "Story & Pawns", "triggers": "Story Triggers",
         }[self.mode]
         self.screen.blit(self.font_large.render(title, True, (244, 241, 231)), (rect.x + 18, rect.y + 14))
         self._palette_items.clear()
@@ -1822,6 +1857,74 @@ class ExplorationSceneEditor:
                     "Choose a pawn, then click empty room space to place it.",
                     "Drag a placed pawn to reposition it.",
                     "Dialogue speaker choices come from pawns in this room.",
+                ])
+
+        elif self.mode == "triggers":
+            if self.project_registry is None:
+                self._draw_sidebar_help(y, [
+                    "Trigger authoring requires project context.",
+                    "Open this room from run_project_editor.py.",
+                ])
+            else:
+                self._draw_sidebar_help(y, [
+                    "Scene-enter triggers fire after arrival.",
+                    "Region triggers fire when the leader crosses into the rectangle.",
+                ])
+                y += 58
+                for key, caption in (
+                    ("__trigger_add_enter", "+ Scene-enter trigger"),
+                    ("__trigger_add_region", "+ Draw region trigger"),
+                ):
+                    br = pygame.Rect(rect.x + 18, y, rect.w - 36, 36)
+                    self._palette_items.append(PaletteItem(key, caption, br, None))
+                    pygame.draw.rect(self.screen, (50, 83, 96), br, border_radius=6)
+                    self.screen.blit(self.font_small.render(caption, True, (238, 239, 232)), (br.x + 9, br.y + 8))
+                    y += 42
+
+                if self._pending_region_trigger is not None:
+                    self._draw_sidebar_help(y, ["Drag a rectangle on the canvas to place the trigger."])
+                    y += 34
+
+                self.screen.blit(self.font.render("Triggers", True, (242, 240, 231)), (rect.x + 18, y))
+                y += 34
+                for index, trigger in enumerate(self.scene.triggers):
+                    summary = "Enter" if trigger.kind == "on_scene_enter" else "Region"
+                    mode = "once" if trigger.once else "repeat"
+                    br = pygame.Rect(rect.x + 14, y, rect.w - 28, 54)
+                    self._palette_items.append(PaletteItem(f"__trigger_select::{index}", trigger.id, br, index))
+                    pygame.draw.rect(self.screen, (77, 93, 112) if self.selected_trigger == index else (43, 51, 65), br, border_radius=7)
+                    self.screen.blit(self.font_small.render(f"{summary}: {trigger.story}", True, (242, 240, 232)), (br.x + 9, br.y + 6))
+                    self.screen.blit(self.font_small.render(f"{trigger.id} · {mode}", True, (173, 184, 199)), (br.x + 9, br.y + 29))
+                    y += 60
+
+                if self.selected_trigger is not None and 0 <= self.selected_trigger < len(self.scene.triggers):
+                    trigger = self.scene.triggers[self.selected_trigger]
+                    self._draw_sidebar_help(y, [
+                        f"Story: {trigger.story}",
+                        f"Entry: {trigger.entry}",
+                        f"Enabled: {'yes' if trigger.enabled else 'no'}",
+                        f"Condition: {'set' if trigger.condition else 'none'}",
+                    ])
+                    y += 104
+                    actions = [
+                        ("__trigger_story", "Change story…"),
+                        ("__trigger_once", f"Mode: {'once' if trigger.once else 'repeatable'}"),
+                        ("__trigger_enabled", f"{'Disable' if trigger.enabled else 'Enable'} trigger"),
+                        ("__trigger_condition", "Edit condition JSON…"),
+                    ]
+                    if trigger.kind == "on_region_enter":
+                        actions.append(("__trigger_redraw", "Redraw region…"))
+                    actions.append(("__trigger_delete", "Delete trigger"))
+                    for key, caption in actions:
+                        br = pygame.Rect(rect.x + 18, y, rect.w - 36, 34)
+                        self._palette_items.append(PaletteItem(key, caption, br, None))
+                        pygame.draw.rect(self.screen, (66, 58, 65) if key == "__trigger_delete" else (55, 66, 82), br, border_radius=6)
+                        self.screen.blit(self.font_small.render(caption, True, (235, 238, 232)), (br.x + 9, br.y + 7))
+                        y += 40
+
+                self._draw_sidebar_help(y + 8, [
+                    "Conditions use the same flag/variable JSON as story graph conditions.",
+                    "Once-trigger completion is saved automatically.",
                 ])
 
         else:
@@ -2425,6 +2528,17 @@ class ExplorationSceneEditor:
                         self._new_world_object()
                     else:
                         self.asset_brush = str(item.value)
+                elif self.mode == "triggers":
+                    if item.key == "__trigger_add_enter": self._add_scene_enter_trigger()
+                    elif item.key == "__trigger_add_region": self._begin_region_trigger()
+                    elif item.key.startswith("__trigger_select::"):
+                        self.selected_trigger = int(item.value)
+                    elif item.key == "__trigger_story": self._change_selected_trigger_story()
+                    elif item.key == "__trigger_once": self._toggle_selected_trigger_once()
+                    elif item.key == "__trigger_enabled": self._toggle_selected_trigger_enabled()
+                    elif item.key == "__trigger_condition": self._edit_selected_trigger_condition()
+                    elif item.key == "__trigger_redraw": self._redraw_selected_trigger()
+                    elif item.key == "__trigger_delete": self._delete_selected_trigger()
                 elif self.mode == "story":
                     if item.key == "__story_room": self._choose_story_room()
                     elif item.key == "__story_new_pawn": self._new_story_pawn()
@@ -2496,7 +2610,7 @@ class ExplorationSceneEditor:
             if back_rect.collidepoint(pos):
                 self._return_to_project_requested = True
                 return True
-        for i, key in enumerate(("terrain", "elevation", "objects", "select", "audio", "story")):
+        for i, key in enumerate(("terrain", "elevation", "objects", "select", "audio", "story", "triggers")):
             if pygame.Rect(12 + 118*i, 9, 112, 40).collidepoint(pos):
                 self.mode = key; self._palette_scroll = 0; return True
         return False
@@ -2602,6 +2716,11 @@ class ExplorationSceneEditor:
                             self._paint_tile(tile)
                 elif self.mode == "objects":
                     self.place_object(event.pos)
+                elif self.mode == "triggers":
+                    if self._pending_region_trigger is not None:
+                        self._trigger_drag_start = self.screen_to_world(event.pos)
+                    else:
+                        self.selected_trigger = self._trigger_hit(event.pos)
                 elif self.mode == "story":
                     hit = self._object_hit(event.pos)
                     if hit is not None and self.catalog.get(self.scene.objects[hit].asset).category == "actor":
@@ -2666,6 +2785,8 @@ class ExplorationSceneEditor:
             if event.button == 3:
                 self._pan_anchor = None; self._pan_camera_anchor = None
             elif event.button == 1:
+                if self.mode == "triggers" and self._trigger_drag_start is not None and self._pending_region_trigger is not None:
+                    self._finish_region_trigger(event.pos)
                 if self._rect_start is not None and self.mode in ("terrain", "elevation"):
                     tile = self.screen_to_tile(event.pos)
                     if tile:
@@ -2714,6 +2835,7 @@ class ExplorationSceneEditor:
             elif event.key == pygame.K_4: self.mode = "select"
             elif event.key == pygame.K_5: self.mode = "audio"
             elif event.key == pygame.K_6: self.mode = "story"
+            elif event.key == pygame.K_7: self.mode = "triggers"
             elif event.key == pygame.K_g: self.grid = not self.grid
             elif event.key == pygame.K_c: self.show_collision = not self.show_collision
             elif event.key == pygame.K_v: self.show_elevation = not self.show_elevation
