@@ -123,6 +123,14 @@ class ProjectLocalization:
         self._cache[locale] = dict(records)
         return path
 
+    def has_translations(self) -> bool:
+        for locale in self.supported_locales:
+            if locale == self.source_locale:
+                continue
+            if any(record.text for record in self.load_locale(locale).values()):
+                return True
+        return False
+
     def add_locale(self, locale: str, label: str | None = None) -> None:
         locale = locale.strip()
         if not locale:
