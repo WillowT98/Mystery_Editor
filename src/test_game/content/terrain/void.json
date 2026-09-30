@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "id": "void",
+  "name": "Void",
+  "mode": "single",
+  "sprite_keys": [],
+  "blocked": true,
+  "fallback_color": "#0c0f17"
+}
