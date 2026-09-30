@@ -6,7 +6,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import pygame
 
-from mystery_engine.project import AttackDefinitionData, EnemyDefinitionData, ProjectRegistry, slugify
+from mystery_engine.project import AttackDefinitionData, EnemyDefinitionData, PawnDefinitionData, ProjectRegistry, slugify
 
 
 def _root(title: str, geometry: str = "720x760") -> tk.Tk:
@@ -277,6 +277,117 @@ def edit_enemy_dialog(registry: ProjectRegistry, enemy_id: str | None = None) ->
     return result["id"]
 
 
+def edit_pawn_dialog(registry: ProjectRegistry, pawn_id: str | None = None) -> str | None:
+    current = registry.pawns.get(pawn_id) if pawn_id else None
+    root = _root("Pawn Editor", "760x520")
+    result: dict[str, str | None] = {"id": None}
+    outer = tk.Frame(root)
+    outer.pack(fill="both", expand=True, padx=16, pady=12)
+    fields: dict[str, tk.StringVar] = {}
+
+    def entry_row(label: str, key: str, value: object = "") -> None:
+        row = tk.Frame(outer)
+        row.pack(fill="x", pady=4)
+        tk.Label(row, text=label, width=18, anchor="w").pack(side="left")
+        var = tk.StringVar(value=str(value))
+        fields[key] = var
+        tk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+
+    entry_row("ID", "id", current.id if current else "")
+    entry_row("Name", "name", current.name if current else "")
+    entry_row("Radius", "radius", current.radius if current else 28)
+    entry_row("Color key", "color", current.color_key if current else "neutral")
+
+    sprite_row = tk.Frame(outer)
+    sprite_row.pack(fill="x", pady=4)
+    tk.Label(sprite_row, text="World sprite", width=18, anchor="w").pack(side="left")
+    sprite_var = tk.StringVar(value=current.sprite_key if current else "")
+    fields["sprite"] = sprite_var
+    sprite_combo = ttk.Combobox(
+        sprite_row, textvariable=sprite_var,
+        values=registry.asset_keys("characters", {".png"}), state="normal",
+    )
+    sprite_combo.pack(side="left", fill="x", expand=True)
+
+    def import_sprite() -> None:
+        chosen = filedialog.askopenfilename(
+            parent=root, title="Import pawn sprite",
+            filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+        )
+        if not chosen:
+            return
+        try:
+            key, _ = registry.import_asset(Path(chosen), "characters", allowed_suffixes={".png"})
+        except Exception as exc:
+            messagebox.showerror("Could not import sprite", str(exc), parent=root)
+            return
+        sprite_var.set(key)
+        sprite_combo["values"] = registry.asset_keys("characters", {".png"})
+
+    tk.Button(sprite_row, text="Import…", command=import_sprite).pack(side="left", padx=(6, 0))
+
+    portrait_row = tk.Frame(outer)
+    portrait_row.pack(fill="x", pady=4)
+    tk.Label(portrait_row, text="Dialogue portrait", width=18, anchor="w").pack(side="left")
+    portrait_var = tk.StringVar(value=current.portrait_key or "" if current else "")
+    fields["portrait"] = portrait_var
+    portrait_combo = ttk.Combobox(
+        portrait_row, textvariable=portrait_var,
+        values=[""] + registry.asset_keys("portraits", {".png"}), state="normal",
+    )
+    portrait_combo.pack(side="left", fill="x", expand=True)
+
+    def import_portrait() -> None:
+        chosen = filedialog.askopenfilename(
+            parent=root, title="Import dialogue portrait",
+            filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+        )
+        if not chosen:
+            return
+        try:
+            key, _ = registry.import_asset(Path(chosen), "portraits", allowed_suffixes={".png"})
+        except Exception as exc:
+            messagebox.showerror("Could not import portrait", str(exc), parent=root)
+            return
+        portrait_var.set(key)
+        portrait_combo["values"] = [""] + registry.asset_keys("portraits", {".png"})
+
+    tk.Button(portrait_row, text="Import…", command=import_portrait).pack(side="left", padx=(6, 0))
+
+    note = (
+        "A single PNG is enough for a static pawn. Directional/walk sheets with the same "
+        "sprite key can be added later and the renderer will use them automatically."
+    )
+    tk.Label(outer, text=note, justify="left", wraplength=700, fg="#555555").pack(fill="x", pady=(14, 6))
+
+    def save() -> None:
+        try:
+            ident = fields["id"].get().strip() or slugify(fields["name"].get(), "pawn")
+            if current is not None and ident != current.id:
+                raise ValueError("Pawn IDs are stable after creation; edit the display name instead.")
+            data = PawnDefinitionData(
+                id=ident,
+                name=fields["name"].get().strip() or ident,
+                sprite_key=fields["sprite"].get().strip() or ident,
+                portrait_key=fields["portrait"].get().strip() or None,
+                radius=max(1.0, float(fields["radius"].get() or 28)),
+                color_key=fields["color"].get().strip() or "neutral",
+            )
+            registry.save_pawn(data)
+        except Exception as exc:
+            messagebox.showerror("Could not save pawn", str(exc), parent=root)
+            return
+        result["id"] = data.id
+        root.destroy()
+
+    buttons = tk.Frame(outer)
+    buttons.pack(fill="x", pady=(16, 0))
+    tk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right", padx=(8, 0))
+    tk.Button(buttons, text="Save Pawn", command=save).pack(side="right")
+    root.mainloop()
+    return result["id"]
+
+
 def edit_spawn_rule_dialog(registry: ProjectRegistry, rule) -> bool:
     root = _root("Dungeon Enemy Modifiers", "820x860")
     saved = {"ok": False}
@@ -407,7 +518,7 @@ class ProjectEditor:
     the same authoring process and return here when closed.
     """
 
-    SECTIONS = ("Scenes", "Dungeons", "Enemies", "Attacks", "Assets")
+    SECTIONS = ("Scenes", "Stories", "Pawns", "Dungeons", "Enemies", "Attacks", "Assets")
 
     def __init__(self, registry: ProjectRegistry, world_assets, project_root: Path, item_labels: dict[str, str] | None = None) -> None:
         self.registry = registry
@@ -426,6 +537,10 @@ class ProjectEditor:
         self.registry.reload()
         if self.section == "Scenes":
             labels = self.registry.scene_labels()
+        elif self.section == "Stories":
+            labels = self.registry.story_labels()
+        elif self.section == "Pawns":
+            labels = self.registry.pawn_labels
         elif self.section == "Dungeons":
             labels = self.registry.dungeon_labels()
         elif self.section == "Enemies":
@@ -473,7 +588,17 @@ class ProjectEditor:
         self.screen.blit(status, (x0, self.screen.get_height()-30))
 
     def _new(self) -> None:
-        if self.section == "Enemies":
+        if self.section == "Pawns":
+            created = edit_pawn_dialog(self.registry)
+            self.status = f"Created {created}" if created else "Cancelled"
+        elif self.section == "Stories":
+            scene_id = choose_catalog_id("Story room", self.registry.scene_labels())
+            if scene_id:
+                name = simpledialog.askstring("New story", "Story / scene name:")
+                if name:
+                    graph, _ = self.registry.create_story(name, scene_id)
+                    self.status = f"Created {graph.name or graph.id}"
+        elif self.section == "Enemies":
             created = edit_enemy_dialog(self.registry)
             self.status = f"Created {created}" if created else "Cancelled"
         elif self.section == "Attacks":
@@ -507,7 +632,19 @@ class ProjectEditor:
         if not self.items:
             return
         item_id = self.items[self.selected][0]
-        if self.section == "Enemies":
+        if self.section == "Pawns":
+            edit_pawn_dialog(self.registry, item_id)
+        elif self.section == "Stories":
+            from mystery_engine.editor.story_graph import StoryGraphEditor
+            graph = self.registry.load_story(item_id)
+            editor = StoryGraphEditor(
+                graph, self.registry.story_path(item_id),
+                project_root=self.project_root,
+                project_registry=self.registry,
+            )
+            editor.run()
+            self._reinit_display()
+        elif self.section == "Enemies":
             edit_enemy_dialog(self.registry, item_id)
         elif self.section == "Attacks":
             edit_attack_dialog(self.registry, item_id)
@@ -527,7 +664,8 @@ class ProjectEditor:
             path = self.registry.scene_paths()[item_id]
             from mystery_engine.story import load_exploration_scene
             editor = ExplorationSceneEditor(
-                load_exploration_scene(path), path, self.world_assets, self.registry.asset_root,
+                load_exploration_scene(path), path,
+                self.registry.world_asset_catalog(self.world_assets), self.registry.asset_root,
                 project_root=self.project_root, project_registry=self.registry,
             )
             editor.run()
