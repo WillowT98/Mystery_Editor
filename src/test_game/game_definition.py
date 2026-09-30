@@ -189,6 +189,7 @@ class TestGameDefinition:
             portal_transition_factory=portal_transition,
             dungeon_transition_factory=dungeon_transition,
             story_transition_factory=story_transition,
+            terrain_styles=self.project_registry.terrain_runtime(),
         )
 
     def create_dungeon_floor(self, game: "MysteryGame", floor_number: int):
