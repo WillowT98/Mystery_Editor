@@ -485,6 +485,7 @@ class TerrainDefinitionData:
             "sprite_keys": list(self.sprite_keys),
             "blocked": self.blocked,
             "fallback_color": self.fallback_color,
+            "transparent": self.transparent,
         }
 
 
