@@ -1179,6 +1179,86 @@ class ExplorationSceneEditor:
         self.font_large = pygame.font.Font(None, 38)
         self.status = f"Returned from story graph: {graph.name or graph.id}"
 
+    def _new_terrain(self) -> None:
+        if self.project_registry is None:
+            self.status = "Project registry is unavailable"
+            return
+        from .project_editor import edit_terrain_dialog
+        terrain_id = edit_terrain_dialog(self.project_registry)
+        if terrain_id:
+            self.project_registry.reload()
+            self.terrain_brush = terrain_id
+            self._surface_cache.clear()
+            self._scaled_cache.clear()
+            self.status = f"Created terrain {self.project_registry.terrain_labels.get(terrain_id, terrain_id)}"
+
+    def _import_scene_background(self) -> None:
+        if self.project_registry is None:
+            self.status = "Project registry is unavailable"
+            return
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk(); root.withdraw(); root.attributes("-topmost", True)
+            chosen = filedialog.askopenfilename(
+                parent=root,
+                title="Import scene background",
+                filetypes=[("PNG image", "*.png"), ("All files", "*.*")],
+            )
+            root.destroy()
+            if not chosen:
+                return
+            key, _ = self.project_registry.import_asset(
+                Path(chosen), "backgrounds",
+                preferred_id=f"{self.scene.id}_background",
+                allowed_suffixes={".png"},
+            )
+            before = self.history.snapshot(self.scene)
+            self.scene.background_key = key
+            self.history.remember(before)
+            self.dirty = True
+            self._surface_cache.clear()
+            self._scaled_cache.clear()
+            self.status = f"Background imported: {key}"
+        except Exception as exc:
+            self.status = f"Could not import background: {exc}"
+
+    def _clear_scene_background(self) -> None:
+        if not self.scene.background_key:
+            return
+        before = self.history.snapshot(self.scene)
+        self.scene.background_key = None
+        self.history.remember(before)
+        self.dirty = True
+        self.status = "Scene background cleared"
+
+    def _toggle_background_mode(self) -> None:
+        before = self.history.snapshot(self.scene)
+        self.scene.background_mode = "tile" if self.scene.background_mode != "tile" else "stretch"
+        self.history.remember(before)
+        self.dirty = True
+        self.status = f"Background mode: {self.scene.background_mode}"
+
+    def _editor_terrain_surface(self, kind: str, tx: int, ty: int, draw_size: int, proxy) -> pygame.Surface | None:
+        if self.project_registry is not None:
+            style = self.project_registry.terrain.get(kind)
+            if style is not None:
+                if style.mode == "autotile":
+                    mask = oriented_neighbor_mask(proxy, tx, ty, kind)
+                    return self._scaled_surface(f"terrain/{kind}/auto_{mask:03d}.png", (draw_size, draw_size))
+                if style.sprite_keys:
+                    index = 0
+                    if style.mode == "variants":
+                        index = ((tx * 73856093) ^ (ty * 19349663)) % len(style.sprite_keys)
+                    return self._scaled_surface(f"terrain/{style.sprite_keys[index]}.png", (draw_size, draw_size))
+        if kind in ("grass", "upper_grass"):
+            variant = ((tx * 73856093) ^ (ty * 19349663)) % 5
+            return self._scaled_surface(f"tiles/grass_{variant}.png", (draw_size, draw_size)) or self._scaled_surface("tiles/grass_0.png", (draw_size, draw_size))
+        if kind in ("path", "water"):
+            mask = oriented_neighbor_mask(proxy, tx, ty, kind)
+            return self._scaled_surface(autotile_asset(kind, mask), (draw_size, draw_size))
+        return None
+
     # ---------- rendering ----------
 
     def draw(self) -> None:
@@ -1226,23 +1306,44 @@ class ExplorationSceneEditor:
         max_ty = min(self.scene.height_tiles, int((self.camera_y + rect.h / self.zoom) // tile) + 2)
         draw_size = max(1, round(tile * self.zoom))
 
+        if self.scene.background_key:
+            bg = self._native_surface(f"backgrounds/{self.scene.background_key}.png")
+            if bg is not None:
+                origin = self.world_to_screen(0, 0)
+                if self.scene.background_mode == "tile":
+                    tw = max(1, round(bg.get_width() * self.zoom))
+                    th = max(1, round(bg.get_height() * self.zoom))
+                    tiled = bg if bg.get_size() == (tw, th) else pygame.transform.scale(bg, (tw, th))
+                    scene_right = origin[0] + round(self.scene.width * self.zoom)
+                    scene_bottom = origin[1] + round(self.scene.height * self.zoom)
+                    for y in range(origin[1], scene_bottom, th):
+                        for x in range(origin[0], scene_right, tw):
+                            self.screen.blit(tiled, (x, y))
+                else:
+                    size = (
+                        max(1, round(self.scene.width * self.zoom)),
+                        max(1, round(self.scene.height * self.zoom)),
+                    )
+                    scaled = bg if bg.get_size() == size else pygame.transform.scale(bg, size)
+                    self.screen.blit(scaled, origin)
+
         # base terrain
         for ty in range(min_ty, max_ty):
             for tx in range(min_tx, max_tx):
                 kind = self.scene.terrain[ty][tx]
                 sx, sy = self.world_to_screen(tx * tile, ty * tile)
                 dest = pygame.Rect(sx, sy, draw_size + 1, draw_size + 1)
-                surf: pygame.Surface | None = None
-                if kind in ("grass", "upper_grass"):
-                    variant = ((tx * 73856093) ^ (ty * 19349663)) % 5
-                    surf = self._scaled_surface(f"tiles/grass_{variant}.png", (draw_size, draw_size)) or self._scaled_surface("tiles/grass_0.png", (draw_size, draw_size))
-                elif kind in ("path", "water"):
-                    mask = oriented_neighbor_mask(proxy, tx, ty, kind)
-                    surf = self._scaled_surface(autotile_asset(kind, mask), (draw_size, draw_size))
+                surf = self._editor_terrain_surface(kind, tx, ty, draw_size, proxy)
                 if surf:
                     self.screen.blit(surf, dest)
                 else:
-                    color = {"void": (11, 14, 22), "water": (55, 127, 164), "path": (182, 140, 89)}.get(kind, (92, 137, 76))
+                    color = None
+                    if self.project_registry is not None and kind in self.project_registry.terrain:
+                        try:
+                            color = pygame.Color(self.project_registry.terrain[kind].fallback_color)
+                        except ValueError:
+                            color = None
+                    color = color or {"void": (11, 14, 22), "water": (55, 127, 164), "path": (182, 140, 89)}.get(kind, (92, 137, 76))
                     pygame.draw.rect(self.screen, color, dest)
 
         # elevation cliff overlays (same assets as game)
@@ -1412,12 +1513,51 @@ class ExplorationSceneEditor:
         y = rect.y + 66 - self._palette_scroll
 
         if self.mode == "terrain":
-            for key, label, color in [("grass", "Grass", (93, 150, 79)), ("path", "Path", (186, 144, 91)), ("water", "Water", (54, 127, 164)), ("void", "Void", (12, 15, 23))]:
+            if self.project_registry is not None:
+                bg_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 36)
+                self._palette_items.append(PaletteItem("__background_import", "Background", bg_rect, None))
+                pygame.draw.rect(self.screen, (50, 83, 96), bg_rect, border_radius=6)
+                self.screen.blit(self.font_small.render("Import / replace background…", True, (238, 239, 232)), (bg_rect.x + 9, bg_rect.y + 8))
+                y += 42
+                if self.scene.background_key:
+                    mode_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 32)
+                    clear_rect = pygame.Rect(rect.x + 18, y + 36, rect.w - 36, 30)
+                    self._palette_items.append(PaletteItem("__background_mode", "Background mode", mode_rect, None))
+                    self._palette_items.append(PaletteItem("__background_clear", "Clear background", clear_rect, None))
+                    pygame.draw.rect(self.screen, (55, 66, 82), mode_rect, border_radius=6)
+                    pygame.draw.rect(self.screen, (66, 58, 65), clear_rect, border_radius=6)
+                    self.screen.blit(self.font_small.render(f"Mode: {self.scene.background_mode} (click to toggle)", True, (235, 238, 232)), (mode_rect.x + 9, mode_rect.y + 6))
+                    self.screen.blit(self.font_small.render("Clear background", True, (235, 230, 225)), (clear_rect.x + 9, clear_rect.y + 5))
+                    y += 72
+                new_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 36)
+                self._palette_items.append(PaletteItem("__terrain_new", "New terrain", new_rect, None))
+                pygame.draw.rect(self.screen, (50, 83, 96), new_rect, border_radius=6)
+                self.screen.blit(self.font_small.render("+ New terrain type", True, (238, 239, 232)), (new_rect.x + 9, new_rect.y + 8))
+                y += 44
+
+            styles = []
+            if self.project_registry is not None and self.project_registry.terrain:
+                for key, style in self.project_registry.terrain.items():
+                    try:
+                        color = pygame.Color(style.fallback_color)
+                    except ValueError:
+                        color = pygame.Color("#526f49")
+                    styles.append((key, style.name, color, style.blocked))
+            else:
+                styles = [
+                    ("grass", "Grass", pygame.Color(93, 150, 79), False),
+                    ("path", "Path", pygame.Color(186, 144, 91), False),
+                    ("water", "Water", pygame.Color(54, 127, 164), True),
+                    ("void", "Void", pygame.Color(12, 15, 23), True),
+                ]
+            for key, label, color, blocked in styles:
                 item_rect = pygame.Rect(rect.x + 18, y, rect.w - 36, 54)
                 self._palette_items.append(PaletteItem(key, label, item_rect, key))
                 pygame.draw.rect(self.screen, (77, 93, 112) if self.terrain_brush == key else (43, 51, 65), item_rect, border_radius=7)
                 pygame.draw.rect(self.screen, color, (item_rect.x + 8, item_rect.y + 8, 38, 38), border_radius=5)
-                self.screen.blit(self.font.render(label, True, (242, 240, 232)), (item_rect.x + 58, item_rect.y + 14))
+                self.screen.blit(self.font.render(label, True, (242, 240, 232)), (item_rect.x + 58, item_rect.y + 7))
+                detail = "Blocked" if blocked else "Walkable"
+                self.screen.blit(self.font_small.render(detail, True, (173, 184, 199)), (item_rect.x + 58, item_rect.y + 30))
                 y += 62
             self._draw_sidebar_help(y + 10, ["Drag: paint", "Shift+drag: rectangle", "F: flood fill", "Ctrl+Z/Y: undo/redo"])
 
@@ -2191,7 +2331,17 @@ class ExplorationSceneEditor:
     def _palette_click(self, pos: tuple[int, int]) -> bool:
         for item in self._palette_items:
             if item.rect.collidepoint(pos):
-                if self.mode == "terrain": self.terrain_brush = str(item.value)
+                if self.mode == "terrain":
+                    if item.key == "__terrain_new":
+                        self._new_terrain()
+                    elif item.key == "__background_import":
+                        self._import_scene_background()
+                    elif item.key == "__background_clear":
+                        self._clear_scene_background()
+                    elif item.key == "__background_mode":
+                        self._toggle_background_mode()
+                    else:
+                        self.terrain_brush = str(item.value)
                 elif self.mode == "elevation": self.elevation_brush = int(item.value)
                 elif self.mode == "objects":
                     if item.key == "__new_world_object":
