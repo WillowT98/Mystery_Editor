@@ -162,6 +162,72 @@ class ExplorationActor:
     interaction: Callable[[], None] | None = None
     enabled: bool = True
     interaction_sound: str | None = None
+    animations: dict[str, dict[str, object]] = field(default_factory=dict)
+    animation_name: str = "idle"
+    animation_elapsed: float = 0.0
+    animation_override: bool = False
+    animation_loop_override: bool | None = None
+    animation_return_to_idle: bool = True
+    animation_completion_count: int = 0
+    _animation_last_position: tuple[float, float] | None = None
+
+    def animation_clip(self, name: str | None = None) -> dict[str, object] | None:
+        return self.animations.get(name or self.animation_name)
+
+    def play_animation(
+        self,
+        name: str,
+        *,
+        loop: bool | None = None,
+        return_to_idle: bool = True,
+    ) -> bool:
+        if name not in self.animations:
+            return False
+        self.animation_name = name
+        self.animation_elapsed = 0.0
+        self.animation_override = True
+        self.animation_loop_override = loop
+        self.animation_return_to_idle = return_to_idle
+        return True
+
+    def reset_animation(self) -> None:
+        self.animation_override = False
+        self.animation_loop_override = None
+        self.animation_return_to_idle = True
+        self.animation_name = "idle"
+        self.animation_elapsed = 0.0
+
+    def update_animation(self, dt: float, *, sprinting: bool = False) -> None:
+        current = (float(self.position.x), float(self.position.y))
+        previous = self._animation_last_position
+        self._animation_last_position = current
+        moving = bool(
+            previous is not None
+            and math.hypot(current[0] - previous[0], current[1] - previous[1]) > 0.1
+        )
+
+        if not self.animation_override:
+            desired = "run" if sprinting and "run" in self.animations else "walk" if moving and "walk" in self.animations else "idle"
+            if desired not in self.animations:
+                desired = "walk" if moving and "walk" in self.animations else "idle"
+            if desired != self.animation_name:
+                self.animation_name = desired
+                self.animation_elapsed = 0.0
+
+        clip = self.animation_clip()
+        if clip is None:
+            return
+        self.animation_elapsed += max(0.0, dt)
+        frames = list(clip.get("frames") or range(max(1, int(clip.get("columns", 1)))))
+        fps = max(0.01, float(clip.get("fps", 8.0)))
+        duration = len(frames) / fps
+        loop = bool(clip.get("loop", True)) if self.animation_loop_override is None else self.animation_loop_override
+        if self.animation_override and not loop and self.animation_elapsed >= duration:
+            self.animation_completion_count += 1
+            if self.animation_return_to_idle:
+                self.reset_animation()
+            else:
+                self.animation_elapsed = max(0.0, duration - 1.0 / fps)
 
 
 @dataclass(frozen=True)
@@ -232,6 +298,11 @@ class ExplorationMap:
     camera_follow: str | None = None
     camera_shake_strength: float = 0.0
     camera_shake_time: float = 0.0
+
+    def update_actor_animations(self, dt: float, *, sprinting_ids: set[str] | None = None) -> None:
+        sprinting_ids = sprinting_ids or set()
+        for actor in self.actors:
+            actor.update_animation(dt, sprinting=actor.id in sprinting_ids)
 
     def actor(self, actor_id: str) -> ExplorationActor:
         actor = next((a for a in self.actors if a.id == actor_id), None)
