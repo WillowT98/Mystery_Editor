@@ -45,16 +45,30 @@ Scene transitions snapshot the mutable state of the room being left, so story
 actions such as moving an NPC or disabling an interactable survive later revisits
 even before the player saves.
 
-Saving is intentionally limited to exploration mode for now. Dungeon-session
-state (generated floor layout, enemies, ground items, discovery/visibility, turn
-count, and projectile state) is not yet serialized, so the engine does not create
-misleading partial mid-dungeon saves. Loading an exploration save is available
-from the system menu and replaces the active runtime state with the reconstructed
-save.
+Dungeon sessions are also saveable. A dungeon is generated normally only when
+the player starts it or advances to a newly generated floor. Saving inside a
+dungeon snapshots that concrete run; loading the save reconstructs the saved
+floor directly and does **not** call dungeon generation.
 
-The loader accepts the older save shape that predates the `world` block; those
-saves resume from the configured starting scene while retaining their saved
-party/inventory/story data.
+Dungeon saves persist:
+
+- active dungeon ID and floor number;
+- the complete generated tile grid, rooms, spawn, stairs, tileset, music, and
+  generation-profile metadata;
+- party and enemy grid positions, facing, HP, combat stats, resources,
+  resistances, skill charges, incapacitation state, sprite metadata, and enemy
+  definition IDs;
+- ground items and their positions;
+- discovered and currently visible dungeon tiles;
+- turn count;
+- the shared RNG checkpoint used by combat and AI.
+
+The RNG checkpoint is important: reloading the same save returns to the same
+random sequence from the save point rather than merely recreating the same map.
+
+The loader remains backward compatible with saves that predate either the
+`world` block or dungeon-session data. Older saves resume from their available
+exploration state while retaining saved party/inventory/story data.
 
 ## Game-owned concepts
 
